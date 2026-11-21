@@ -87,6 +87,11 @@ const IR_STYLE_PROPS = [
   'filter',
   'backdropFilter',
   'mixBlendMode',
+  'transform',
+  'transformOrigin',
+  'justifyItems',
+  'placeItems',
+  'alignContent',
   'borderCollapse',
   'borderSpacing',
   'tableLayout',
@@ -281,6 +286,10 @@ function createPlaywrightDriver(playwright, options) {
             if (out.mixBlendMode === 'normal') delete out.mixBlendMode
             if (out.backgroundImage === 'none') delete out.backgroundImage
             if (out.boxShadow === 'none') delete out.boxShadow
+            if (out.transform === 'none' || out.transform === '') {
+              delete out.transform
+              delete out.transformOrigin
+            }
             return out
           }
           let count = 0
@@ -314,7 +323,7 @@ function createPlaywrightDriver(playwright, options) {
             }
           }
 
-          const walk = (element, depth) => {
+          const walk = (element, depth, keepEmpty = false) => {
             if (depth > 14 || count >= maxNodes) {
               if (count >= maxNodes) truncated = true
               return null
@@ -323,7 +332,7 @@ function createPlaywrightDriver(playwright, options) {
             const style = getComputedStyle(element)
             if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return null
             const rect = element.getBoundingClientRect()
-            if (rect.width === 0 && rect.height === 0) return null
+            if (rect.width === 0 && rect.height === 0 && !keepEmpty) return null
             count += 1
             const textRuns = []
             for (const child of element.childNodes) {
@@ -383,6 +392,11 @@ function createPlaywrightDriver(playwright, options) {
               box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
               style: pick(style),
             }
+            // A transformed element's box is its bounding box, not its layout box;
+            // keep the computed layout size so the transform can be replayed.
+            if (style.transform !== 'none') {
+              node.transformedSize = { width: style.width, height: style.height }
+            }
             if (textRuns.length > 0) node.textRuns = textRuns
             if (element.dataset?.ir !== undefined) node.ir = element.dataset.ir
             if (element.dataset?.irRun !== undefined) node.irRun = element.dataset.irRun
@@ -409,8 +423,7 @@ function createPlaywrightDriver(playwright, options) {
                 selected: option.selected,
               }))
             }
-            if (localName === 'canvas' && typeof element.toDataURL === 'function') {
-              try {
+            if (localName === 'canvas' && typeof element.toDataURL === 'function') {              try {
                 const snapshot = element.toDataURL('image/png')
                 if (typeof snapshot === 'string' && snapshot.startsWith('data:image/')) {
                   node.attributes = { ...(node.attributes ?? {}), src: snapshot }
@@ -480,7 +493,10 @@ function createPlaywrightDriver(playwright, options) {
               }
               pseudoNodes.push(pseudoNode)
             }
-            const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
+            const parentFlow = style.display.includes('flex') || style.display.includes('grid')
+            const children = [...element.children]
+              .map(child => walk(child, depth + 1, parentFlow))
+              .filter(Boolean)
             if (pseudoNodes.length > 0) {
               const before = pseudoNodes.filter(item => item.pseudo === '::before')
               const after = pseudoNodes.filter(item => item.pseudo === '::after')

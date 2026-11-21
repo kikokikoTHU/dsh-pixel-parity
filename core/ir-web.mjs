@@ -41,6 +41,9 @@ export function generateHtml(ir) {
       // Text is rendered from measured runs, not from the element's own box.
       if (property === 'textAlign') continue
       if (property.startsWith('margin')) continue
+      // Absolute boxes are already the post-transform bounding boxes; applying
+      // the transform again would rotate an already-rotated element.
+      if (property === 'transform' || property === 'transformOrigin') continue
       declarations.push(`${kebab(property)}:${value}`)
       if (property.endsWith('Width') && property.startsWith('border') && parseFloat(value) > 0) {
         declarations.push(`${kebab(property.replace('Width', 'Style'))}:solid`)

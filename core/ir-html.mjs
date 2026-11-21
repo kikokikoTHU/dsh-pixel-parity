@@ -32,6 +32,7 @@ const CSS_KEYS = [
   'backgroundOrigin', 'backgroundClip',
   'outlineWidth', 'outlineStyle', 'outlineColor', 'outlineOffset',
   'filter', 'backdropFilter', 'mixBlendMode',
+  'transform', 'transformOrigin', 'justifyItems', 'placeItems', 'alignContent',
   'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 
@@ -104,9 +105,14 @@ function buildDeclarations(node, style) {
 
   // Sizes are pins: a node keeps its measured width/height only when the
   // synthesizer proved the flow layout cannot reproduce it.
+  const pinnedSizing = style.boxSizing === 'content-box'
+  const borderX = (Number.parseFloat(style.borderLeftWidth ?? '0') || 0) + (Number.parseFloat(style.borderRightWidth ?? '0') || 0)
+  const borderY = (Number.parseFloat(style.borderTopWidth ?? '0') || 0) + (Number.parseFloat(style.borderBottomWidth ?? '0') || 0)
   const pins = node.layout?.pins ?? {}
-  if (pins.width === true) declarations.push(`width:${node.box.w}px`)
-  if (pins.height === true) declarations.push(`height:${node.box.h}px`)
+  if (pins.width === true) declarations.push(`width:${node.box.w - (pinnedSizing ? borderX : 0)}px`)
+  if (pins.height === true) declarations.push(`height:${node.box.h - (pinnedSizing ? borderY : 0)}px`)
+
+  if (pinnedSizing) declarations.push('box-sizing:content-box')
 
   // Authored sizes are design intent, not measured compensation: emit them after
   // pins so the source value wins when both exist.
@@ -120,6 +126,15 @@ function buildDeclarations(node, style) {
     for (const key of ['width', 'height']) {
       const value = style[key]
       if (typeof value === 'string' && value !== 'auto' && value !== '') declarations.push(`${key}:${value}`)
+    }
+  }
+
+  // A transformed element's box is its bounding box; the layout size comes from
+  // the capture so the transform replays at the same scale.
+  if (style.transform !== undefined && node.transformedSize !== undefined) {
+    for (const key of ['width', 'height']) {
+      const value = node.transformedSize[key]
+      if (typeof value === 'string' && value.endsWith('px')) declarations.push(`${key}:${value}`)
     }
   }
 

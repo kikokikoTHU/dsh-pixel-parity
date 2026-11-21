@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>zero-size flex spacer fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; height: 100%; }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 126px;
+    height: 34px;
+    margin: 10px;
+    background: #eeeeee;
+  }
+  .spacer { width: 0; height: 0; flex: none; }
+  .bar button {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    background: #3366cc;
+    color: #ffffff;
+  }
+</style>
+</head>
+<body>
+  <div class="bar"><span class="spacer"></span><button>A</button><button>B</button><button>C</button></div>
+</body>
+</html>

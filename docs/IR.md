@@ -152,6 +152,20 @@ went from 94 to 24 with identical box accuracy.
   `assets/images/`, and rendered as an `<img>` / QML `Image`. Tainted canvases keep the box
   only.
 
+## Geometry edge cases
+
+- A **zero-size child of a flex/grid container** is captured even though it paints nothing:
+  it is still a flex item and consumes one gap, which shifts every following sibling.
+- **Transforms** are captured as the computed `matrix(...)`; `transformedSize` keeps the
+  pre-transform layout size, so the box is the transformed bounding box while the replay
+  rotates a 7×7 element into the captured 9.9×9.9 extent (this is how rotated arrows get
+  their exact bounding box). The absolute renderer uses the bounding box directly and
+  skips the transform.
+- **`box-sizing: content-box`** is preserved: pinned sizes are converted to content size
+  and the declaration is re-emitted, so borders are not counted twice.
+- **Grid item alignment** (`justify-items`, `place-items`, `align-content`) is captured;
+  without it, grid-centered icons land at the cell start instead of the center.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -241,6 +255,8 @@ and silently changed the font. Any generator must escape quoted font families.
 - Inline icon spans and form controls can still drift a few pixels.
 - Pseudo-elements with `content: url()`, counters, or animations are not captured.
 - `<video>` frames are not captured (only the box); tainted canvases have no pixels.
+- 3D transforms and `transform-origin` on non-centered elements are replayed only in CSS,
+  not in the QML output.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next

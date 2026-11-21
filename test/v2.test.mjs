@@ -890,6 +890,66 @@ http.createServer((req, res) => {
     assert.match(semantic, /assets\/images\//)
   })
 
+  await test('zero-size flex children are kept so their gap survives', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-zero-'))
+    const configPath = join(repoRoot, 'zero.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'zero-spacer.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 200, height: 100 }],
+      cases: [{ id: 'zero', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'zero'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const spacer = flattenIr(ir.root).find(node => node.box.w === 0 && node.box.h === 0)
+    assert.ok(spacer !== undefined, 'zero-size spacer captured')
+    assert.equal(viewport.ir.pins, 0, 'no pins needed once the spacer is present')
+    assert.equal(viewport.ir.over2, 0, 'every box within 2px')
+  })
+
+  await test('transforms and grid item alignment survive the IR', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-transform-'))
+    const configPath = join(repoRoot, 'transform.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'transform-grid.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 200, height: 100 }],
+      cases: [{ id: 'transform', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'transform'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const nodes = flattenIr(ir.root)
+    const arrow = nodes.find(node => node.style?.transform !== undefined)
+    assert.ok(arrow !== undefined, 'transform captured')
+    assert.match(arrow.style.transform, /matrix/)
+    const button = nodes.find(node => node.style?.justifyItems === 'center')
+    assert.ok(button !== undefined, 'grid justify-items captured')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /transform:matrix/)
+    assert.match(semantic, /justify-items:center/)
+    assert.match(semantic, /width:7px/)
+    assert.equal(viewport.ir.pins, 0, 'no pins needed')
+    assert.equal(viewport.ir.over2, 0, 'every box within 2px')
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')

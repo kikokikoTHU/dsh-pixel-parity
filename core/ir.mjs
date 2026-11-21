@@ -27,6 +27,7 @@ const STYLE_KEYS = [
   'backgroundOrigin', 'backgroundClip',
   'outlineWidth', 'outlineStyle', 'outlineColor', 'outlineOffset',
   'filter', 'backdropFilter', 'mixBlendMode',
+  'transform', 'transformOrigin', 'justifyItems', 'placeItems', 'alignContent',
   'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 
@@ -118,6 +119,10 @@ function reverse(table) {
   return map
 }
 
+function sumPx(values) {
+  return values.reduce((total, value) => total + (Number.parseFloat(value ?? '0') || 0), 0)
+}
+
 function convert(node, tokens) {
   const style = node.style ?? {}
   const irStyle = {}
@@ -154,6 +159,12 @@ function convert(node, tokens) {
   if (node.colSpan !== undefined) result.colSpan = node.colSpan
   if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
   if (node.attributes !== undefined) result.attributes = node.attributes
+  if (node.transformedSize !== undefined) {
+    result.transformedSize = {
+      width: String(node.transformedSize.width ?? ''),
+      height: String(node.transformedSize.height ?? ''),
+    }
+  }
   if (Array.isArray(node.options) && node.options.length > 0) {
     result.options = node.options.map(option => ({
       text: String(option.text ?? ''),
@@ -165,12 +176,17 @@ function convert(node, tokens) {
     // Keep fixed pixel sizes that explain the measured box, and percentage sizes
     // (they are source truth; the parent supplies the reference size).
     const authored = {}
+    const boxSizing = node.style?.boxSizing
+    const borderWidth = (key) => (key === 'width'
+      ? sumPx([node.style?.borderLeftWidth, node.style?.borderRightWidth])
+      : sumPx([node.style?.borderTopWidth, node.style?.borderBottomWidth]))
     for (const [key, value] of Object.entries(node.authored)) {
       if (key !== 'width' && key !== 'height') continue
       if (!/^\d+(?:\.\d+)?(?:px|%)$/.test(value)) continue
       if (value.endsWith('px')) {
         const measured = key === 'width' ? node.box.w : node.box.h
-        if (Math.abs(Number.parseFloat(value) - measured) > 1) continue
+        const expected = boxSizing === 'content-box' ? measured - borderWidth(key) : measured
+        if (Math.abs(Number.parseFloat(value) - expected) > 1) continue
       }
       authored[key] = value
     }
@@ -321,8 +337,16 @@ export function validateIr(ir) {
         }
       }
     }
-    if (node.options !== undefined) {
-      if (!Array.isArray(node.options)) {
+    if (node.transformedSize !== undefined) {
+      if (node.transformedSize === null || typeof node.transformedSize !== 'object') {
+        violations.push(`${path}.transformedSize must be an object`)
+      } else {
+        for (const key of ['width', 'height']) {
+          if (typeof node.transformedSize[key] !== 'string') violations.push(`${path}.transformedSize.${key} must be a string`)
+        }
+      }
+    }
+    if (node.options !== undefined) {      if (!Array.isArray(node.options)) {
         violations.push(`${path}.options must be an array`)
       } else {
         for (const [index, option] of node.options.entries()) {
