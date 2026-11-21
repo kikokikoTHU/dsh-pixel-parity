@@ -146,6 +146,9 @@ went from 94 to 24 with identical box accuracy.
 - `content: url(...)`, counters, and pseudo animations are skipped.
 - Form controls keep their attributes, and `<select>` keeps its options, so intrinsic widths
   survive.
+- `<canvas>` pixels are captured with `toDataURL('image/png')`, materialized into
+  `assets/images/`, and rendered as an `<img>` / QML `Image`. Tainted canvases keep the box
+  only.
 
 ## Fidelity
 
@@ -235,6 +238,7 @@ and silently changed the font. Any generator must escape quoted font families.
   pruned); CSS gradients survive as `background-image` strings.
 - Inline icon spans and form controls can still drift a few pixels.
 - Pseudo-elements with `content: url()`, counters, or animations are not captured.
+- `<video>` frames are not captured (only the box); tainted canvases have no pixels.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next

@@ -23,6 +23,7 @@ Mapping:
 | text run | `Text` positioned at the run box, `font.pixelSize/weight/family/letterSpacing` |
 | `@font-face` assets | `FontLoader` rows |
 | `img` attributes | `Image { source; fillMode: Stretch }` |
+| `<canvas>` snapshot | `Image { source: assets/images/... }` |
 | inline SVG subtree | serialized to an `svg` data URI and rendered as `Image` |
 | semantic table | `Column` of `Row`s using `layout.columnWidths` (colspan aware) |
 | colors | `rgb()/rgba()` normalized to `#RRGGBB` / `#AARRGGBB` |

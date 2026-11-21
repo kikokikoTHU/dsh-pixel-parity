@@ -409,6 +409,16 @@ function createPlaywrightDriver(playwright, options) {
                 selected: option.selected,
               }))
             }
+            if (localName === 'canvas' && typeof element.toDataURL === 'function') {
+              try {
+                const snapshot = element.toDataURL('image/png')
+                if (typeof snapshot === 'string' && snapshot.startsWith('data:image/')) {
+                  node.attributes = { ...(node.attributes ?? {}), src: snapshot }
+                }
+              } catch {
+                // Tainted canvas: keep the box, no pixels.
+              }
+            }
             const authored = {}
             for (const rule of sizingRules) {
               try {

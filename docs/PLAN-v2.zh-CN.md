@@ -279,6 +279,7 @@ cases/<case>/<viewport>/
 | M24 ✅ | 多行文本：按字符落入的行盒分桶，每视觉行一个 run；QML 每行一个 Text | 换行文本不再近似 |
 | M25 ✅ | 视觉效果：采集 outline/filter/backdrop-filter/mix-blend-mode（默认值剪除），渐变随 background-image 保留；IR 体积降约 2% | 描边与滤镜可复现 |
 | M26 ✅ | 生成内容与表单：`::before/::after` 作为生成子节点、百分比作者尺寸、`<select>` options、表单属性；pin 24→3，盒子 ≤1px 330/337，语义像素差 0.56% | 拟合度跨过 99.4% |
+| M27 ✅ | Canvas：`toDataURL` 抓帧 → `assets/images/`，HTML 输出 `<img>`、QML 输出 `Image`；被污染的画布只保留盒子 | 图表类页面不再空白 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

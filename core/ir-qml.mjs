@@ -127,7 +127,7 @@ ${indent}  source: "${svgDataUri(node, ir)}"
 ${indent}  fillMode: Image.Stretch
 ${indent}}`
   }
-  if (node.tag === 'img' && node.attributes?.src !== undefined) {
+  if ((node.tag === 'img' || node.tag === 'canvas') && node.attributes?.src !== undefined) {
     return `${indent}Image {
 ${indent}  ${base.join(`\n${indent}  `)}
 ${indent}  source: "${escapeQml(imageSource(node.attributes.src))}"

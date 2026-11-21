@@ -806,6 +806,35 @@ http.createServer((req, res) => {
     assert.match(semantic, /★/)
   })
 
+  await test('canvas pixels are captured as an image asset', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-canvas-'))
+    const configPath = join(repoRoot, 'canvas.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'canvas.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 200, height: 100 }],
+      cases: [{ id: 'canvas', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'canvas'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const canvas = flattenIr(ir.root).find(node => node.tag === 'canvas')
+    assert.ok(canvas !== undefined, 'canvas node captured')
+    assert.ok(canvas.attributes.src.startsWith('assets/images/'), canvas.attributes.src)
+    assert.ok(existsSync(join(dirname(viewport.ir.path), canvas.attributes.src)), 'canvas snapshot materialized')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /<img/)
+    assert.match(semantic, /assets\/images\//)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')

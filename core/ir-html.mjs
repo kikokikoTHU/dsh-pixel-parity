@@ -67,6 +67,7 @@ ${renderNode(ir.root, ir, true)}
 
 function renderNode(node, ir, isRoot = false) {
   if (SKIP_TAGS.has(node.tag)) return ''
+  const tag = node.tag === 'canvas' && node.attributes?.src !== undefined ? 'img' : node.tag
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style)
   const spans = `${node.colSpan > 1 ? ` colspan="${node.colSpan}"` : ''}${node.rowSpan > 1 ? ` rowspan="${node.rowSpan}"` : ''}`
@@ -84,8 +85,8 @@ function renderNode(node, ir, isRoot = false) {
     : ''
   const content = options.length > 0 ? options : `${colgroup}${escapeHtml(text)}${children}`
   if (isRoot) return `<body ${attributes}>${content}</body>`
-  if (VOID_TAGS.has(node.tag)) return `<${node.tag} ${attributes} />`
-  return `<${node.tag} ${attributes}>${content}</${node.tag}>`
+  if (VOID_TAGS.has(tag)) return `<${tag} ${attributes} />`
+  return `<${tag} ${attributes}>${content}</${tag}>`
 }
 
 function buildDeclarations(node, style) {
