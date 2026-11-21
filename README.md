@@ -5,12 +5,15 @@ matches the reference — instead of judging by eye.
 
 ## Install
 
+Not published to npm yet. Add this checkout from **Plugins → Add plugin**, or link it
+into a profile:
+
 ```
-dsh plugin --profile web add dsh-pixel-parity@0.2.0
+dsh plugin --profile web add /path/to/dsh-pixel-parity
 ```
 
-Or add the checkout directory from **Plugins → Add plugin**. Replacing an installed
-version needs a DSH restart; a newly added bundle activates through HMR.
+Replacing an installed version needs a DSH restart; a newly added bundle activates
+through HMR. Publishing is planned; see `docs/RELEASE.md`.
 
 ## What it adds
 
