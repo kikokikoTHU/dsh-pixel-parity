@@ -53,6 +53,22 @@ await test('config resolves a relative reference against the config directory', 
   assert.equal(config.cases[0].reference.url, join(directory, 'ref.html'))
 })
 
+await test('config presets set tolerant thresholds and explicit values win', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'parity-preset-'))
+  const file = join(directory, 'parity.config.mjs')
+  writeFileSync(file, `export default ${JSON.stringify({
+    version: 2,
+    defaults: { preset: 'tolerant', maxMismatch: 0.03 },
+    viewports: [{ id: 'v', width: 100, height: 100 }],
+    cases: [{ id: 'case', reference: { url: './a.html' }, implementation: { url: './b.html' } }],
+  })}`)
+  const config = await loadConfig(file)
+  const thresholds = config.cases[0].thresholds
+  assert.equal(thresholds.geometryTolerance, 4)
+  assert.equal(thresholds.maxMismatch, 0.03)
+  assert.equal(thresholds.maxRegionMismatch, 0.6)
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,

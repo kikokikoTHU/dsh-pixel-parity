@@ -31,6 +31,8 @@ export default {
     { id: 'mobile', width: 390, height: 844, dpr: 3 },
   ],
   defaults: {
+    // strict (1%, 1px) | balanced (2%, 2px) | tolerant (5%, 4px); numbers below win
+    preset: 'balanced',
     tolerance: 24,
     maxMismatch: 0.01,
     maxRegionMismatch: 0.4,

@@ -155,9 +155,10 @@ It is the seam for future generators (QML, desktop). See [docs/IR.md](docs/IR.md
 
 All three are configurable: in `defaults`, per case in `cases[].thresholds`, or per run via
 `parity_run({ ..., geometryTolerance: 4, maxMismatch: 0.02 })` / `--geometry-tolerance 4
---max-mismatch 0.02`. Raise `geometryTolerance` when small layout shifts are acceptable;
-the pixel ratio and style diffs are still reported, so the tolerance stays visible rather
-than silent.
+--max-mismatch 0.02`. A `defaults.preset` of `strict` (1%, 1px), `balanced` (2%, 2px), or
+`tolerant` (5%, 4px) sets all three at once; explicit numbers override the preset. Raise
+`geometryTolerance` when small layout shifts are acceptable; the pixel ratio and style
+diffs are still reported, so the tolerance stays visible rather than silent.
 
 Masks exist for genuinely dynamic content (table bodies, charts, timestamps). Do not
 mask a region whose layout is being verified.

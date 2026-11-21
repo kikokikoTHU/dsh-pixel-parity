@@ -86,6 +86,16 @@ Set them in `defaults`, per case in `cases[].thresholds`, or per run as
 `parity_run({ ..., geometryTolerance: 4, maxMismatch: 0.02 })` (the CLI equivalents are
 `--geometry-tolerance` and `--max-mismatch`).
 
+For a one-line policy, set `defaults.preset`:
+
+| Preset | maxMismatch | maxRegionMismatch | geometryTolerance |
+| --- | --- | --- | --- |
+| `strict` (default) | 1% | 40% | 1px |
+| `balanced` | 2% | 50% | 2px |
+| `tolerant` | 5% | 60% | 4px |
+
+Explicit numeric values in `defaults` or `cases[].thresholds` override the preset.
+
 When the product only needs "close enough", raise `geometryTolerance` first: it accepts
 small layout shifts without hiding real color/typography errors, because styles are still
 compared exactly and the pixel ratio is still reported. Do not raise `maxMismatch` past a

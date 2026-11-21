@@ -13,6 +13,13 @@ import { pathToFileURL } from 'node:url'
 
 const SURFACES = new Set(['web', 'electron', 'desktop', 'image'])
 
+/** Threshold presets; explicit numeric values in `defaults` still win. */
+const PRESETS = {
+  strict: { maxMismatch: 0.01, maxRegionMismatch: 0.4, geometryTolerance: 1 },
+  balanced: { maxMismatch: 0.02, maxRegionMismatch: 0.5, geometryTolerance: 2 },
+  tolerant: { maxMismatch: 0.05, maxRegionMismatch: 0.6, geometryTolerance: 4 },
+}
+
 /**
  * Load and normalize one config file.
  * @param {string} configPath - absolute or cwd-relative path.
@@ -46,14 +53,14 @@ export function normalizeConfig(raw, absolutePath) {
   if (raw.version !== 2) throw new Error(`config version must be 2, got ${JSON.stringify(raw.version)}`)
   const directory = resolve(absolutePath, '..')
 
+  const presetName = raw.defaults?.preset ?? 'strict'
+  const preset = PRESETS[presetName]
+  if (preset === undefined) throw new Error(`defaults.preset must be one of ${Object.keys(PRESETS).join(', ')}`)
   const defaults = {
     surface: 'web',
     tolerance: 24,
-    maxMismatch: 0.01,
-    maxRegionMismatch: 0.4,
-    geometryTolerance: 1,
+    ...preset,
     masks: [],
-    freeze: { animations: true, caret: true, clock: null },
     locale: 'zh-CN',
     timezone: 'Asia/Shanghai',
     ...raw.defaults,
