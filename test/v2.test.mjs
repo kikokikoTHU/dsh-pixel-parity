@@ -610,6 +610,108 @@ if (repo === undefined) {
     assert.ok(existsSync(join(repoRoot, '.parity', 'runs', 'figma', 'cases', 'figma-case', 'desktop', 'reference.ir.json')))
   })
 
+  await test('images and background images are materialized', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-assets-'))
+    const configPath = join(repoRoot, 'assets.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'assets.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 200, height: 100 }],
+      cases: [{ id: 'assets', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'assets'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const caseDir = dirname(viewport.ir.path)
+    const image = flattenIr(ir.root).find(node => node.tag === 'img')
+    assert.ok(image.attributes.src.startsWith('assets/images/'), image.attributes.src)
+    assert.ok(existsSync(join(caseDir, image.attributes.src)), 'image file materialized')
+    const background = flattenIr(ir.root).find(node => node.style?.backgroundImage?.includes('assets/images/'))
+    assert.ok(background !== undefined, 'background image rewritten')
+    assert.match(readFileSync(viewport.ir.semantic, 'utf8'), /assets\/images\//)
+  })
+
+  await test('report summarizes a run without re-capturing', async () => {
+    const { buildReport, renderReport, resolveRunDir } = await import('../core/report.mjs')
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-report-'))
+    const outDir = join(repoRoot, '.parity', 'runs', 'report')
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      outDir,
+    })
+    const report = buildReport(result.runDir)
+    assert.equal(report.runDir, result.runDir)
+    assert.equal(resolveRunDir(repoRoot), outDir)
+    assert.equal(report.cases.length, result.manifest.cases.length)
+    assert.equal(report.cases[0].id, 'exact')
+    assert.equal(report.cases[0].viewports[0].status, result.manifest.cases[0].viewports[0].status)
+    const text = renderReport(report)
+    assert.match(text, /PixelParity report/)
+    assert.match(text, /exact/)
+    assert.match(text, /image-verified|verified/)
+  })
+
+  await test('start command launches and stops the dev server', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-start-'))
+    const port = 4400 + Math.floor(Math.random() * 400)
+    writeFileSync(join(repoRoot, 'reference.html'), readFileSync(join(here, 'fixtures', 'web', 'reference.html')))
+    writeFileSync(join(repoRoot, 'server.js'), `const http = require('node:http')
+const fs = require('node:fs')
+const path = require('node:path')
+const port = Number(process.argv[2])
+const html = fs.readFileSync(path.join(__dirname, 'reference.html'))
+http.createServer((req, res) => {
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+  res.end(html)
+}).listen(port, '127.0.0.1')
+`)
+    const configPath = join(repoRoot, 'start.config.mjs')
+    const page = pathToFileURL(join(repoRoot, 'reference.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 800, height: 600 }],
+      targets: {
+        implementation: {
+          baseUrl: `http://127.0.0.1:${port}`,
+          start: `node server.js ${port}`,
+          startTimeoutMs: 20000,
+        },
+      },
+      cases: [{ id: 'start', reference: { url: page }, implementation: { path: '/' } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      outDir: join(repoRoot, 'run'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(['verified', 'image-verified'].includes(viewport.status), viewport.error)
+    let alive = true
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        await fetch(`http://127.0.0.1:${port}/`)
+        await new Promise(resolve => setTimeout(resolve, 150))
+      } catch {
+        alive = false
+        break
+      }
+    }
+    assert.equal(alive, false, 'dev server should be stopped after the run')
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')
@@ -791,6 +893,14 @@ if (repo === undefined) {
     }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(definition.output.schema, irValue, 'value'), [])
     assert.ok(irValue.cases[0].viewports[0].ir !== undefined)
+
+    const reportTool = registered.get('parity_report')
+    assert.ok(reportTool !== undefined)
+    tools.assertSupportedJsonSchema(reportTool.parameters)
+    tools.assertSupportedJsonSchema(reportTool.output.schema)
+    const reportValue = await reportTool.execute({ repo, runDir: value.runDir }, {})
+    assert.deepEqual(tools.validateJsonSchemaValue(reportTool.output.schema, reportValue, 'value'), [])
+    assert.equal(reportValue.cases[0].id, 'exact')
   })
 }
 

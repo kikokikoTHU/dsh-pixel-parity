@@ -9,6 +9,7 @@
   generated.flow.html       # flow-only render before pins (debug)
   generated.semantic.html   # layout-preserving clone (portability proof)
   assets/fonts/*.woff2      # materialized @font-face files
+  assets/images/*           # materialized img / background-image files
 ```
 
 The goal is to prove the IR keeps enough information to reproduce a screen, before any
@@ -113,8 +114,11 @@ instead of inheriting a viewport-bound coordinate dump. Synthesis runs at most 3
   `data:` fonts into `assets/fonts/`, rewrites the IR to relative paths, and the semantic
   renderer emits the matching `@font-face` rules. Without this, icon fonts (PrimeIcons,
   Font Awesome) fall back to system glyphs and every icon width is wrong.
-- `<img src>` (absolute) and `alt` are captured as node attributes; image bytes are not
-  downloaded yet.
+- `<img src>` and CSS `background-image` URLs are downloaded into `assets/images/` and
+  rewritten to relative paths (remote, `data:`, and multi-layer `url()` values). The
+  generated page and QML then load the local copies instead of the network.
+- `background-size` / `-position` / `-repeat` are captured alongside the image so the
+  painted area survives the round-trip.
 - Cross-origin stylesheets that block `cssRules` are skipped; serve those fonts
   same-origin or declare them in the target page.
 
@@ -203,7 +207,7 @@ and silently changed the font. Any generator must escape quoted font families.
   `authored`. Flow layout alone reproduces about a third of the page; only 24 of 337 nodes
   still carry measured size pins.
 - Table cells derive their size from columns and rows; they are deliberately not pinned.
-- Fonts are materialized; image bytes are not (only their absolute URLs are captured).
+- Fonts and images are materialized; external CSS, video, and canvas pixels are not.
 - Cross-origin stylesheets that expose no `cssRules` are skipped, so their fonts are not
   materialized.
 - Inline icon spans and form controls can still drift a few pixels; they are the remaining
@@ -213,8 +217,8 @@ and silently changed the font. Any generator must escape quoted font families.
 
 ## Next
 
-1. Materialize image bytes (`img.src`, `background-image`) into `assets/images/`.
-2. Derive flex item sizes from content/flex-basis to drop more pins.
-3. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
-4. A QML generator + desktop capture adapter.
-5. Figma as another IR source.
+1. Multi-line text runs (wrapped text currently approximated).
+2. Background gradients, filters, and pseudo-elements.
+3. A semantic HTML/CSS component generator (usable code, not just a fidelity proof).
+4. Multi-breakpoint IR (responsive rules).
+5. Multi-viewport QML / desktop adapters.

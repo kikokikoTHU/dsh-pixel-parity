@@ -6,7 +6,7 @@
  * fail with an explicit message instead of silently degrading.
  */
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
@@ -47,14 +47,17 @@ export async function runConfig(options) {
   const runDir = resolve(options.outDir ?? join(repoRoot, '.parity', 'runs', runId))
   mkdirSync(join(runDir, 'tmp'), { recursive: true })
 
-  const driver = await createWebDriver({ repoRoot: dependenciesRoot, headless: options.headless })
   const startedAt = new Date().toISOString()
   const repo = repoInfo(repoRoot)
   const exportIr = options.exportIr === true || options.exportQml === true
   const exportQml = options.exportQml === true
   const caseResults = []
+  let driver
+  let devServer
 
   try {
+    devServer = await ensureDevServer(config, repoRoot, options)
+    driver = await createWebDriver({ repoRoot: dependenciesRoot, headless: options.headless })
     for (const entry of cases) {
       const viewportResults = []
       for (const viewport of viewports) {
@@ -68,7 +71,8 @@ export async function runConfig(options) {
       })
     }
   } finally {
-    await driver.dispose()
+    if (driver !== undefined) await driver.dispose()
+    await stopDevServer(devServer)
   }
 
   const manifest = {
@@ -85,6 +89,62 @@ export async function runConfig(options) {
   }
   writeFileSync(join(runDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   return { runDir, manifest, summary: manifest.summary }
+}
+
+/**
+ * Start the configured dev server when the implementation URL is not reachable.
+ *
+ * The command comes from `targets.implementation.start`; an already running
+ * server is reused and never killed.
+ * @param {object} config - normalized config.
+ * @param {string} repoRoot - repository root (working directory for the command).
+ * @param {object} options - run options.
+ * @returns {Promise<{spawned: boolean, child?: object} | undefined>} server handle.
+ */
+async function ensureDevServer(config, repoRoot, options) {
+  const target = config.targets.implementation
+  const command = target.start
+  if (typeof command !== 'string' || command.length === 0) return undefined
+  if (options.startServer === false) return undefined
+  if (typeof target.baseUrl !== 'string' || target.baseUrl.length === 0) {
+    throw new Error('targets.implementation.start requires baseUrl so readiness can be probed')
+  }
+  const readyUrl = typeof target.readyUrl === 'string' && target.readyUrl.length > 0 ? target.readyUrl : target.baseUrl
+  if (await isReachable(readyUrl)) return { spawned: false }
+
+  const timeout = target.startTimeoutMs ?? 90000
+  const child = spawn(command, { cwd: repoRoot, shell: true, stdio: 'ignore' })
+  const started = Date.now()
+  while (Date.now() - started < timeout) {
+    if (await isReachable(readyUrl)) return { spawned: true, child }
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  await stopDevServer({ spawned: true, child })
+  throw new Error(`dev server did not become ready at ${readyUrl} within ${timeout}ms (command: ${command})`)
+}
+
+async function isReachable(url) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(2000), redirect: 'manual' })
+    return response.status < 500
+  } catch {
+    return false
+  }
+}
+
+async function stopDevServer(server) {
+  if (server === undefined || server.spawned !== true || server.child === undefined) return
+  const child = server.child
+  if (child.exitCode !== null) return
+  if (process.platform === 'win32' && typeof child.pid === 'number') {
+    await new Promise((resolve) => {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+      killer.on('close', () => resolve())
+      killer.on('error', () => resolve())
+    })
+  } else {
+    child.kill('SIGTERM')
+  }
 }
 
 /**
@@ -174,7 +234,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         viewport: { width: viewport.width, height: viewport.height, dpr: viewport.dpr },
         capturedAt: new Date().toISOString(),
       }, implementation.dom)
-      await materializeFonts(ir, caseDir)
+      await materializeAssets(ir, caseDir)
       const violations = validateIr(ir)
       if (violations.length > 0) throw new Error(`IR validation failed: ${violations.join('; ')}`)
       const synthesis = await synthesizeLayout(ir, driver, viewport, caseDir)
@@ -480,6 +540,101 @@ async function materializeFonts(ir, caseDir) {
       // Keep the absolute URL when the asset cannot be materialized.
     }
   }
+}
+
+/**
+ * Materialize fonts and images referenced by the IR into the case directory.
+ *
+ * A generated page has no origin for remote resources, so assets are written
+ * next to the render and the IR keeps relative paths.
+ * @param {object} ir - IR document, mutated.
+ * @param {string} caseDir - case artifact directory.
+ * @returns {Promise<void>} when every reachable asset is materialized.
+ */
+async function materializeAssets(ir, caseDir) {
+  await materializeFonts(ir, caseDir)
+
+  const images = new Map()
+  const directory = join(caseDir, 'assets', 'images')
+  let created = false
+  const localize = async (source) => {
+    if (!/^(data:|https?:)/i.test(source)) return source
+    if (images.has(source)) return images.get(source)
+    try {
+      let buffer
+      let type = ''
+      if (source.startsWith('data:')) {
+        const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(source)
+        if (match === null) return source
+        type = match[1] ?? ''
+        buffer = match[2] === ';base64'
+          ? Buffer.from(match[3], 'base64')
+          : Buffer.from(decodeURIComponent(match[3]), 'binary')
+      } else {
+        const response = await fetch(source)
+        if (!response.ok) return source
+        type = response.headers.get('content-type') ?? ''
+        buffer = Buffer.from(await response.arrayBuffer())
+      }
+      const name = `${createHash('sha256').update(source).digest('hex').slice(0, 12)}.${imageExtension(source, type)}`
+      if (!created) {
+        mkdirSync(directory, { recursive: true })
+        created = true
+      }
+      writeFileSync(join(directory, name), buffer)
+      const relative = `assets/images/${name}`
+      images.set(source, relative)
+      return relative
+    } catch {
+      return source
+    }
+  }
+
+  for (const node of flattenIr(ir.root)) {
+    if (typeof node.attributes?.src === 'string') {
+      node.attributes.src = await localize(node.attributes.src)
+    }
+    const background = node.style?.backgroundImage
+    if (typeof background === 'string' && background.includes('url(')) {
+      node.style.backgroundImage = await replaceCssUrls(background, localize)
+    }
+  }
+}
+
+async function replaceCssUrls(value, localize) {
+  const parts = []
+  let last = 0
+  const pattern = /url\((['"]?)([^'")]+)\1\)/g
+  let match
+  while ((match = pattern.exec(value)) !== null) {
+    parts.push(value.slice(last, match.index))
+    parts.push(`url('${await localize(match[2])}')`)
+    last = pattern.lastIndex
+  }
+  parts.push(value.slice(last))
+  return parts.join('')
+}
+
+function imageExtension(source, type) {
+  const mime = (/^data:([^;,]+)/.exec(source)?.[1] ?? type).toLowerCase()
+  const byMime = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'image/svg+xml': 'svg',
+    'image/avif': 'avif',
+    'image/bmp': 'bmp',
+    'image/x-icon': 'ico',
+    'image/vnd.microsoft.icon': 'ico',
+  }
+  if (byMime[mime] !== undefined) return byMime[mime]
+  try {
+    const extension = extname(new URL(source, 'file:///').pathname).replace(/^\./, '').toLowerCase()
+    if (/^(png|jpe?g|webp|gif|svg|avif|bmp|ico)$/.test(extension)) return extension
+  } catch {}
+  return 'bin'
 }
 
 async function synthesizeLayout(ir, driver, viewport, caseDir) {

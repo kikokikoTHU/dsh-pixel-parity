@@ -28,6 +28,8 @@ const CSS_KEYS = [
   'backgroundColor', 'color',
   'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
   'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity', 'zIndex',
+  'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat',
+  'backgroundOrigin', 'backgroundClip',
   'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 

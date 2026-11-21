@@ -132,6 +132,9 @@ function normalizeTarget(raw, directory, label) {
     ...raw,
     kind,
     baseUrl: raw.baseUrl ?? '',
+    start: typeof raw.start === 'string' && raw.start.trim().length > 0 ? raw.start : undefined,
+    startTimeoutMs: raw.startTimeoutMs ?? 90000,
+    readyUrl: raw.readyUrl,
     hide: raw.hide ?? [],
     waitFor: raw.waitFor ?? [],
     viewport: raw.viewport ?? null,
@@ -193,6 +196,9 @@ function resolveTargetSpec(spec, target, directory, label) {
       kind,
       url: resolveUrl(url, target.baseUrl, directory),
       fixtures: spec.fixtures === undefined ? target.fixtures : resolve(directory, spec.fixtures),
+      start: spec.start ?? target.start,
+      startTimeoutMs: spec.startTimeoutMs ?? target.startTimeoutMs ?? 90000,
+      readyUrl: spec.readyUrl ?? target.readyUrl,
     }
   }
   if (kind === 'figma') {

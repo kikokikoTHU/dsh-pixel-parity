@@ -273,6 +273,9 @@ cases/<case>/<viewport>/
 | M18 ✅ | 语义化 QML：可证明的 flex/block 序列映射为 Row/Column（起始对齐 + 均匀 gap），其余回退绝对定位；语义版像素差 5.78% | 生成结构可维护 |
 | M19 ✅ | QML 表格与 SVG：表格按 `columnWidths` 生成 Column/Row（colspan 感知），内联 SVG 转 data-URI Image；绝对版 5.56%，语义版 5.77% | 图标与表格结构落地 |
 | M20 ✅ | Figma 输入：`kind: "figma"` → `figmaToIr` → 同一 IR/渲染/比对管线；支持内联 document 离线测试 | 第三个 IR 来源 |
+| M21 ✅ | 图片资源：`img.src` 与 `background-image` 下载到 `assets/images/` 并改相对路径；补齐 background-size/position/repeat 采集 | 生成页与 QML 离线可看 |
+| M22 ✅ | `parity_report` 工具 + `cli report`：只读 manifest，输出每视口状态、像素差、几何失败、样式差异与热点区域 | 运行后可复查，CI 友好 |
+| M23 ✅ | 自动启动：`targets.implementation.start` 在 URL 不可达时拉起命令，轮询就绪，结束后杀进程树；已运行服务复用不杀 | 一条命令跑完 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

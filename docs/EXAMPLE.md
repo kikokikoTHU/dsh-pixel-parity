@@ -38,7 +38,12 @@ export default {
   },
   targets: {
     reference: { baseUrl: 'https://example.dev/prototype/', hide: ['.proto-toolbar'] },
-    implementation: { baseUrl: 'http://127.0.0.1:7620' },
+    implementation: {
+      baseUrl: 'http://127.0.0.1:7620',
+      // optional: launch the app when the URL is not already reachable
+      start: 'yarn workspace @app/web dev',
+      startTimeoutMs: 90000,
+    },
   },
   cases: [
     {
@@ -68,8 +73,9 @@ anchors. Attribute-only change: no styling, no behavior.
 yarn workspace @app/web dev
 ```
 
-The runner attaches to a running server; it does not start one for you yet. A `start`
-field in `targets.implementation` is reserved for a later phase.
+The runner attaches to a running server. With `start` configured it launches the command
+instead, waits until `baseUrl` answers, and stops it after the run; if the server is already
+up, it is reused and left running.
 
 ## 4. First run and baseline
 
@@ -119,6 +125,15 @@ parity_run({ repo: "/abs/path/to/app", config: "parity.config.mjs", baselineMode
 
 A regression fails on the layers that changed, offline, without fetching the live
 prototype.
+
+To inspect the last run without re-capturing:
+
+```
+parity_report({ repo: "/abs/path/to/app" })
+```
+
+prints a per-viewport table (status, pixel ratio, geometry failures, style diffs, worst
+regions) and works the same in CI logs.
 
 ## Deterministic data
 

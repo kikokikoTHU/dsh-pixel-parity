@@ -23,6 +23,8 @@ const STYLE_KEYS = [
   'borderLeftWidth', 'borderLeftStyle', 'borderLeftColor',
   'borderCollapse', 'borderSpacing', 'tableLayout', 'verticalAlign',
   'boxShadow', 'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity',
+  'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat',
+  'backgroundOrigin', 'backgroundClip',
   'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 

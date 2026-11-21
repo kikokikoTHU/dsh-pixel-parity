@@ -16,6 +16,7 @@ import { resolve } from 'node:path'
 import { runConfig } from './core/runner.mjs'
 import { approveRun, latestRunDir } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
+import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 
 const args = parseArgs(process.argv.slice(2))
 const command = args._[0] ?? 'run'
@@ -33,6 +34,8 @@ if (command === 'run') {
   approve()
 } else if (command === 'init') {
   init()
+} else if (command === 'report') {
+  report()
 } else {
   console.error(`unknown command "${command}"`)
   printHelp()
@@ -93,8 +96,25 @@ function approve() {
   }
 }
 
-function init() {
+function report() {
   try {
+    const runDir = resolveRunDir(repoRoot, args.run === undefined ? undefined : resolve(String(args.run)))
+    const value = buildReport(runDir)
+    const cases = list(args.case)
+    if (cases !== undefined) value.cases = value.cases.filter(entry => cases.includes(entry.id))
+    if (args.json === true) {
+      process.stdout.write(`${JSON.stringify(value, null, 2)}\n`)
+    } else {
+      console.log(renderReport(value))
+    }
+    process.exit(0)
+  } catch (error) {
+    console.error(`parity report failed: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(2)
+  }
+}
+
+function init() {  try {
     const result = initRepo({
       repoRoot,
       output: args.output === undefined ? undefined : String(args.output),
@@ -192,7 +212,7 @@ function printSummary(result) {
 }
 
 function printHelp() {
-  console.log(`Usage: node cli.mjs <run|approve|init> [options]
+  console.log(`Usage: node cli.mjs <run|approve|init|report> [options]
 
 init:
   --repo <dir>           repository root (default: cwd)
@@ -218,5 +238,11 @@ approve:
   --run <dir>            run directory (default: newest)
   --case <id>            approve only these cases
   --note <text>          note stored with the baseline
-  --json                 print the result as JSON`)
+  --json                 print the result as JSON
+
+report:
+  --repo <dir>           repository root
+  --run <dir>            run directory (default: newest)
+  --case <id>            only these cases
+  --json                 print the report as JSON`)
 }

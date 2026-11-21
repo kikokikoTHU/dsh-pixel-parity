@@ -97,6 +97,7 @@ icons, which are not rendered in QML yet.
 - Tables map to `Column`/`Row` with captured column widths, not `TableView` (no data model
   or delegates yet).
 - Inline SVG is baked into a data-URI `Image`; interactions inside the SVG are lost.
+- `<img>` sources are local assets; CSS `background-image` is not painted in QML yet.
 - WOFF2 `@font-face` loading depends on the Qt build's FreeType support; otherwise the font
   falls back and text metrics shift.
 - Text runs are single-line; wrapped text is approximated.

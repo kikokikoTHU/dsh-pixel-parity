@@ -13,6 +13,7 @@ import { runParityCheck } from './lib/check.js'
 import { runConfig } from './core/runner.mjs'
 import { approveRun } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
+import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -396,6 +397,111 @@ const APPROVE_OUTPUT_SCHEMA = {
   },
 }
 
+const REPORT_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['repo'],
+  properties: {
+    repo: {
+      type: 'string',
+      description: 'Absolute path to the repository root that owns .parity/runs.',
+    },
+    runDir: {
+      type: 'string',
+      description: 'Run directory to summarize. Default: the newest run under <repo>/.parity/runs.',
+    },
+    cases: {
+      type: 'array',
+      description: 'Only these case ids.',
+      items: { type: 'string' },
+    },
+  },
+}
+
+const REPORT_VIEWPORT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'status', 'geometryFailures', 'styleDiffs', 'styleWarnings', 'regions'],
+  properties: {
+    id: { type: 'string' },
+    status: { type: 'string' },
+    pixels: { type: 'number' },
+    meanDelta: { type: 'number' },
+    geometry: { type: 'boolean' },
+    geometryFailures: { type: 'integer' },
+    styleDiffs: { type: 'integer' },
+    styleWarnings: { type: 'integer' },
+    regions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['x', 'y', 'w', 'h'],
+        properties: {
+          x: { type: 'number' },
+          y: { type: 'number' },
+          w: { type: 'number' },
+          h: { type: 'number' },
+        },
+      },
+    },
+    error: { type: 'string' },
+  },
+}
+
+const REPORT_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['runDir', 'summary', 'cases'],
+  properties: {
+    runDir: { type: 'string' },
+    runId: { type: 'string' },
+    config: { type: 'string' },
+    repo: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        root: { type: 'string' },
+        commit: { type: 'string' },
+      },
+    },
+    baseline: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        mode: { type: 'string' },
+        source: { type: 'string' },
+      },
+    },
+    summary: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['cases', 'viewports', 'verified', 'image-verified', 'failed', 'incomplete'],
+      properties: {
+        cases: { type: 'integer' },
+        viewports: { type: 'integer' },
+        verified: { type: 'integer' },
+        'image-verified': { type: 'integer' },
+        failed: { type: 'integer' },
+        incomplete: { type: 'integer' },
+      },
+    },
+    cases: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'status', 'viewports'],
+        properties: {
+          id: { type: 'string' },
+          status: { type: 'string' },
+          viewports: { type: 'array', items: REPORT_VIEWPORT_SCHEMA },
+        },
+      },
+    },
+  },
+}
+
 const BASELINE_OPTIONS = {
   pin: '对齐在线原型并固化基线',
   ephemeral: '仅本次比对，不保存基线',
@@ -562,6 +668,25 @@ export function apply(ctx) {
         approved: result.approved,
         skipped: result.skipped,
       }
+    },
+  }))
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'parity_report',
+    description: 'Summarize a finished parity run without re-capturing: status per case/viewport, pixel ratio, geometry failures, style diffs, and the worst regions. Defaults to the newest run under <repo>/.parity/runs.',
+    parameters: REPORT_PARAMETERS,
+    output: {
+      schema: REPORT_OUTPUT_SCHEMA,
+      render(_args, value) {
+        return [{ type: 'text', text: renderReport(value) }]
+      },
+    },
+    async execute(args) {
+      const repo = text(args.repo, 'repo')
+      const report = buildReport(resolveRunDir(repo, args.runDir === undefined ? undefined : text(args.runDir, 'runDir')))
+      const cases = arrayOfText(args.cases, 'cases') ?? []
+      if (cases.length > 0) report.cases = report.cases.filter(entry => cases.includes(entry.id))
+      return report
     },
   }))
 

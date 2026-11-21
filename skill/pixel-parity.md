@@ -125,6 +125,20 @@ parity_approve({ repo: "/abs/path/to/repo", runDir: "…/.parity/runs/<id>", not
 `image-verified` viewports. Re-approving is the deliberate way to accept a design change;
 do not delete a baseline to make a regression pass.
 
+To summarize a run without capturing anything again:
+
+```
+parity_report({ repo: "/abs/path/to/repo" })
+```
+
+It defaults to the newest run and prints status per case/viewport, pixel ratio, geometry
+failures (with counts), style diff/warning counts, and the worst regions. Use it after a
+long run, or in CI logs, instead of re-reading the manifest by hand.
+
+If the config sets `targets.implementation.start`, the runner launches that command when
+`baseUrl` is not already reachable, waits up to `startTimeoutMs`, and stops it after the
+run. An already running server is reused and left alone.
+
 ### 5. Fix by layer, then re-run
 
 1. Read the failing status and `metrics.json`.

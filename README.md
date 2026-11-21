@@ -28,7 +28,11 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
   pointing at the first route.
 - **`parity_approve`** — promotes the passing viewports of a run to baselines, keeping
   the anchor snapshot so regression stays geometry-aware.
+- **`parity_report`** — summarizes a finished run (newest by default) without re-capturing:
+  status per case/viewport, pixel ratio, geometry failures, style diffs, worst regions.
 - **`parity_check`** — single-shot image-vs-page comparison for repos without a config.
+- **Dev server start** — `targets.implementation.start` (plus `baseUrl`) launches the app
+  when the URL is not already reachable, waits for readiness, and stops it after the run.
 - **IR export** (`--export-ir`) — writes a renderer-neutral `ir.json` (tokens, node tree,
   measured text runs) plus `generated.html` rendered back from it. This is the seam for
   other targets (QML, desktop); see [docs/IR.md](docs/IR.md).
