@@ -449,7 +449,10 @@ function createPlaywrightDriver(playwright, options) {
               const hasBox = widthPx !== undefined || heightPx !== undefined
                 || (background !== 'rgba(0, 0, 0, 0)' && background !== 'transparent')
                 || Number.parseFloat(pseudo.borderTopWidth) > 0
-              if (text.length === 0 && !hasBox) continue
+              // An empty ::before/::after still becomes a zero-width flex item and
+              // consumes a gap, so flex/grid containers must keep it.
+              const parentFlow = style.display.includes('flex') || style.display.includes('grid')
+              if (text.length === 0 && !hasBox && !parentFlow) continue
               const padX = num(pseudo.paddingLeft) + num(pseudo.paddingRight) + num(pseudo.borderLeftWidth) + num(pseudo.borderRightWidth)
               const padY = num(pseudo.paddingTop) + num(pseudo.paddingBottom) + num(pseudo.borderTopWidth) + num(pseudo.borderBottomWidth)
               measureContext.font = `${pseudo.fontStyle} ${pseudo.fontWeight} ${pseudo.fontSize} ${pseudo.fontFamily}`

@@ -143,6 +143,8 @@ went from 94 to 24 with identical box accuracy.
   sized by flow.
 - Pseudo nodes carry `pseudo: "::before" | "::after"`, are never pinned, and are excluded
   from box-accuracy statistics because their geometry is synthesized.
+- An empty pseudo inside a flex/grid container is kept as a zero-width item: it still
+  consumes a gap, which shifts every following sibling by one spacing unit.
 - `content: url(...)`, counters, and pseudo animations are skipped.
 - Form controls keep their attributes, and `<select>` keeps its options, so intrinsic widths
   survive.
