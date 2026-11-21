@@ -142,21 +142,36 @@ function convert(node, tokens) {
     box: node.box,
     style: irStyle,
   }
+  if (node.pseudo !== undefined) {
+    result.pseudo = node.pseudo
+    // Pseudo boxes carry their explicit size; flow sizes text-only ones.
+    if (style.width !== undefined && style.width !== 'auto') result.style.width = style.width
+    if (style.height !== undefined && style.height !== 'auto') result.style.height = style.height
+  }
   if (node.textRuns !== undefined && node.textRuns.length > 0) {
     result.textRuns = node.textRuns.map(run => ({ text: run.text, box: run.box }))
   }
   if (node.colSpan !== undefined) result.colSpan = node.colSpan
   if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
   if (node.attributes !== undefined) result.attributes = node.attributes
+  if (Array.isArray(node.options) && node.options.length > 0) {
+    result.options = node.options.map(option => ({
+      text: String(option.text ?? ''),
+      value: String(option.value ?? ''),
+      selected: option.selected === true,
+    }))
+  }
   if (node.authored !== undefined) {
-    // Keep only fixed pixel sizes that actually explain the measured box; a
-    // percentage or a rule that does not match the box would fight layout.
+    // Keep fixed pixel sizes that explain the measured box, and percentage sizes
+    // (they are source truth; the parent supplies the reference size).
     const authored = {}
     for (const [key, value] of Object.entries(node.authored)) {
       if (key !== 'width' && key !== 'height') continue
-      if (!/^\d+(?:\.\d+)?px$/.test(value)) continue
-      const measured = key === 'width' ? node.box.w : node.box.h
-      if (Math.abs(Number.parseFloat(value) - measured) > 1) continue
+      if (!/^\d+(?:\.\d+)?(?:px|%)$/.test(value)) continue
+      if (value.endsWith('px')) {
+        const measured = key === 'width' ? node.box.w : node.box.h
+        if (Math.abs(Number.parseFloat(value) - measured) > 1) continue
+      }
       authored[key] = value
     }
     if (Object.keys(authored).length > 0) result.authored = authored
@@ -303,6 +318,17 @@ export function validateIr(ir) {
         for (const [name, value] of Object.entries(node.attributes)) {
           if (!/^[a-zA-Z][a-zA-Z0-9-]*$/.test(name)) violations.push(`${path}.attributes has an unsafe name ${JSON.stringify(name)}`)
           if (typeof value !== 'string') violations.push(`${path}.attributes.${name} must be a string`)
+        }
+      }
+    }
+    if (node.options !== undefined) {
+      if (!Array.isArray(node.options)) {
+        violations.push(`${path}.options must be an array`)
+      } else {
+        for (const [index, option] of node.options.entries()) {
+          if (typeof option?.text !== 'string' || typeof option?.value !== 'string' || typeof option?.selected !== 'boolean') {
+            violations.push(`${path}.options[${index}] needs string text/value and boolean selected`)
+          }
         }
       }
     }

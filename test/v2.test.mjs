@@ -770,6 +770,42 @@ http.createServer((req, res) => {
     assert.match(readFileSync(viewport.ir.semantic, 'utf8'), /outline/)
   })
 
+  await test('pseudo elements are captured as generated children', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-pseudo-'))
+    const configPath = join(repoRoot, 'pseudo.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'pseudo.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 200 }],
+      cases: [{ id: 'pseudo', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'pseudo'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const nodes = flattenIr(ir.root)
+    const before = nodes.find(node => node.pseudo === '::before')
+    assert.ok(before !== undefined, '::before captured')
+    assert.equal(before.style.width, '8px')
+    const color = before.style.backgroundColor
+    const resolved = color.startsWith('color.') ? ir.tokens.colors[color] : color
+    assert.match(resolved, /34, ?197, ?94|22c55e/i)
+    const after = nodes.find(node => node.pseudo === '::after')
+    assert.ok(after !== undefined, '::after captured')
+    assert.equal(after.textRuns[0].text, '★')
+    assert.deepEqual(validateIr(ir), [])
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /border-radius/)
+    assert.match(semantic, /★/)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')

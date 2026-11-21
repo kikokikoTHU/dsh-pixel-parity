@@ -124,6 +124,9 @@ const ELEMENT_ATTRIBUTES = {
   g: ['transform'],
   use: ['href', 'x', 'y', 'width', 'height'],
   img: ['src', 'alt'],
+  input: ['type', 'value', 'placeholder', 'size', 'maxlength', 'checked', 'disabled', 'name', 'readonly'],
+  textarea: ['rows', 'cols', 'placeholder', 'disabled', 'name'],
+  select: ['multiple', 'size', 'disabled', 'name'],
 }
 
 const FREEZE_CSS = `
@@ -282,6 +285,9 @@ function createPlaywrightDriver(playwright, options) {
           }
           let count = 0
           let truncated = false
+          const num = value => Number.parseFloat(value) || 0
+          const measureCanvas = document.createElement('canvas')
+          const measureContext = measureCanvas.getContext('2d')
 
           // Authored sizing declarations (width/height/min/max/flex-basis) from
           // same-origin CSS. Flow layout cannot derive an explicit height from
@@ -396,6 +402,13 @@ function createPlaywrightDriver(playwright, options) {
               }
               if (Object.keys(attributes).length > 0) node.attributes = attributes
             }
+            if (localName === 'select' && element.options !== undefined && element.options.length > 0) {
+              node.options = [...element.options].map(option => ({
+                text: option.textContent.trim().slice(0, 80),
+                value: option.value,
+                selected: option.selected,
+              }))
+            }
             const authored = {}
             for (const rule of sizingRules) {
               try {
@@ -410,8 +423,58 @@ function createPlaywrightDriver(playwright, options) {
               if (typeof value === 'string' && value !== '') authored[key] = value
             }
             if (Object.keys(authored).length > 0) node.authored = authored
+            const pseudoNodes = []
+            for (const which of ['::before', '::after']) {
+              const pseudo = getComputedStyle(element, which)
+              const content = pseudo.content
+              if (content === 'none' || content === 'normal' || content === '') continue
+              if (pseudo.display === 'none' || pseudo.visibility === 'hidden') continue
+              if (!content.startsWith('"')) continue
+              let text = ''
+              try { text = JSON.parse(content) } catch { text = content.slice(1, -1) }
+              if (text.length > 100) continue
+              const widthPx = pseudo.width !== 'auto' ? Number.parseFloat(pseudo.width) : undefined
+              const heightPx = pseudo.height !== 'auto' ? Number.parseFloat(pseudo.height) : undefined
+              const background = pseudo.backgroundColor
+              const hasBox = widthPx !== undefined || heightPx !== undefined
+                || (background !== 'rgba(0, 0, 0, 0)' && background !== 'transparent')
+                || Number.parseFloat(pseudo.borderTopWidth) > 0
+              if (text.length === 0 && !hasBox) continue
+              const padX = num(pseudo.paddingLeft) + num(pseudo.paddingRight) + num(pseudo.borderLeftWidth) + num(pseudo.borderRightWidth)
+              const padY = num(pseudo.paddingTop) + num(pseudo.paddingBottom) + num(pseudo.borderTopWidth) + num(pseudo.borderBottomWidth)
+              measureContext.font = `${pseudo.fontStyle} ${pseudo.fontWeight} ${pseudo.fontSize} ${pseudo.fontFamily}`
+              const textWidth = text.length > 0 ? measureContext.measureText(text).width : 0
+              const width = widthPx ?? Math.max(0, textWidth + padX)
+              const height = heightPx
+                ?? (Number.parseFloat(pseudo.lineHeight) || Number.parseFloat(pseudo.fontSize) * 1.2) + padY
+              const pseudoStyle = pick(pseudo)
+              if (widthPx !== undefined) pseudoStyle.width = `${widthPx}px`
+              if (heightPx !== undefined) pseudoStyle.height = `${heightPx}px`
+              if (pseudoStyle.display === 'inline') pseudoStyle.display = 'inline-block'
+              const contentHeight = rect.height - num(style.paddingTop) - num(style.paddingBottom)
+              const y = rect.y + num(style.paddingTop) + Math.max(0, (contentHeight - height) / 2)
+              const x = which === '::before'
+                ? rect.x + num(style.paddingLeft) + num(pseudo.marginLeft)
+                : rect.x + rect.width - num(style.paddingRight) - width
+              const pseudoNode = {
+                tag: 'span',
+                pseudo: which,
+                box: { x: round(x), y: round(y), w: round(width), h: round(height) },
+                style: pseudoStyle,
+              }
+              if (text.length > 0) {
+                pseudoNode.textRuns = [{ text, box: { x: round(x), y: round(y), w: round(width), h: round(height) } }]
+              }
+              pseudoNodes.push(pseudoNode)
+            }
             const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
-            if (children.length > 0) node.children = children
+            if (pseudoNodes.length > 0) {
+              const before = pseudoNodes.filter(item => item.pseudo === '::before')
+              const after = pseudoNodes.filter(item => item.pseudo === '::after')
+              node.children = [...before, ...children, ...after]
+            } else if (children.length > 0) {
+              node.children = children
+            }
             return node
           }
           const root = walk(document.body, 0)

@@ -656,6 +656,8 @@ async function synthesizeLayout(ir, driver, viewport, caseDir) {
       // Table cells derive their size from the table model (columns, row heights);
       // pinning them individually is redundant once rows/columns are pinned.
       if (node.tag === 'td' || node.tag === 'th') continue
+      // Pseudo-elements are generated content: let flow size them.
+      if (node.pseudo !== undefined) continue
       const got = rendered.get(node.id)
       const needWidth = got === undefined || Math.abs(node.box.w - got.box.w) > 1
       const needHeight = got === undefined || Math.abs(node.box.h - got.box.h) > 1
@@ -720,8 +722,9 @@ function domMap(dom) {
 }
 
 function measureBoxes(nodes, rendered) {
-  const stats = { boxes: nodes.length, within1: 0, within2: 0, over2: 0 }
-  for (const node of nodes) {
+  const measured = nodes.filter(node => node.pseudo === undefined)
+  const stats = { boxes: measured.length, within1: 0, within2: 0, over2: 0 }
+  for (const node of measured) {
     const got = rendered.get(node.id)
     if (got === undefined) {
       stats.over2 += 1

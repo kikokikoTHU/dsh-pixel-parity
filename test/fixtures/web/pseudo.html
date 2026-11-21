@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>pseudo element fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; font-size: 14px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #16a34a; }
+  .status::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    display: inline-block;
+  }
+  .badge::after { content: "★"; margin-left: 4px; color: #f59e0b; }
+</style>
+</head>
+<body>
+  <div style="padding: 10px;"><span class="status">已连接</span></div>
+  <div style="padding: 10px;"><span class="badge">推荐</span></div>
+</body>
+</html>

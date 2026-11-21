@@ -136,6 +136,17 @@ keeps that declaration instead:
 On the 337-node page this moved **70 sizes from measured pins to authored values**: pins
 went from 94 to 24 with identical box accuracy.
 
+## Generated content
+
+- Quoted `::before` / `::after` content becomes a generated child (first / last) with the
+  pseudo's computed style; an explicit `width`/`height` is kept, text-only pseudo boxes are
+  sized by flow.
+- Pseudo nodes carry `pseudo: "::before" | "::after"`, are never pinned, and are excluded
+  from box-accuracy statistics because their geometry is synthesized.
+- `content: url(...)`, counters, and pseudo animations are skipped.
+- Form controls keep their attributes, and `<select>` keeps its options, so intrinsic widths
+  survive.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -151,19 +162,30 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 
 | Metric | Result |
 | --- | --- |
-| Nodes | 337 (col/colgroup nodes are folded into `columnWidths`) |
-| Authored sizes | 201 |
-| Size pins after synthesis | 94 → **24** after authored sizes |
-| Pins pruned as redundant | 4 |
-| Box within 1px | 229 |
-| Box within 2px | 332 |
+| Nodes | 362 captured (337 boxes + 25 pseudo-elements) |
+| Authored sizes | 201 (px and `%`) |
+| Size pins after synthesis | 24 → **3** |
+| Pins pruned as redundant | 6 |
+| Box within 1px | **330** of 337 |
+| Box within 2px | 2 |
 | Box off by more than 2px | 5 |
-| Pixel difference (minimal pins) | 2.02% |
-| Pixel difference (all sizes pinned) | 0.61% |
+| Pixel difference, semantic render | **0.56%** |
+| Pixel difference, absolute render | 0.72% |
+
+The jump came from capturing what flow was silently missing:
+
+- **Pseudo-elements** (`::before`/`::after`) are emitted as generated children with their
+  computed size and content; the browser lays them out, so status dots and icon glyphs stop
+  being 13px-short. This alone removed 20 of the 24 pins.
+- **Percentage authored sizes** (`width: 100%`) are kept as source truth when the parent
+  supplies the reference size.
+- **`<select>` options** are captured and rendered, so the control keeps its intrinsic
+  width; form-control attributes (`input`/`textarea`/`select`) are preserved too.
+- The generated page declares `html { height: 100% }`, so `height:100%` chains resolve
+  instead of collapsing.
 
 Pruning removes a pin, re-renders, and keeps the removal only when box accuracy does not
-regress. It is bounded to 30 renders and only tries block-level nodes; after authored sizes
-replaced most explicit sizes, only 4 pins were pruned.
+regress. It is bounded to 30 renders and tries block-level nodes.
 
 Second sample — anubis `/projects` (a PrimeVue app with an icon font):
 
@@ -176,19 +198,16 @@ Second sample — anubis `/projects` (a PrimeVue app with an icon font):
 | Pixel difference | 0.28% |
 | Font materialized | PrimeIcons, 35 KB |
 
-The two pixel numbers are the honest trade-off: pinning every size reproduces the pixels
-but makes the IR a coordinate dump; minimal pins keep 332 of 337 boxes within 2px and move
-the rest by at most a few pixels. Pins are data, so a generator can choose how much of the
-viewport it wants to inherit. The five outliers are four 10px inline icon spans (rendered
-7px wide because the inline box depends on glyph metrics) and one `<input>` shifted 15.6px
-by flex distribution.
+The remaining three pins are the pagination controls (`select`, its label, and the wrapper):
+their width comes from the native widget, not from CSS. The five boxes still over 2px are
+inline glyph boxes whose width depends on font metrics.
 
 Pin distribution tells you where the IR still lacks layout information:
 
 | Kind | Pinned / total | Why |
 | --- | --- | --- |
-| flex | 23 / 62 | content-driven flex sizes that neither CSS nor flow explains |
-| block | 1 / 94 | one explicit block size that survived pruning |
+| flex | 2 / 62 | pagination label and wrapper widths |
+| block | 1 / 95 | native `<select>` intrinsic width |
 | inline | 0 / 37 | inline boxes are reproduced from text runs |
 | table | 0 / 139 | columns/rows reproduce the cells |
 | grid | 0 / 5 | grid layout reproduces from templates |
@@ -215,13 +234,12 @@ and silently changed the font. Any generator must escape quoted font families.
 - Outline, `filter`, `backdrop-filter`, and `mix-blend-mode` are captured (defaults
   pruned); CSS gradients survive as `background-image` strings.
 - Inline icon spans and form controls can still drift a few pixels.
-- Pseudo-elements are not captured yet.
+- Pseudo-elements with `content: url()`, counters, or animations are not captured.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Pseudo-elements (`::before` / `::after`).
-2. A semantic HTML/CSS component generator (usable code, not just a fidelity proof).
-3. Multi-breakpoint IR (responsive rules).
-4. Multi-viewport QML / desktop adapters.
-5. Figma vectors and image fills.
+1. A semantic HTML/CSS component generator (usable code, not just a fidelity proof).
+2. Multi-breakpoint IR (responsive rules).
+3. Multi-viewport QML / desktop adapters.
+4. Figma vectors and image fills.

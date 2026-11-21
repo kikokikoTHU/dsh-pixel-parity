@@ -55,6 +55,7 @@ export function generateSemanticHtml(ir) {
 <title>IR semantic render</title>
 <style>
   ${fontFaces}
+  html { height: 100%; }
   html, body { margin: 0; padding: 0; }
   body { width: ${viewport.width}px; height: ${viewport.height}px; }
 </style>
@@ -78,9 +79,13 @@ function renderNode(node, ir, isRoot = false) {
     : ''
   const text = (node.textRuns ?? []).map(run => run.text).join(' ')
   const children = (node.children ?? []).map(child => renderNode(child, ir)).join('')
-  if (isRoot) return `<body ${attributes}>${colgroup}${escapeHtml(text)}${children}</body>`
+  const options = node.tag === 'select' && Array.isArray(node.options)
+    ? node.options.map(option => `<option value="${escapeHtml(option.value)}"${option.selected ? ' selected' : ''}>${escapeHtml(option.text)}</option>`).join('')
+    : ''
+  const content = options.length > 0 ? options : `${colgroup}${escapeHtml(text)}${children}`
+  if (isRoot) return `<body ${attributes}>${content}</body>`
   if (VOID_TAGS.has(node.tag)) return `<${node.tag} ${attributes} />`
-  return `<${node.tag} ${attributes}>${colgroup}${escapeHtml(text)}${children}</${node.tag}>`
+  return `<${node.tag} ${attributes}>${content}</${node.tag}>`
 }
 
 function buildDeclarations(node, style) {
@@ -106,6 +111,15 @@ function buildDeclarations(node, style) {
   // pins so the source value wins when both exist.
   for (const [key, value] of Object.entries(node.authored ?? {})) {
     declarations.push(`${kebab(key)}:${value}`)
+  }
+
+  // Generated content (::before/::after) is sized by flow, but an explicit
+  // pseudo width/height must survive.
+  if (node.pseudo !== undefined) {
+    for (const key of ['width', 'height']) {
+      const value = style[key]
+      if (typeof value === 'string' && value !== 'auto' && value !== '') declarations.push(`${key}:${value}`)
+    }
   }
 
   for (const key of CSS_KEYS) {
