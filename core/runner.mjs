@@ -366,6 +366,9 @@ async function synthesizeLayout(ir, driver, viewport, caseDir) {
     let added = 0
     for (const node of nodes) {
       node.layout = node.layout ?? { kind: 'block' }
+      // Table cells derive their size from the table model (columns, row heights);
+      // pinning them individually is redundant once rows/columns are pinned.
+      if (node.tag === 'td' || node.tag === 'th') continue
       node.layout.pins = node.layout.pins ?? {}
       const pins = node.layout.pins
       const got = rendered.get(node.id)

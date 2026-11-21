@@ -1,4 +1,4 @@
-/**
+﻿/**
  * IR v1: a renderer-neutral description of one static screen.
  *
  * Built from a captured DOM (best fidelity source) so the same artifacts can
@@ -136,6 +136,8 @@ function convert(node, tokens) {
   if (node.textRuns !== undefined && node.textRuns.length > 0) {
     result.textRuns = node.textRuns.map(run => ({ text: run.text, box: run.box }))
   }
+  if (node.colSpan !== undefined) result.colSpan = node.colSpan
+  if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
   if (node.children !== undefined && node.children.length > 0) result.children = node.children.map(child => convert(child, tokens))
   return result
 }
@@ -162,8 +164,36 @@ function layoutOf(node) {
     layout.columns = node.style.gridTemplateColumns ?? ''
     layout.rows = node.style.gridTemplateRows ?? ''
     layout.gap = node.style.gap ?? 'normal'
+  } else if (kind === 'table') {
+    const columns = tableColumns(node)
+    if (columns.length > 0) layout.columnWidths = columns
   }
   return layout
+}
+
+/** Derive column widths from the first row of a table node. */
+function tableColumns(node) {
+  const row = firstRow(node)
+  if (row === undefined) return []
+  const columns = []
+  for (const cell of row.children ?? []) {
+    if (cell.tag !== 'td' && cell.tag !== 'th') continue
+    const span = Math.max(1, cell.colSpan ?? 1)
+    const width = Math.round(((cell.box?.w ?? 0) / span) * 100) / 100
+    for (let index = 0; index < span; index += 1) columns.push(width)
+  }
+  return columns
+}
+
+function firstRow(node) {
+  for (const child of node.children ?? []) {
+    if (child.tag === 'tr') return child
+    if (child.tag === 'thead' || child.tag === 'tbody' || child.tag === 'tfoot') {
+      const nested = firstRow(child)
+      if (nested !== undefined) return nested
+    }
+  }
+  return undefined
 }
 
 function roleOf(node) {
@@ -220,6 +250,15 @@ export function validateIr(ir) {
           violations.push(`${path}.layout.pins.${key} must be a boolean`)
         }
       }
+    }
+    if (node.layout?.columnWidths !== undefined) {
+      const columns = node.layout.columnWidths
+      if (!Array.isArray(columns) || columns.some(width => typeof width !== 'number' || width < 0)) {
+        violations.push(`${path}.layout.columnWidths must be an array of non-negative numbers`)
+      }
+    }
+    if (node.colSpan !== undefined && (!Number.isInteger(node.colSpan) || node.colSpan < 1)) {
+      violations.push(`${path}.colSpan must be a positive integer`)
     }
     for (const [index, run] of (node.textRuns ?? []).entries()) {
       if (typeof run.text !== 'string' || run.text.length === 0) violations.push(`${path}.textRuns[${index}].text must be a non-empty string`)

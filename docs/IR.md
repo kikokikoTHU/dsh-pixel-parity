@@ -120,21 +120,27 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 
 | Metric | Result |
 | --- | --- |
-| Nodes | 345 |
-| Size pins after synthesis | 247 (2 iterations) |
-| Box within 1px | 334 |
-| Box within 2px | 336 |
+| Nodes | 337 (col/colgroup nodes are folded into `columnWidths`) |
+| Size pins after synthesis | 120 (2 iterations) |
+| Box within 1px | 225 |
+| Box within 2px | 328 |
 | Box off by more than 2px | 9 |
-| Pixel difference (final semantic render) | **0.65%** |
+| Pixel difference (minimal pins) | 2.04% |
+| Pixel difference (all sizes pinned) | 0.61% |
+
+The two pixel numbers are the honest trade-off: pinning every size reproduces the pixels
+but makes the IR a coordinate dump; minimal pins keep 328 of 337 boxes within 2px and move
+the rest by at most a few pixels. Pins are data, so a generator can choose how much of the
+viewport it wants to inherit.
 
 Pin distribution tells you where the IR still lacks layout information:
 
 | Kind | Pinned / total | Why |
 | --- | --- | --- |
-| table | 147 / 147 | cell and column widths are not yet captured; `<colgroup>` support is next |
 | flex | 49 / 62 | content-driven flex sizes that the capture cannot re-derive |
 | block | 30 / 94 | explicit block sizes |
 | inline | 21 / 37 | inline boxes whose width depends on text shaping |
+| table | 20 / 139 | table and row boxes only; cells derive from columns/rows |
 | grid | 0 / 5 | grid layout reproduces from templates |
 
 The last fix matters: a font stack containing `"Microsoft YaHei"` broke the HTML attribute
@@ -144,16 +150,19 @@ and silently changed the font. Any generator must escape quoted font families.
 
 - One screen, static: no interactions, states, hover, or responsive rules.
 - Images and `<canvas>` are boxes only; no asset payloads.
-- Layout **kinds** are captured (flex/grid/table/block), and item props
-  (`flexGrow`/`flexShrink`/`flexBasis`) are stored. Flow layout alone reproduces about a
-  third of a table-heavy page, so 247 of 345 nodes carry size pins; tables account for
-  143 of them.
+- Layout **kinds** are captured (flex/grid/table/block), item props
+  (`flexGrow`/`flexShrink`/`flexBasis`) are stored, and tables carry `columnWidths`
+  (derived from the first row) plus `colspan`/`rowspan`. Flow layout alone reproduces
+  about a third of the page; 120 of 337 nodes carry size pins.
+- Table cells derive their size from columns and rows; they are deliberately not pinned.
+- SVG geometry (`<circle cx>`, `<path d>`, ...) is not captured yet, so icon nodes render
+  empty and count as the few remaining >2px boxes.
 - Text runs are captured for one line box; wrapped multi-line text is approximated.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Capture table column widths (`<colgroup>`) and emit them, removing the table pins.
+1. Capture SVG geometry attributes (and image `src`/alt) so icons and assets survive.
 2. Derive flex item sizes from content/flex-basis to drop more pins.
 3. Carry images and fonts as referenced assets.
 4. A semantic HTML/CSS generator (usable code, not just a fidelity proof).

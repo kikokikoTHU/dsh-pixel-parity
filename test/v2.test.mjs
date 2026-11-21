@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v2 core tests: config normalization, G/S comparisons, masking, and one
  * end-to-end run over the web fixtures.
  *
@@ -271,6 +271,11 @@ if (repo === undefined) {
     assert.ok(existsSync(viewport.ir.semantic), 'semantic render must exist')
     const semantic = readFileSync(viewport.ir.semantic, 'utf8')
     assert.match(semantic, /data-ir="/)
+    const tableNode = flattenIr(ir.root).find(node => node.tag === 'table')
+    assert.ok(tableNode !== undefined, 'fixture has a table')
+    assert.ok(Array.isArray(tableNode.layout.columnWidths), 'table layout captures column widths')
+    assert.equal(tableNode.layout.columnWidths.length, 3)
+    assert.match(semantic, /<colgroup>/)
     assert.ok(Object.keys(ir.tokens.typography).length > 0, 'typography tokens must exist')
     const nodes = flattenIr(ir.root)
     assert.ok(nodes.some(node => typeof node.style.typography === 'string'), 'at least one node must reference a typography token')

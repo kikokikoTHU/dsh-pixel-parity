@@ -128,11 +128,11 @@ baseline just to make a regression pass.
 `parity_run({ ..., exportIr: true })` or `node cli.mjs run --export-ir` writes `ir.json`,
 `generated.html`, and `generated.semantic.html` per case/viewport. The IR is a static
 snapshot — design tokens, a node tree with boxes and layout kinds (flex/grid/table/block),
-and measured text runs. On a 345-node real page the absolute render reproduces the screen
-at **0.61%** pixel difference; the semantic render (layout re-run by the browser, with
-size pins only where flow cannot reproduce a box) keeps 336 of 345 boxes within 2px at
-**0.65%** pixels. It is the seam for future generators (QML, desktop). See
-[docs/IR.md](docs/IR.md) for the schema and limits.
+table column widths, and measured text runs. On a 337-node real page the absolute render
+reproduces the screen at **0.61%** pixel difference; the semantic render (layout re-run by
+the browser, with 120 size pins where flow cannot reproduce a box) keeps 328 of 337 boxes
+within 2px at **2.04%** pixels — the trade-off for not pinning every coordinate. It is the
+seam for future generators (QML, desktop). See [docs/IR.md](docs/IR.md).
 
 ## Judging rules
 | Check | Default | Meaning |

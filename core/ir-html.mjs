@@ -1,4 +1,4 @@
-/**
+﻿/**
  * IR → semantic HTML (layout-preserving clone).
  *
  * Unlike the absolute renderer, this rebuilds the element tree with the captured
@@ -56,12 +56,16 @@ function renderNode(node, ir, isRoot = false) {
   if (SKIP_TAGS.has(node.tag)) return ''
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style)
-  const attributes = `data-ir="${escapeHtml(node.id)}" style="${escapeHtml(declarations.join(';'))}"`
+  const spans = `${node.colSpan > 1 ? ` colspan="${node.colSpan}"` : ''}${node.rowSpan > 1 ? ` rowspan="${node.rowSpan}"` : ''}`
+  const attributes = `data-ir="${escapeHtml(node.id)}"${spans} style="${escapeHtml(declarations.join(';'))}"`
+  const colgroup = node.tag === 'table' && Array.isArray(node.layout?.columnWidths)
+    ? `<colgroup>${node.layout.columnWidths.map(width => `<col style="width:${width}px">`).join('')}</colgroup>`
+    : ''
   const text = (node.textRuns ?? []).map(run => run.text).join(' ')
   const children = (node.children ?? []).map(child => renderNode(child, ir)).join('')
-  if (isRoot) return `<body ${attributes}>${escapeHtml(text)}${children}</body>`
+  if (isRoot) return `<body ${attributes}>${colgroup}${escapeHtml(text)}${children}</body>`
   if (VOID_TAGS.has(node.tag)) return `<${node.tag} ${attributes} />`
-  return `<${node.tag} ${attributes}>${escapeHtml(text)}${children}</${node.tag}>`
+  return `<${node.tag} ${attributes}>${colgroup}${escapeHtml(text)}${children}</${node.tag}>`
 }
 
 function buildDeclarations(node, style) {

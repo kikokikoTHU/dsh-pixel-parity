@@ -225,7 +225,7 @@ function createPlaywrightDriver(playwright, options) {
       let dom
       if (input.exportDom === true) {
         dom = await page.evaluate(({ maxNodes, styleKeys }) => {
-          const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE'])
+          const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE', 'COLGROUP', 'COL'])
           const round = value => Math.round(value * 10) / 10
           const pick = (style) => {
             const out = {}
@@ -270,6 +270,8 @@ function createPlaywrightDriver(playwright, options) {
             if (textRuns.length > 0) node.textRuns = textRuns
             if (element.dataset?.ir !== undefined) node.ir = element.dataset.ir
             if (element.dataset?.irRun !== undefined) node.irRun = element.dataset.irRun
+            if (element.colSpan > 1) node.colSpan = element.colSpan
+            if (element.rowSpan > 1) node.rowSpan = element.rowSpan
             if (element.tagName === 'IMG') node.src = element.getAttribute('src') ?? ''
             const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
             if (children.length > 0) node.children = children
