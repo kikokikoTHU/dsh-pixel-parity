@@ -712,6 +712,64 @@ http.createServer((req, res) => {
     assert.equal(alive, false, 'dev server should be stopped after the run')
   })
 
+  await test('wrapped text is captured as one run per visual line', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-wrap-'))
+    const configPath = join(repoRoot, 'wrap.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'wrapped.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 200 }],
+      cases: [{ id: 'wrap', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'wrap'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const runs = flattenIr(ir.root).filter(node => (node.textRuns ?? []).length > 0).flatMap(node => node.textRuns)
+    assert.ok(runs.length >= 2, `expected multiple line runs, got ${runs.length}`)
+    const tops = new Set(runs.map(run => Math.round(run.box.y)))
+    assert.ok(tops.size >= 2, 'lines have distinct y positions')
+    assert.deepEqual(validateIr(ir), [])
+    const { generateQml } = await import('../core/ir-qml.mjs')
+    const qml = generateQml(ir)
+    assert.ok((qml.match(/Text \{/g) ?? []).length >= 2, 'QML emits one Text per line')
+  })
+
+  await test('outline, filter and blend mode survive the IR', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-effects-'))
+    const configPath = join(repoRoot, 'effects.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'effects.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 200 }],
+      cases: [{ id: 'effects', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'effects'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const card = flattenIr(ir.root).find(node => Number.parseFloat(node.style?.outlineWidth ?? '0') >= 2)
+    assert.ok(card !== undefined, 'outline captured')
+    assert.match(card.style.outlineColor, /255, 0, 0|#ff0000/i)
+    assert.match(card.style.filter, /blur/)
+    assert.equal(card.style.mixBlendMode, 'multiply')
+    assert.match(readFileSync(viewport.ir.semantic, 'utf8'), /outline/)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')

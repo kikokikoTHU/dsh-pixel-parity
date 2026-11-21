@@ -80,6 +80,13 @@ const IR_STYLE_PROPS = [
   'backgroundRepeat',
   'backgroundOrigin',
   'backgroundClip',
+  'outlineWidth',
+  'outlineStyle',
+  'outlineColor',
+  'outlineOffset',
+  'filter',
+  'backdropFilter',
+  'mixBlendMode',
   'borderCollapse',
   'borderSpacing',
   'tableLayout',
@@ -262,6 +269,15 @@ function createPlaywrightDriver(playwright, options) {
               const value = style[key]
               if (value !== undefined && value !== '') out[key] = value
             }
+            // Drop defaults that would otherwise bloat every node.
+            if (Number.parseFloat(out.outlineWidth ?? '0') === 0) {
+              for (const key of ['outlineWidth', 'outlineStyle', 'outlineColor', 'outlineOffset']) delete out[key]
+            }
+            if (out.filter === 'none') delete out.filter
+            if (out.backdropFilter === 'none') delete out.backdropFilter
+            if (out.mixBlendMode === 'normal') delete out.mixBlendMode
+            if (out.backgroundImage === 'none') delete out.backgroundImage
+            if (out.boxShadow === 'none') delete out.boxShadow
             return out
           }
           let count = 0
@@ -306,16 +322,54 @@ function createPlaywrightDriver(playwright, options) {
             const textRuns = []
             for (const child of element.childNodes) {
               if (child.nodeType !== 3) continue
-              const value = child.textContent.trim()
-              if (value.length === 0) continue
+              const value = child.textContent
+              if (value.trim().length === 0) continue
               const range = document.createRange()
               range.selectNodeContents(child)
-              const rect = range.getClientRects()[0] ?? range.getBoundingClientRect()
-              if (rect === undefined || (rect.width === 0 && rect.height === 0)) continue
-              textRuns.push({
-                text: value.slice(0, 200),
-                box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
-              })
+              const lineRects = [...range.getClientRects()].filter(item => item.width > 0 || item.height > 0)
+              if (lineRects.length <= 1 || value.length > 500) {
+                const rect = lineRects[0] ?? range.getBoundingClientRect()
+                if (rect.width === 0 && rect.height === 0) continue
+                textRuns.push({
+                  text: value.trim().slice(0, 200),
+                  box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+                })
+                continue
+              }
+              // One run per visual line: walk characters and bucket them by the
+              // line box they land in, so wrapped text keeps its line geometry.
+              const groups = []
+              for (const line of lineRects) {
+                const existing = groups.find(group => Math.abs(group.top - line.top) < 1.5)
+                if (existing === undefined) groups.push({ top: line.top, bottom: line.bottom, rect: line })
+                else if (line.width > existing.rect.width) existing.rect = line
+              }
+              const buckets = groups.map(() => [])
+              const charRange = document.createRange()
+              for (let index = 0; index < value.length; index += 1) {
+                charRange.setStart(child, index)
+                charRange.setEnd(child, index + 1)
+                const box = charRange.getBoundingClientRect()
+                if (box.width === 0 && box.height === 0) {
+                  if (buckets.length > 0) buckets[buckets.length - 1].push(index)
+                  continue
+                }
+                const center = box.top + box.height / 2
+                let bucket = 0
+                while (bucket < groups.length - 1 && center > groups[bucket].bottom) bucket += 1
+                buckets[bucket].push(index)
+              }
+              for (let index = 0; index < groups.length; index += 1) {
+                const chars = buckets[index]
+                if (chars.length === 0) continue
+                const text = value.slice(chars[0], chars[chars.length - 1] + 1).trim()
+                if (text.length === 0) continue
+                const rect = groups[index].rect
+                textRuns.push({
+                  text: text.slice(0, 200),
+                  box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+                })
+              }
             }
             const localName = (element.localName ?? element.tagName).toLowerCase()
             const node = {

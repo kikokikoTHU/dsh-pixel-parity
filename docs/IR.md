@@ -210,15 +210,18 @@ and silently changed the font. Any generator must escape quoted font families.
 - Fonts and images are materialized; external CSS, video, and canvas pixels are not.
 - Cross-origin stylesheets that expose no `cssRules` are skipped, so their fonts are not
   materialized.
-- Inline icon spans and form controls can still drift a few pixels; they are the remaining
-  outliers.
-- Text runs are captured for one line box; wrapped multi-line text is approximated.
+- Wrapped text is captured as one run per visual line (character bucketing); runs longer
+  than 500 characters fall back to a single box.
+- Outline, `filter`, `backdrop-filter`, and `mix-blend-mode` are captured (defaults
+  pruned); CSS gradients survive as `background-image` strings.
+- Inline icon spans and form controls can still drift a few pixels.
+- Pseudo-elements are not captured yet.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Multi-line text runs (wrapped text currently approximated).
-2. Background gradients, filters, and pseudo-elements.
-3. A semantic HTML/CSS component generator (usable code, not just a fidelity proof).
-4. Multi-breakpoint IR (responsive rules).
-5. Multi-viewport QML / desktop adapters.
+1. Pseudo-elements (`::before` / `::after`).
+2. A semantic HTML/CSS component generator (usable code, not just a fidelity proof).
+3. Multi-breakpoint IR (responsive rules).
+4. Multi-viewport QML / desktop adapters.
+5. Figma vectors and image fills.

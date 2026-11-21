@@ -25,6 +25,8 @@ const STYLE_KEYS = [
   'boxShadow', 'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity',
   'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat',
   'backgroundOrigin', 'backgroundClip',
+  'outlineWidth', 'outlineStyle', 'outlineColor', 'outlineOffset',
+  'filter', 'backdropFilter', 'mixBlendMode',
   'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 

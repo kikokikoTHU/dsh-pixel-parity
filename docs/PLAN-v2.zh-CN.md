@@ -276,6 +276,8 @@ cases/<case>/<viewport>/
 | M21 ✅ | 图片资源：`img.src` 与 `background-image` 下载到 `assets/images/` 并改相对路径；补齐 background-size/position/repeat 采集 | 生成页与 QML 离线可看 |
 | M22 ✅ | `parity_report` 工具 + `cli report`：只读 manifest，输出每视口状态、像素差、几何失败、样式差异与热点区域 | 运行后可复查，CI 友好 |
 | M23 ✅ | 自动启动：`targets.implementation.start` 在 URL 不可达时拉起命令，轮询就绪，结束后杀进程树；已运行服务复用不杀 | 一条命令跑完 |
+| M24 ✅ | 多行文本：按字符落入的行盒分桶，每视觉行一个 run；QML 每行一个 Text | 换行文本不再近似 |
+| M25 ✅ | 视觉效果：采集 outline/filter/backdrop-filter/mix-blend-mode（默认值剪除），渐变随 background-image 保留；IR 体积降约 2% | 描边与滤镜可复现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 
