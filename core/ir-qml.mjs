@@ -112,8 +112,107 @@ function paintProps(node, style) {
   }
   const radius = Number.parseFloat(style.borderRadius ?? '0')
   if (radius > 0) properties.push(`radius: ${number(radius)}`)
+  const gradient = gradientProperty(style.backgroundImage)
+  if (gradient !== undefined) properties.push(gradient)
   if (node.box.w === 0 || node.box.h === 0) properties.push('visible: false')
   return properties
+}
+
+/**
+ * Map a vertical/horizontal CSS linear-gradient to QML `Gradient`.
+ * Diagonal gradients fall back to a solid mid-stop color.
+ */
+function gradientProperty(value) {
+  if (typeof value !== 'string' || !value.startsWith('linear-gradient')) return undefined
+  const inner = value.slice(value.indexOf('(') + 1, value.lastIndexOf(')'))
+  const parts = splitTopLevel(inner)
+  let horizontal = false
+  let reverse = false
+  let index = 0
+  const head = (parts[0] ?? '').trim()
+  if (/^to\s+right/i.test(head) || /^90deg/i.test(head)) {
+    horizontal = true
+  } else if (/^to\s+left/i.test(head) || /^270deg/i.test(head)) {
+    horizontal = true
+    reverse = true
+  } else if (/^to\s+top/i.test(head) || /^0deg/i.test(head)) {
+    reverse = true
+  } else if (/^to\s+bottom/i.test(head) || /^180deg/i.test(head)) {
+    reverse = false
+  } else if (/deg|^to\s+/i.test(head)) {
+    return undefined
+  } else {
+    index = -1 // first part is already a color stop
+  }
+
+  const stops = []
+  let cursor = index + 1
+  for (; cursor < parts.length; cursor += 1) {
+    const stop = parseColorStop(parts[cursor])
+    if (stop !== undefined) stops.push(stop)
+  }
+  if (stops.length < 2) return undefined
+  if (stops.some(stop => stop.position === undefined)) {
+    stops.forEach((stop, stopIndex) => {
+      stop.position = stops.length === 1 ? 0 : stopIndex / (stops.length - 1)
+    })
+  }
+  stops.sort((left, right) => left.position - right.position)
+  if (reverse) stops.reverse()
+  const lines = stops.map(stop => `GradientStop { position: ${number(stop.position)}; color: "${stop.color}" }`)
+  const orientationLine = horizontal ? '\n    orientation: Gradient.Horizontal' : ''
+  return `gradient: Gradient {${orientationLine}\n${lines.map(line => `    ${line}`).join('\n')}\n  }`
+}
+
+function splitTopLevel(value) {
+  const parts = []
+  let depth = 0
+  let current = ''
+  for (const character of value) {
+    if (character === '(') depth += 1
+    if (character === ')') depth -= 1
+    if (character === ',' && depth === 0) {
+      parts.push(current)
+      current = ''
+      continue
+    }
+    current += character
+  }
+  parts.push(current)
+  return parts
+}
+
+function parseColorStop(value) {
+  const text = value.trim()
+  if (text.length === 0) return undefined
+  const functionColor = /^(rgba?\([^)]*\))/i.exec(text)
+  const hexColor = /^(#[0-9a-f]{3,8})/i.exec(text)
+  const color = functionColor?.[1] ?? hexColor?.[1]
+  if (color === undefined) return undefined
+  const rest = text.slice(color.length).trim()
+  const position = /^(\d+(?:\.\d+)?)%/.exec(rest)
+  return {
+    color: colorOf(color) ?? color,
+    position: position === null ? undefined : Number(position[1]) / 100,
+  }
+}
+
+function backgroundImageChild(style, indent) {
+  const value = style.backgroundImage
+  if (typeof value !== 'string' || !value.includes('url(')) return ''
+  const match = /url\((['"]?)([^'")]+)\1\)/.exec(value)
+  if (match === null) return ''
+  const fill = style.backgroundSize === 'contain'
+    ? 'Image.PreserveAspectFit'
+    : style.backgroundSize === 'cover'
+      ? 'Image.PreserveAspectCrop'
+      : 'Image.Stretch'
+  return `${indent}Image {
+${indent}  anchors.fill: parent
+${indent}  source: "${escapeQml(imageSource(match[2]))}"
+${indent}  fillMode: ${fill}
+${indent}  z: -1
+${indent}}`
 }
 
 function renderAbsolute(node, parent, ir, depth, placement, style, semantic) {
@@ -136,6 +235,8 @@ ${indent}}`
   const properties = [...base, ...paintProps(node, style)]
   const runs = (node.textRuns ?? []).map(run => renderText(run, node, style, depth + 1))
   const children = (node.children ?? []).map(child => renderNode(child, node, ir, depth + 1, { kind: 'absolute' }, semantic))
+  const background = backgroundImageChild(style, depth + 1)
+  if (background !== '') children.unshift(background)
   if (runs.length === 0 && children.length === 0) {
     return `${indent}Rectangle { ${properties.join('; ')} }`
   }
@@ -161,9 +262,10 @@ function renderFlow(node, parent, ir, depth, placement, flow, semantic) {
       : { kind: 'columnChild', offset }
     return renderNode(child, node, ir, depth + 2, childPlacement, semantic)
   })
+  const background = backgroundImageChild(style, indent + '  ')
   return `${indent}Rectangle {
 ${indent}  ${properties.join(`\n${indent}  `)}
-${indent}  ${inner} {
+${background === '' ? '' : `${background}\n`}${indent}  ${inner} {
 ${indent}    ${anchors}
 ${indent}    spacing: ${number(flow.gap)}
 ${children.join('\n')}

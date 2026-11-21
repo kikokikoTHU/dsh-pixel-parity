@@ -459,6 +459,31 @@ function createPlaywrightDriver(playwright, options) {
               const content = pseudo.content
               if (content === 'none' || content === 'normal' || content === '') continue
               if (pseudo.display === 'none' || pseudo.visibility === 'hidden') continue
+              if (content.startsWith('url(')) {
+                const urlMatch = /^url\((['"]?)([^'")]+)\1\)/.exec(content)
+                const widthPx = pseudo.width !== 'auto' ? Number.parseFloat(pseudo.width) : 0
+                const heightPx = pseudo.height !== 'auto' ? Number.parseFloat(pseudo.height) : 0
+                if (urlMatch !== null && widthPx > 0 && heightPx > 0) {
+                  let absolute = urlMatch[2]
+                  try { absolute = new URL(absolute, location.href).href } catch {}
+                  const pseudoStyle = pick(pseudo)
+                  pseudoStyle.backgroundImage = `url("${absolute}")`
+                  pseudoStyle.width = `${widthPx}px`
+                  pseudoStyle.height = `${heightPx}px`
+                  if (pseudoStyle.display === 'inline') pseudoStyle.display = 'inline-block'
+                  const x = which === '::before'
+                    ? rect.x + num(style.paddingLeft) + num(pseudo.marginLeft)
+                    : rect.x + rect.width - num(style.paddingRight) - widthPx
+                  const y = rect.y + num(style.paddingTop) + Math.max(0, (rect.height - heightPx) / 2)
+                  pseudoNodes.push({
+                    tag: 'span',
+                    pseudo: which,
+                    box: { x: round(x), y: round(y), w: round(widthPx), h: round(heightPx) },
+                    style: pseudoStyle,
+                  })
+                }
+                continue
+              }
               if (!content.startsWith('"')) continue
               let text = ''
               try { text = JSON.parse(content) } catch { text = content.slice(1, -1) }

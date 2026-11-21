@@ -7,7 +7,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -67,6 +67,24 @@ await test('config presets set tolerant thresholds and explicit values win', asy
   assert.equal(thresholds.geometryTolerance, 4)
   assert.equal(thresholds.maxMismatch, 0.03)
   assert.equal(thresholds.maxRegionMismatch, 0.6)
+})
+
+await test('plugin detail points at one local feature image', () => {
+  const root = join(here, '..')
+  for (const locale of ['en', 'zh']) {
+    const meta = JSON.parse(readFileSync(join(root, 'locale', `${locale}.json`), 'utf8')).meta
+    assert.ok(typeof meta.detail === 'string', `${locale} declares meta.detail`)
+    const documentPath = join(root, meta.detail)
+    assert.ok(existsSync(documentPath), `${meta.detail} exists`)
+    const lines = readFileSync(documentPath, 'utf8').trim().split(/\r?\n/)
+    assert.equal(lines.length, 1, 'detail document is one image line')
+    const image = /^!\[[^\]]+\]\(([^)]+)\)$/.exec(lines[0])
+    assert.ok(image !== null, 'detail line is a markdown image')
+    const imagePath = join(root, 'docs', image[1])
+    assert.ok(existsSync(imagePath), `${image[1]} exists`)
+    assert.ok(statSync(imagePath).size < 1024 * 1024, 'feature image under 1 MiB')
+    assert.doesNotMatch(readFileSync(imagePath, 'utf8'), /<text[\s>]/, 'feature image has no text elements')
+  }
 })
 
 await test('config rejects duplicate case ids', async () => {
@@ -871,6 +889,11 @@ http.createServer((req, res) => {
     const after = nodes.find(node => node.pseudo === '::after')
     assert.ok(after !== undefined, '::after captured')
     assert.equal(after.textRuns[0].text, '★')
+    const imagePseudo = nodes.find(node => node.pseudo === '::before' && node.style?.backgroundImage?.includes('assets/images/'))
+    assert.ok(imagePseudo !== undefined, 'url() pseudo captured as a background image')
+    const caseDir = dirname(viewport.ir.path)
+    const imageUrl = /url\(['"]?([^'")]+)['"]?\)/.exec(imagePseudo.style.backgroundImage)[1]
+    assert.ok(existsSync(join(caseDir, imageUrl)), 'pseudo image materialized')
     assert.deepEqual(validateIr(ir), [])
     const semantic = readFileSync(viewport.ir.semantic, 'utf8')
     assert.match(semantic, /border-radius/)
@@ -1026,6 +1049,35 @@ http.createServer((req, res) => {
     const retryIndex = semantic.indexOf('Retry')
     assert.ok(iconIndex >= 0 && retryIndex >= 0)
     assert.ok(iconIndex < retryIndex, 'icon renders before the label')
+  })
+
+  await test('QML maps background gradients and images', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-qmlbg-'))
+    const configPath = join(repoRoot, 'qmlbg.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'qml-background.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 300, height: 200 }],
+      cases: [{ id: 'qmlbg', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportQml: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'qmlbg'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir?.qml !== undefined, viewport.error)
+    const qml = readFileSync(viewport.ir.qml.path, 'utf8')
+    assert.match(qml, /gradient: Gradient \{/)
+    assert.match(qml, /orientation: Gradient\.Horizontal/)
+    assert.match(qml, /assets\/images\//)
+    const { findQmlScene } = await import('../adapters/qml.mjs')
+    if (findQmlScene() !== undefined) {
+      assert.equal(viewport.ir.qml.error, undefined, viewport.ir.qml.error)
+    }
   })
 
   await test('init detects the real repo workspace app and routes', () => {

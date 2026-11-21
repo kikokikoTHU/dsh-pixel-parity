@@ -1,0 +1,47 @@
+<svg width="640" height="300" viewBox="0 0 640 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#8B98AC" opacity="0.35"/>
+    </pattern>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4D6BFE" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4D6BFE" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="640" height="300" fill="url(#dots)"/>
+
+  <!-- reference panel -->
+  <rect x="32" y="40" width="250" height="220" rx="14" stroke="#8B98AC" stroke-width="2" fill="none"/>
+  <rect x="34" y="42" width="246" height="40" rx="12" fill="url(#accent)"/>
+  <rect x="52" y="58" width="96" height="8" rx="4" fill="#5B6B84"/>
+  <rect x="52" y="100" width="150" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="52" y="124" width="118" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="52" y="158" width="210" height="1" fill="#8B98AC" opacity="0.5"/>
+  <rect x="52" y="176" width="70" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="140" y="176" width="70" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="52" y="204" width="210" height="34" rx="8" stroke="#8B98AC" stroke-width="2" fill="none"/>
+  <circle cx="262" cy="60" r="12" fill="#4D6BFE"/>
+  <path d="M256 60l4 4 7-8" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- implementation panel -->
+  <rect x="358" y="40" width="250" height="220" rx="14" stroke="#8B98AC" stroke-width="2" fill="none"/>
+  <rect x="360" y="42" width="246" height="40" rx="12" fill="url(#accent)"/>
+  <rect x="378" y="58" width="96" height="8" rx="4" fill="#5B6B84"/>
+  <rect x="378" y="100" width="150" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="378" y="124" width="118" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="378" y="158" width="210" height="1" fill="#8B98AC" opacity="0.5"/>
+  <rect x="378" y="176" width="70" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="466" y="176" width="70" height="10" rx="5" fill="#8B98AC"/>
+  <rect x="378" y="204" width="210" height="34" rx="8" stroke="#8B98AC" stroke-width="2" fill="none"/>
+
+  <!-- detected offset -->
+  <rect x="372" y="96" width="162" height="18" rx="6" fill="#E5484D" fill-opacity="0.12" stroke="#E5484D" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <circle cx="588" cy="60" r="12" fill="#E5484D"/>
+  <path d="M583 55l10 10M593 55l-10 10" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- link between panels -->
+  <path d="M286 150h68" stroke="#4D6BFE" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="2 8"/>
+  <path d="M332 140l12 10-12 10" stroke="#4D6BFE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="320" cy="150" r="5" fill="#4D6BFE"/>
+</svg>

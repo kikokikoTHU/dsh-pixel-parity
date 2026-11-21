@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>qml background fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; }
+  .grad { width: 160px; height: 40px; margin: 10px; background: linear-gradient(180deg, #3366cc 0%, #ffffff 100%); }
+  .hgrad { width: 160px; height: 20px; margin: 10px; background: linear-gradient(90deg, #ff0000 0%, #00ff00 100%); }
+  .bg {
+    width: 40px;
+    height: 40px;
+    margin: 10px;
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+  }
+</style>
+</head>
+<body>
+  <div class="grad"></div>
+  <div class="hgrad"></div>
+  <div class="bg"></div>
+</body>
+</html>
