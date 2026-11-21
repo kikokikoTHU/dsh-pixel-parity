@@ -79,12 +79,24 @@ function renderNode(node, ir, isRoot = false) {
   const colgroup = node.tag === 'table' && Array.isArray(node.layout?.columnWidths)
     ? `<colgroup>${node.layout.columnWidths.map(width => `<col style="width:${width}px">`).join('')}</colgroup>`
     : ''
-  const text = (node.textRuns ?? []).map(run => run.text).join(' ')
-  const children = (node.children ?? []).map(child => renderNode(child, ir)).join('')
+  const runs = node.textRuns ?? []
+  const childHtml = (node.children ?? []).map(child => renderNode(child, ir))
+  const runAfter = run => Math.min(
+    Number.isInteger(run.afterChild) ? run.afterChild : 0,
+    childHtml.length,
+  )
+  // Text runs keep their position between element children: a button whose icon
+  // precedes its label must not render "label then icon".
+  const parts = []
+  for (let index = 0; index <= childHtml.length; index += 1) {
+    const text = runs.filter(run => runAfter(run) === index).map(run => escapeHtml(run.text)).join(' ')
+    if (text.length > 0) parts.push(text)
+    if (index < childHtml.length) parts.push(childHtml[index])
+  }
   const options = node.tag === 'select' && Array.isArray(node.options)
     ? node.options.map(option => `<option value="${escapeHtml(option.value)}"${option.selected ? ' selected' : ''}>${escapeHtml(option.text)}</option>`).join('')
     : ''
-  const content = options.length > 0 ? options : `${colgroup}${escapeHtml(text)}${children}`
+  const content = options.length > 0 ? options : `${colgroup}${parts.join('')}`
   if (isRoot) return `<body ${attributes}>${content}</body>`
   if (VOID_TAGS.has(tag)) return `<${tag} ${attributes} />`
   return `<${tag} ${attributes}>${content}</${tag}>`

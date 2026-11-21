@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>shadow DOM fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; font-family: Arial, sans-serif; }
+</style>
+</head>
+<body>
+  <script>
+    class XCard extends HTMLElement {
+      constructor() {
+        super()
+        const root = this.attachShadow({ mode: 'open' })
+        root.innerHTML = `
+          <style>
+            .box { width: 160px; height: 44px; padding: 8px; margin: 12px; box-sizing: border-box; background: #eef2ff; }
+          </style>
+          <div class="box"><slot name="title"></slot></div>
+        `
+      }
+    }
+    customElements.define('x-card', XCard)
+  </script>
+  <x-card><span slot="title">Shadow title</span></x-card>
+</body>
+</html>

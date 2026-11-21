@@ -335,7 +335,12 @@ function createPlaywrightDriver(playwright, options) {
             if (rect.width === 0 && rect.height === 0 && !keepEmpty) return null
             count += 1
             const textRuns = []
+            let elementIndex = 0
             for (const child of element.childNodes) {
+              if (child.nodeType === 1) {
+                elementIndex += 1
+                continue
+              }
               if (child.nodeType !== 3) continue
               const value = child.textContent
               if (value.trim().length === 0) continue
@@ -348,6 +353,7 @@ function createPlaywrightDriver(playwright, options) {
                 textRuns.push({
                   text: value.trim().slice(0, 200),
                   box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+                  afterChild: elementIndex,
                 })
                 continue
               }
@@ -383,6 +389,7 @@ function createPlaywrightDriver(playwright, options) {
                 textRuns.push({
                   text: text.slice(0, 200),
                   box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+                  afterChild: elementIndex,
                 })
               }
             }
@@ -494,7 +501,27 @@ function createPlaywrightDriver(playwright, options) {
               pseudoNodes.push(pseudoNode)
             }
             const parentFlow = style.display.includes('flex') || style.display.includes('grid')
-            const children = [...element.children]
+            const collectChildren = () => {
+              const shadow = element.shadowRoot
+              const source = shadow === null || shadow === undefined
+                ? [...element.children]
+                : [...shadow.children]
+              // Composed tree: each <slot> is replaced by its assigned light-DOM
+              // elements (fallback children when nothing is assigned).
+              const composed = []
+              for (const child of source) {
+                if (child.tagName === 'SLOT') {
+                  const assigned = typeof child.assignedElements === 'function'
+                    ? child.assignedElements({ flatten: true })
+                    : []
+                  composed.push(...(assigned.length > 0 ? assigned : [...child.children]))
+                  continue
+                }
+                composed.push(child)
+              }
+              return composed
+            }
+            const children = collectChildren()
               .map(child => walk(child, depth + 1, parentFlow))
               .filter(Boolean)
             if (pseudoNodes.length > 0) {

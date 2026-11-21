@@ -145,6 +145,11 @@ went from 94 to 24 with identical box accuracy.
   from box-accuracy statistics because their geometry is synthesized.
 - An empty pseudo inside a flex/grid container is kept as a zero-width item: it still
   consumes a gap, which shifts every following sibling by one spacing unit.
+- **Shadow DOM** is traversed as a composed tree: shadow-root children are captured, each
+  `<slot>` is replaced by its assigned light-DOM elements (fallback children when nothing is
+  assigned), and unassigned light children are skipped.
+- **Text runs carry `afterChild`** (how many element children precede them) so a button
+  whose icon precedes its label renders in the captured order instead of "label then icon".
 - `content: url(...)`, counters, and pseudo animations are skipped.
 - Form controls keep their attributes, and `<select>` keeps its options, so intrinsic widths
   survive.
@@ -254,6 +259,8 @@ and silently changed the font. Any generator must escape quoted font families.
   pruned); CSS gradients survive as `background-image` strings.
 - Inline icon spans and form controls can still drift a few pixels.
 - Pseudo-elements with `content: url()`, counters, or animations are not captured.
+- Shadow roots are traversed, but text nodes placed directly on a shadow root (not inside a
+  shadow element) are not captured.
 - `<video>` frames are not captured (only the box); tainted canvases have no pixels.
 - 3D transforms and `transform-origin` on non-centered elements are replayed only in CSS,
   not in the QML output.

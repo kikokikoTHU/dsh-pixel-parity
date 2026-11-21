@@ -154,7 +154,11 @@ function convert(node, tokens) {
     if (style.height !== undefined && style.height !== 'auto') result.style.height = style.height
   }
   if (node.textRuns !== undefined && node.textRuns.length > 0) {
-    result.textRuns = node.textRuns.map(run => ({ text: run.text, box: run.box }))
+    result.textRuns = node.textRuns.map(run => ({
+      text: run.text,
+      box: run.box,
+      ...(Number.isInteger(run.afterChild) ? { afterChild: run.afterChild } : {}),
+    }))
   }
   if (node.colSpan !== undefined) result.colSpan = node.colSpan
   if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
@@ -369,6 +373,9 @@ export function validateIr(ir) {
       if (typeof run.text !== 'string' || run.text.length === 0) violations.push(`${path}.textRuns[${index}].text must be a non-empty string`)
       if (run.box === undefined || ['x', 'y', 'w', 'h'].some(key => typeof run.box[key] !== 'number')) {
         violations.push(`${path}.textRuns[${index}].box needs numeric x/y/w/h`)
+      }
+      if (run.afterChild !== undefined && (!Number.isInteger(run.afterChild) || run.afterChild < 0)) {
+        violations.push(`${path}.textRuns[${index}].afterChild must be a non-negative integer`)
       }
     }
     for (const key of COLOR_KEYS) {

@@ -285,6 +285,7 @@ cases/<case>/<viewport>/
 | M30 ✅ | 几何边界：零尺寸 flex/grid 子节点保留（占 gap）、transform(matrix) + transformedSize、grid justify-items/place-items、content-box 尺寸；anubis 盒子 ≤1px 从 89 升到 107/112，语义像素差 0.19% → 0.05% | 修复头部 8px 偏移根因 |
 | M31 ✅ | 可配置容差：`geometryTolerance`（像素）进入 defaults/case/run 三层，`maxMismatch` 可按 run 覆盖；工具参数 `geometryTolerance`/`maxMismatch`，CLI `--geometry-tolerance`/`--max-mismatch` | 不再硬性 ±1px |
 | M32 ✅ | 容差档位：`defaults.preset` 支持 strict(1%,1px)/balanced(2%,2px)/tolerant(5%,4px)，显式数值覆盖档位 | 一行配置“容忍多少” |
+| M33 ✅ | 组合树：Shadow DOM 按 composed tree 采集（slot → assigned elements），文本 run 记录 `afterChild` 保持“图标+文字”顺序；anubis 盒子 108/108 ≤1px、像素差 0.01% | 组件化页面与按钮顺序正确 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

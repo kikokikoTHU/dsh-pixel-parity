@@ -966,6 +966,68 @@ http.createServer((req, res) => {
     assert.equal(viewport.ir.over2, 0, 'every box within 2px')
   })
 
+  await test('shadow DOM content is captured through slots', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-shadow-'))
+    const configPath = join(repoRoot, 'shadow.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'shadow.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 300, height: 150 }],
+      cases: [{ id: 'shadow', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'shadow'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const nodes = flattenIr(ir.root)
+    assert.ok(nodes.every(node => node.tag !== 'slot'), 'slot nodes are resolved away')
+    const title = nodes.find(node => (node.textRuns ?? []).some(run => run.text.includes('Shadow title')))
+    assert.ok(title !== undefined, 'slotted light-DOM text captured')
+    const box = nodes.find(node => node.style?.backgroundColor !== undefined && node.box.w === 160)
+    assert.ok(box !== undefined, 'shadow-root styled box captured')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /Shadow title/)
+  })
+
+  await test('text runs keep their position between element children', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-interleave-'))
+    const configPath = join(repoRoot, 'interleave.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'interleave.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 300, height: 100 }],
+      cases: [{ id: 'interleave', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'interleave'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const button = flattenIr(ir.root).find(node => (node.textRuns ?? []).some(run => run.text === 'Retry'))
+    assert.ok(button !== undefined, 'button text captured')
+    assert.equal(button.textRuns[0].afterChild, 1, 'text follows the icon child')
+    const icon = flattenIr(ir.root).find(node => node.tag === 'i')
+    assert.ok(icon !== undefined, 'icon child captured')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    const iconIndex = semantic.indexOf(`data-ir="${icon.id}"`)
+    const retryIndex = semantic.indexOf('Retry')
+    assert.ok(iconIndex >= 0 && retryIndex >= 0)
+    assert.ok(iconIndex < retryIndex, 'icon renders before the label')
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')
