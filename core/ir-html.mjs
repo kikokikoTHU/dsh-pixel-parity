@@ -38,12 +38,19 @@ const CSS_KEYS = [
  */
 export function generateSemanticHtml(ir) {
   const viewport = ir.source.viewport
+  const fontFaces = (ir.assets?.fonts ?? []).map((font) => {
+    const family = String(font.family).replaceAll("'", '')
+    const src = String(font.src).replaceAll("'", '%27')
+    const format = font.format ? ` format('${font.format}')` : ''
+    return `@font-face{font-family:'${family}';font-style:${font.style};font-weight:${font.weight};src:url('${src}')${format}}`
+  }).join('\n  ')
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <title>IR semantic render</title>
 <style>
+  ${fontFaces}
   html, body { margin: 0; padding: 0; }
   body { width: ${viewport.width}px; height: ${viewport.height}px; }
 </style>

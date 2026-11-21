@@ -8,6 +8,7 @@
   generated.html            # absolute-layout render (fidelity proof)
   generated.flow.html       # flow-only render before pins (debug)
   generated.semantic.html   # layout-preserving clone (portability proof)
+  assets/fonts/*.woff2      # materialized @font-face files
 ```
 
 The goal is to prove the IR keeps enough information to reproduce a screen, before any
@@ -105,6 +106,18 @@ Pins are recorded in the IR, so a generator knows exactly which sizes are load-b
 instead of inheriting a viewport-bound coordinate dump. Synthesis runs at most 3 rounds;
 `ir.pins`, `ir.iterations`, and box-accuracy counters are reported in the run result.
 
+## Assets
+
+- `@font-face` rules from same-origin stylesheets are captured into `assets.fonts`
+  (`family`, `weight`, `style`, `src`, `format`). The runner downloads remote and
+  `data:` fonts into `assets/fonts/`, rewrites the IR to relative paths, and the semantic
+  renderer emits the matching `@font-face` rules. Without this, icon fonts (PrimeIcons,
+  Font Awesome) fall back to system glyphs and every icon width is wrong.
+- `<img src>` (absolute) and `alt` are captured as node attributes; image bytes are not
+  downloaded yet.
+- Cross-origin stylesheets that block `cssRules` are skipped; serve those fonts
+  same-origin or declare them in the target page.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -121,12 +134,29 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 | Metric | Result |
 | --- | --- |
 | Nodes | 337 (col/colgroup nodes are folded into `columnWidths`) |
-| Size pins after synthesis | 115 (2 iterations) |
-| Box within 1px | 229 |
+| Size pins after synthesis | 115 |
+| Pins pruned as redundant | 21 (block pins re-tested one by one) |
+| Final pins | 94 (2 iterations + prune pass) |
+| Box within 1px | 224 |
 | Box within 2px | 332 |
 | Box off by more than 2px | 5 |
-| Pixel difference (minimal pins) | 2.02% |
+| Pixel difference (minimal pins) | 2.05% |
 | Pixel difference (all sizes pinned) | 0.61% |
+
+Pruning removes a pin, re-renders, and keeps the removal only when box accuracy does not
+regress. It is bounded to 30 renders (about 18 s on this 337-node page) and only tries
+block-level nodes; flex and inline pins proved load-bearing in experiments.
+
+Second sample — anubis `/projects` (a PrimeVue app with an icon font):
+
+| Metric | Result |
+| --- | --- |
+| Nodes | 106 |
+| Final pins | 24 (15 pruned) |
+| Box within 1px | 89 |
+| Box over 2px | 17 |
+| Pixel difference | 0.28% |
+| Font materialized | PrimeIcons, 35 KB |
 
 The two pixel numbers are the honest trade-off: pinning every size reproduces the pixels
 but makes the IR a coordinate dump; minimal pins keep 332 of 337 boxes within 2px and move
@@ -140,9 +170,9 @@ Pin distribution tells you where the IR still lacks layout information:
 | Kind | Pinned / total | Why |
 | --- | --- | --- |
 | flex | 47 / 62 | content-driven flex sizes that the capture cannot re-derive |
-| block | 28 / 94 | explicit block sizes |
 | inline | 20 / 37 | inline boxes whose width depends on text shaping |
 | table | 20 / 139 | table and row boxes only; cells derive from columns/rows |
+| block | 7 / 94 | the few explicit block sizes that survive pruning |
 | grid | 0 / 5 | grid layout reproduces from templates |
 
 The last fix matters: a font stack containing `"Microsoft YaHei"` broke the HTML attribute
@@ -156,17 +186,20 @@ and silently changed the font. Any generator must escape quoted font families.
   (`flexGrow`/`flexShrink`/`flexBasis`) are stored, tables carry `columnWidths` and
   `colspan`/`rowspan`, and SVG geometry (`viewBox`, `cx/cy/r`, `d`, `points`, ...) plus
   `img.src` are kept as `attributes` on the node. Flow layout alone reproduces about a
-  third of the page; 115 of 337 nodes carry size pins.
+  third of the page; 94 of 337 nodes carry size pins.
 - Table cells derive their size from columns and rows; they are deliberately not pinned.
+- Fonts are materialized; image bytes are not (only their absolute URLs are captured).
+- Cross-origin stylesheets that expose no `cssRules` are skipped, so their fonts are not
+  materialized.
 - Inline icon spans and form controls can still drift a few pixels; they are the remaining
-  five outliers.
+  outliers.
 - Text runs are captured for one line box; wrapped multi-line text is approximated.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Derive flex item sizes from content/flex-basis to drop more pins.
-2. Carry fonts and binary assets as referenced files (image URLs are captured, bytes are not).
+1. Materialize image bytes (`img.src`, `background-image`) into `assets/images/`.
+2. Derive flex item sizes from content/flex-basis to drop more pins.
 3. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
 4. A QML generator + desktop capture adapter.
 5. Figma as another IR source.

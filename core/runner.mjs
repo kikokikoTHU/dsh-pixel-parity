@@ -7,8 +7,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { extname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadConfig } from './config.mjs'
 import { compareGeometry, comparePixels, compareStyles } from './compare.mjs'
@@ -168,6 +169,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         viewport: { width: viewport.width, height: viewport.height, dpr: viewport.dpr },
         capturedAt: new Date().toISOString(),
       }, implementation.dom)
+      await materializeFonts(ir, caseDir)
       const violations = validateIr(ir)
       if (violations.length > 0) throw new Error(`IR validation failed: ${violations.join('; ')}`)
       const synthesis = await synthesizeLayout(ir, driver, viewport, caseDir)
@@ -184,6 +186,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         nodes: flattenIr(ir.root).length,
         truncated: ir.source.truncated === true,
         pins: synthesis.pins,
+        pruned: synthesis.pruned,
         iterations: synthesis.iterations,
         within1: synthesis.within1,
         within2: synthesis.within2,
@@ -354,51 +357,113 @@ function summarize(cases) {
  * @param {string} caseDir - directory for intermediate renders.
  * @returns {Promise<{iterations: number, pins: number, boxes: number, within1: number, within2: number, over2: number}>} synthesis stats.
  */
+/**
+ * Download font files referenced by the IR into the case directory.
+ *
+ * A generated page has no origin for remote @font-face rules, so fonts are
+ * materialized next to the render and the IR keeps relative paths.
+ * @param {object} ir - IR document, mutated.
+ * @param {string} caseDir - case artifact directory.
+ * @returns {Promise<void>} when every reachable font is materialized.
+ */
+async function materializeFonts(ir, caseDir) {
+  const fonts = ir.assets?.fonts ?? []
+  if (fonts.length === 0) return
+  const directory = join(caseDir, 'assets', 'fonts')
+  mkdirSync(directory, { recursive: true })
+  for (const font of fonts) {
+    try {
+      let buffer
+      if (font.src.startsWith('data:')) {
+        const match = /^data:[^;]*;base64,(.*)$/s.exec(font.src)
+        if (match === null) continue
+        buffer = Buffer.from(match[1], 'base64')
+      } else if (/^https?:/i.test(font.src)) {
+        const response = await fetch(font.src)
+        if (!response.ok) continue
+        buffer = Buffer.from(await response.arrayBuffer())
+      } else {
+        continue
+      }
+      const rawExtension = font.format !== '' ? font.format : extname(new URL(font.src, 'file:///').pathname)
+      const extension = rawExtension.replace(/^\./, '') || 'woff2'
+      const name = `${createHash('sha256').update(font.src).digest('hex').slice(0, 12)}.${extension}`
+      writeFileSync(join(directory, name), buffer)
+      font.src = `assets/fonts/${name}`
+    } catch {
+      // Keep the absolute URL when the asset cannot be materialized.
+    }
+  }
+}
+
 async function synthesizeLayout(ir, driver, viewport, caseDir) {
   const nodes = flattenIr(ir.root)
   const flowPath = join(caseDir, 'generated.flow.html')
   const size = { width: viewport.width, height: viewport.height, dpr: viewport.dpr }
-  let iterations = 0
-  for (; iterations < 3; iterations += 1) {
+
+  const captureCurrent = async () => {
     writeFileSync(flowPath, generateSemanticHtml(ir))
     const captured = await driver.capture({ url: pathToFileURL(flowPath).href, viewport: size, exportDom: true })
-    const rendered = domMap(captured.dom)
+    return domMap(captured.dom)
+  }
+
+  let iterations = 0
+  for (; iterations < 3; iterations += 1) {
+    const rendered = await captureCurrent()
     let added = 0
     for (const node of nodes) {
-      node.layout = node.layout ?? { kind: 'block' }
       // Table cells derive their size from the table model (columns, row heights);
       // pinning them individually is redundant once rows/columns are pinned.
       if (node.tag === 'td' || node.tag === 'th') continue
-      node.layout.pins = node.layout.pins ?? {}
-      const pins = node.layout.pins
       const got = rendered.get(node.id)
-      if (got === undefined) {
-        if (pins.width !== true || pins.height !== true) {
-          pins.width = true
-          pins.height = true
-          added += 1
-        }
-        continue
-      }
-      if (Math.abs(node.box.w - got.box.w) > 1 && pins.width !== true) {
-        pins.width = true
+      const needWidth = got === undefined || Math.abs(node.box.w - got.box.w) > 1
+      const needHeight = got === undefined || Math.abs(node.box.h - got.box.h) > 1
+      if (needWidth && node.layout?.pins?.width !== true) {
+        node.layout = node.layout ?? { kind: 'block' }
+        node.layout.pins = node.layout.pins ?? {}
+        node.layout.pins.width = true
         added += 1
       }
-      if (Math.abs(node.box.h - got.box.h) > 1 && pins.height !== true) {
-        pins.height = true
+      if (needHeight && node.layout?.pins?.height !== true) {
+        node.layout = node.layout ?? { kind: 'block' }
+        node.layout.pins = node.layout.pins ?? {}
+        node.layout.pins.height = true
         added += 1
       }
     }
     if (added === 0) break
   }
 
+  let stats = measureBoxes(nodes, await captureCurrent())
+
+  // Prune pins that turn out not to be load-bearing: remove one, re-render, keep
+  // the removal only when box accuracy does not regress.
+  let pruned = 0
+  const budget = 30
+  const candidates = nodes
+    .filter(node => node.layout?.kind === 'block' && (node.layout.pins?.width === true || node.layout.pins?.height === true))
+    .reverse()
+  for (const node of candidates.slice(0, budget)) {
+    const saved = { ...node.layout.pins }
+    delete node.layout.pins
+    const trial = measureBoxes(nodes, await captureCurrent())
+    if (trial.over2 <= stats.over2 && trial.within2 >= stats.within2) {
+      stats = trial
+      pruned += 1
+    } else {
+      node.layout.pins = saved
+    }
+  }
+
+  for (const node of nodes) {
+    if (node.layout?.pins !== undefined && Object.keys(node.layout.pins).length === 0) delete node.layout.pins
+  }
   const semanticPath = join(caseDir, 'generated.semantic.html')
   writeFileSync(semanticPath, generateSemanticHtml(ir))
-  const finalCapture = await driver.capture({ url: pathToFileURL(semanticPath).href, viewport: size, exportDom: true })
-  const stats = measureBoxes(nodes, domMap(finalCapture.dom))
   return {
     iterations: iterations + 1,
     pins: nodes.filter(node => node.layout?.pins?.width === true || node.layout?.pins?.height === true).length,
+    pruned,
     ...stats,
   }
 }

@@ -286,7 +286,7 @@ const RUN_OUTPUT_SCHEMA = {
                 ir: {
                   type: 'object',
                   additionalProperties: false,
-                  required: ['path', 'generated', 'semantic', 'nodes', 'truncated', 'pins', 'iterations', 'within1', 'within2', 'over2'],
+                  required: ['path', 'generated', 'semantic', 'nodes', 'truncated', 'pins', 'pruned', 'iterations', 'within1', 'within2', 'over2'],
                   properties: {
                     path: { type: 'string' },
                     generated: { type: 'string' },
@@ -294,6 +294,7 @@ const RUN_OUTPUT_SCHEMA = {
                     nodes: { type: 'integer' },
                     truncated: { type: 'boolean' },
                     pins: { type: 'integer' },
+                    pruned: { type: 'integer' },
                     iterations: { type: 'integer' },
                     within1: { type: 'integer' },
                     within2: { type: 'integer' },

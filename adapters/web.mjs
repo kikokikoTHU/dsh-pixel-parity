@@ -315,7 +315,36 @@ function createPlaywrightDriver(playwright, options) {
             return node
           }
           const root = walk(document.body, 0)
-          return { root, truncated, count }
+          const fonts = []
+          const seen = new Set()
+          for (const sheet of document.styleSheets) {
+            let rules
+            try {
+              rules = sheet.cssRules
+            } catch {
+              continue
+            }
+            for (const rule of rules ?? []) {
+              if (rule.type !== 5) continue
+              const family = (rule.style.getPropertyValue('font-family') ?? '').replace(/['"]/g, '').trim()
+              if (family.length === 0) continue
+              const weight = (rule.style.getPropertyValue('font-weight') ?? '').trim() || '400'
+              const styleValue = (rule.style.getPropertyValue('font-style') ?? '').trim() || 'normal'
+              const srcValue = rule.style.getPropertyValue('src') ?? ''
+              const url = /url\((['"]?)([^'")]+)\1\)/.exec(srcValue)?.[2]
+              if (url === undefined) continue
+              let absolute = url
+              try {
+                absolute = new URL(url, sheet.href || location.href).href
+              } catch {}
+              const format = /format\((['"]?)([^'")]+)\1\)/.exec(srcValue)?.[2] ?? ''
+              const key = `${family}|${weight}|${styleValue}|${absolute}`
+              if (seen.has(key)) continue
+              seen.add(key)
+              fonts.push({ family, weight, style: styleValue, src: absolute, format })
+            }
+          }
+          return { root, truncated, count, fonts }
         }, { maxNodes: 2000, styleKeys: IR_STYLE_PROPS, elementAttributes: ELEMENT_ATTRIBUTES })
       }
 

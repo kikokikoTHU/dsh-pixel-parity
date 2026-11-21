@@ -266,6 +266,8 @@ cases/<case>/<viewport>/
 | M11 ✅ | 尺寸合成：flow 渲染回测，仅按需写 `layout.pins`；345 节点中 247 个需固定尺寸（表格占 143），336 个盒子 ≤2px | IR 自描述“哪些尺寸是硬性的” |
 | M12 ✅ | 表格列宽：采集首行派生 `columnWidths` + `colspan`/`rowspan`，生成 `<colgroup>`；表格单元格不再单独 pin，pin 从 247 降到 120 | 表格结构可移植 |
 | M13 ✅ | SVG 几何 + 图片引用：`viewBox`/`cx`/`d`/`points`/`src` 入 IR；语义渲染图标不再丢失，pin 115，337 节点中 332 个 ≤2px | 图标与资源可复现 |
+| M14 ✅ | Pin 剪枝：逐节点回测（block 类，预算 30 次渲染），21 个冗余 pin 被移除；pin 94，精度不变，导出约 18s | 只保留承重尺寸 |
+| M15 ✅ | 字体资源：采集 `@font-face` 并物化到 `assets/fonts/`，语义页注入 `@font-face`；anubis 项目页抓到 PrimeIcons（35 KB），像素差 0.28% | 图标字体不再回退 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

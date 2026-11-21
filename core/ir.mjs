@@ -40,7 +40,7 @@ export function buildIr(source, dom) {
   assign(dom.root, flat)
   const tokens = extractTokens(flat)
   const root = convert(dom.root, tokens)
-  return {
+  const ir = {
     ir: '1.0',
     source: {
       ...source,
@@ -50,6 +50,10 @@ export function buildIr(source, dom) {
     tokens: tokens.tables,
     root,
   }
+  if (Array.isArray(dom.fonts) && dom.fonts.length > 0) {
+    ir.assets = { fonts: dom.fonts.map(font => ({ ...font })) }
+  }
+  return ir
 }
 
 function assign(node, flat) {
@@ -233,6 +237,19 @@ export function validateIr(ir) {
   const colorNames = new Set(Object.keys(tokens.colors ?? {}))
   const typeNames = new Set(Object.keys(tokens.typography ?? {}))
   const radiusNames = new Set(Object.keys(tokens.radius ?? {}))
+  if (ir.assets !== undefined) {
+    if (ir.assets === null || typeof ir.assets !== 'object') violations.push('assets must be an object')
+    else if (ir.assets.fonts !== undefined) {
+      if (!Array.isArray(ir.assets.fonts)) violations.push('assets.fonts must be an array')
+      else {
+        for (const [index, font] of ir.assets.fonts.entries()) {
+          for (const key of ['family', 'weight', 'style', 'src', 'format']) {
+            if (typeof font?.[key] !== 'string') violations.push(`assets.fonts[${index}].${key} must be a string`)
+          }
+        }
+      }
+    }
+  }
   const ids = new Set()
   if (ir.root === undefined) violations.push('root is required')
   else walk(ir.root, (node, path) => {

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadConfig, normalizeConfig } from '../core/config.mjs'
 import { compareGeometry, compareStyles, maskImage, normalizeStyleValue } from '../core/compare.mjs'
@@ -385,6 +385,35 @@ if (repo === undefined) {
     assert.ok(got !== undefined, 'circle rendered')
     assert.equal(got.box.w, circle.box.w)
     assert.equal(got.box.h, circle.box.h)
+  })
+
+  await test('font faces are captured and materialized next to the render', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-font-'))
+    const configPath = join(repoRoot, 'font.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'font-face.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 200 }],
+      cases: [{ id: 'font', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'font'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    assert.equal(ir.assets.fonts.length, 1)
+    assert.equal(ir.assets.fonts[0].family, 'FixtureFont')
+    assert.ok(ir.assets.fonts[0].src.startsWith('assets/fonts/'), ir.assets.fonts[0].src)
+    assert.ok(existsSync(join(dirname(viewport.ir.path), ir.assets.fonts[0].src)), 'font file materialized')
+    const html = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(html, /@font-face/)
+    assert.match(html, /assets\/fonts\//)
   })
 
   await test('init detects the real repo workspace app and routes', () => {
