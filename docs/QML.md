@@ -50,7 +50,8 @@ A container becomes `Row` or `Column` only when all of these hold:
 
 `justify-content: center` / `flex-end` map to Qt anchors (`anchors.horizontalCenter`,
 `anchors.right` + right margin) so the group keeps its alignment instead of falling back to
-absolute boxes.
+absolute boxes. `space-between` behaves like start alignment once the distributed gap is
+uniform, so it maps too.
 
 Otherwise that node falls back to absolute positioning. Padding is preserved by placing
 the `Row`/`Column` inside the node's `Rectangle` at `(paddingLeft, paddingTop)`; the
@@ -98,11 +99,12 @@ icons, which are not rendered in QML yet.
 ## Limits
 
 - Static snapshot: no interaction, states, or responsive behavior.
-- Flex/block containers with sequential children map to `Row`/`Column` (start, center, and
-  end alignment); `space-between`/`space-around`/`space-evenly` and wrapping rows still fall
-  back to absolute positioning.
-- Tables map to `Column`/`Row` with captured column widths, not `TableView` (no data model
-  or delegates yet).
+- Flex/block containers with sequential children map to `Row`/`Column` (start, center,
+  end, and space-between alignment); `space-around`/`space-evenly` and wrapping rows still
+  fall back to absolute positioning.
+- Tables map to `Column`/`Row` with captured column widths. A `TableView` mapping was
+  prototyped, but Qt 5.14's `TableView` did not render through the `qmlscene` screenshot
+  path, so the verified Column/Row mapping is kept.
 - Inline SVG is baked into a data-URI `Image`; interactions inside the SVG are lost.
 - `<img>` sources are local assets; CSS `background-image` is not painted in QML yet.
 - WOFF2 `@font-face` loading depends on the Qt build's FreeType support; otherwise the font

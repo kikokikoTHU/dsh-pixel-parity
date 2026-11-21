@@ -303,7 +303,11 @@ function flowInfo(node) {
   let justify = 'start'
   if (rawJustify === 'center') justify = 'center'
   else if (rawJustify === 'flex-end' || rawJustify === 'end') justify = 'end'
-  else if (!['normal', 'flex-start', 'start', 'stretch'].includes(rawJustify)) return undefined
+  else if (rawJustify === 'space-between') {
+    // Equal gaps from the first child: identical to start alignment when the
+    // captured gap is already the distributed spacing.
+    justify = 'start'
+  } else if (!['normal', 'flex-start', 'start', 'stretch'].includes(rawJustify)) return undefined
 
   let gap
   for (let index = 1; index < ordered.length; index += 1) {
