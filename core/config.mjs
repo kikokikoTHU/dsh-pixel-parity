@@ -107,12 +107,26 @@ export function normalizeConfig(raw, absolutePath) {
 
 function normalizeTarget(raw, directory, label) {
   const kind = raw.kind ?? 'web'
-  if (!['web', 'image'].includes(kind)) {
-    throw new Error(`${label}.kind must be "web" or "image" (desktop surfaces are reserved for a later phase)`)
+  if (!['web', 'image', 'figma'].includes(kind)) {
+    throw new Error(`${label}.kind must be "web", "image", or "figma"`)
   }
   if (kind === 'image') {
     if (typeof raw.path !== 'string' || raw.path.length === 0) throw new Error(`${label}.path is required for an image target`)
     return { ...raw, kind, path: resolve(directory, raw.path) }
+  }
+  if (kind === 'figma') {
+    if (raw.document === undefined) {
+      if (typeof raw.fileKey !== 'string' || raw.fileKey.length === 0) throw new Error(`${label}.fileKey is required for a Figma target`)
+      if (typeof raw.nodeId !== 'string' || raw.nodeId.length === 0) throw new Error(`${label}.nodeId is required for a Figma target`)
+    }
+    return {
+      kind,
+      fileKey: raw.fileKey,
+      nodeId: raw.nodeId,
+      apiBase: raw.apiBase ?? 'https://api.figma.com',
+      tokenEnv: raw.tokenEnv ?? 'FIGMA_TOKEN',
+      document: raw.document,
+    }
   }
   return {
     ...raw,
@@ -181,13 +195,29 @@ function resolveTargetSpec(spec, target, directory, label) {
       fixtures: spec.fixtures === undefined ? target.fixtures : resolve(directory, spec.fixtures),
     }
   }
+  if (kind === 'figma') {
+    const document = spec.document ?? target.document
+    const fileKey = spec.fileKey ?? target.fileKey
+    const nodeId = spec.nodeId ?? target.nodeId
+    if (document === undefined && (typeof fileKey !== 'string' || typeof nodeId !== 'string')) {
+      throw new Error(`${label} needs fileKey and nodeId (or an inline document) for a Figma target`)
+    }
+    return {
+      kind,
+      fileKey,
+      nodeId,
+      apiBase: spec.apiBase ?? target.apiBase ?? 'https://api.figma.com',
+      tokenEnv: spec.tokenEnv ?? target.tokenEnv ?? 'FIGMA_TOKEN',
+      document,
+    }
+  }
   if (kind === 'image') {
     const path = spec.path ?? spec.url
     if (typeof path !== 'string' || path.length === 0) throw new Error(`${label}.path is required for an image target`)
     const looksLikeUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(path)
     return { kind, path: looksLikeUrl ? path : resolve(directory, path) }
   }
-  throw new Error(`${label}.kind "${kind}" is not implemented yet (web and image only)`)
+  throw new Error(`${label}.kind "${kind}" is not implemented yet (web, image, and figma only)`)
 }
 
 function resolveUrl(value, baseUrl, directory) {

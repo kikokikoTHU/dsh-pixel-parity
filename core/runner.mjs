@@ -18,6 +18,7 @@ import { buildIr, flattenIr, validateIr } from './ir.mjs'
 import { generateHtml } from './ir-web.mjs'
 import { generateSemanticHtml } from './ir-html.mjs'
 import { generateQml } from './ir-qml.mjs'
+import { figmaToIr } from './figma.mjs'
 import { captureQml, findQmlScene } from '../adapters/qml.mjs'
 import { createWebDriver } from '../adapters/web.mjs'
 import { loadImage } from '../lib/image.js'
@@ -313,6 +314,20 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
 }
 
 async function captureSide(side, entry, spec, viewport, driver, caseDir, config, extra = {}) {
+  if (spec.kind === 'figma') {
+    const ir = await loadFigmaIr(spec)
+    if (ir.source.viewport.width !== Math.round(viewport.width) || ir.source.viewport.height !== Math.round(viewport.height)) {
+      throw new Error(
+        `Figma frame is ${ir.source.viewport.width}x${ir.source.viewport.height}; `
+        + `set the viewport to ${ir.source.viewport.width}x${ir.source.viewport.height}`,
+      )
+    }
+    writeFileSync(join(caseDir, 'reference.ir.json'), `${JSON.stringify(ir, null, 2)}\n`)
+    const htmlPath = join(caseDir, 'reference.semantic.html')
+    writeFileSync(htmlPath, generateSemanticHtml(ir))
+    const captured = await driver.capture({ url: pathToFileURL(htmlPath).href, viewport })
+    return { image: captured.image, anchors: null, masks: [], driver: 'figma' }
+  }
   if (spec.kind === 'image') {
     const image = loadImage(spec.path)
     const expectedWidth = Math.round(viewport.width * viewport.dpr)
@@ -407,6 +422,27 @@ function summarize(cases) {
  * @param {string} caseDir - directory for intermediate renders.
  * @returns {Promise<{iterations: number, pins: number, boxes: number, within1: number, within2: number, over2: number}>} synthesis stats.
  */
+/**
+ * Load a Figma document from the configured payload or the REST API.
+ * @param {object} spec - Figma reference target.
+ * @returns {Promise<object>} IR document.
+ */
+async function loadFigmaIr(spec) {
+  let payload = spec.document
+  if (payload === undefined) {
+    const token = process.env[spec.tokenEnv]
+    if (typeof token !== 'string' || token.length === 0) throw new Error(`Figma token missing: set ${spec.tokenEnv}`)
+    const url = `${spec.apiBase}/v1/files/${encodeURIComponent(spec.fileKey)}/nodes?ids=${encodeURIComponent(spec.nodeId)}`
+    const response = await fetch(url, { headers: { 'X-Figma-Token': token } })
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 200)
+      throw new Error(`Figma API ${response.status}: ${detail}`)
+    }
+    payload = await response.json()
+  }
+  return figmaToIr(payload, { nodeId: spec.nodeId, fileKey: spec.fileKey })
+}
+
 /**
  * Download font files referenced by the IR into the case directory.
  *

@@ -23,8 +23,10 @@ Mapping:
 | text run | `Text` positioned at the run box, `font.pixelSize/weight/family/letterSpacing` |
 | `@font-face` assets | `FontLoader` rows |
 | `img` attributes | `Image { source; fillMode: Stretch }` |
+| inline SVG subtree | serialized to an `svg` data URI and rendered as `Image` |
+| semantic table | `Column` of `Row`s using `layout.columnWidths` (colspan aware) |
 | colors | `rgb()/rgba()` normalized to `#RRGGBB` / `#AARRGGBB` |
-| pinned / authored sizes | used as-is (no layout engine in v1) |
+| pinned / authored sizes | used as-is (no layout engine at the leaves) |
 
 The render is a **static snapshot**: boxes are absolute, so Qt layout managers are not
 exercised yet. That is deliberate — it proves the IR carries enough information to render
@@ -48,15 +50,19 @@ Otherwise that node falls back to absolute positioning. Padding is preserved by 
 the `Row`/`Column` inside the node's `Rectangle` at `(paddingLeft, paddingTop)`; the
 cross-axis offset of each child is kept so vertical centering survives.
 
-Measured on the prototype:
+Tables get a dedicated mapping when `layout.columnWidths` is present: rows are emitted in
+document order as `Row`s inside a `Column`, each cell width comes from the captured columns
+(colspan aware), so the table keeps its structure instead of a stack of absolute boxes.
+
+Measured on the prototype (1440×900, 337 nodes):
 
 | Mode | Pixel difference vs browser |
 | --- | --- |
 | absolute | 5.56% |
-| semantic | 5.78% |
+| semantic (Row/Column + table mapping + inline SVG) | 5.77% |
 
 The semantic render is visually identical; the small delta comes from layout rounding.
-`justify-content: center/space-between`, wrapping rows, and tables still use absolute
+`justify-content: center/space-between` and wrapping rows still fall back to absolute
 positioning per node.
 
 ## Render check
@@ -87,8 +93,10 @@ icons, which are not rendered in QML yet.
 
 - Static snapshot: no interaction, states, or responsive behavior.
 - Flex/block containers with sequential children map to `Row`/`Column`; justify-center /
-  space-between, wrapping rows, and tables still fall back to absolute positioning.
-- Inline SVG (`circle`, `path`) renders empty; `img` URLs work.
+  space-between and wrapping rows still fall back to absolute positioning.
+- Tables map to `Column`/`Row` with captured column widths, not `TableView` (no data model
+  or delegates yet).
+- Inline SVG is baked into a data-URI `Image`; interactions inside the SVG are lost.
 - WOFF2 `@font-face` loading depends on the Qt build's FreeType support; otherwise the font
   falls back and text metrics shift.
 - Text runs are single-line; wrapped text is approximated.

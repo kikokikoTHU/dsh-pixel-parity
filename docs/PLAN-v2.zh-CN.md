@@ -271,6 +271,8 @@ cases/<case>/<viewport>/
 | M16 ✅ | 作者尺寸：CSSOM 采集 `width/height` 等，只保留与实测盒一致的 px 值；201 个节点改为 `authored`，pin 从 94 降到 24，精度不变 | 显式尺寸回归“设计意图” |
 | M17 ✅ | QML 生成：IR → `generated.qml`（Rectangle/Text/FontLoader/Image），qmlscene 渲染校验；原型页像素差 5.56%，导出多 1~2s | 一份 IR 首次跨端渲染 |
 | M18 ✅ | 语义化 QML：可证明的 flex/block 序列映射为 Row/Column（起始对齐 + 均匀 gap），其余回退绝对定位；语义版像素差 5.78% | 生成结构可维护 |
+| M19 ✅ | QML 表格与 SVG：表格按 `columnWidths` 生成 Column/Row（colspan 感知），内联 SVG 转 data-URI Image；绝对版 5.56%，语义版 5.77% | 图标与表格结构落地 |
+| M20 ✅ | Figma 输入：`kind: "figma"` → `figmaToIr` → 同一 IR/渲染/比对管线；支持内联 document 离线测试 | 第三个 IR 来源 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

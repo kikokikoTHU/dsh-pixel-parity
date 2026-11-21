@@ -201,6 +201,80 @@ await test('QML semantic mode maps sequential children to Column', async () => {
   assert.match(qml, /spacing: 10/)
 })
 
+await test('QML semantic mode maps tables to Column/Row with column widths', async () => {
+  const { generateQml } = await import('../core/ir-qml.mjs')
+  const cell = (id, x, w, text) => ({
+    id, tag: 'td', role: 'text', layout: { kind: 'table' },
+    box: { x, y: 0, w, h: 40 },
+    style: {},
+    textRuns: [{ text, box: { x: x + 4, y: 10, w: 30, h: 18 } }],
+  })
+  const row = (id, y, left, right) => ({
+    id, tag: 'tr', role: 'container', layout: { kind: 'table' },
+    box: { x: 0, y, w: 400, h: 40 },
+    style: {},
+    children: [cell(`${id}-a`, 0, 100, left), cell(`${id}-b`, 100, 300, right)],
+  })
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 400, height: 200, dpr: 1 }, canvas: { width: 400, height: 200 }, truncated: false },
+    tokens: { colors: {}, radius: {}, typography: {} },
+    assets: { fonts: [] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 400, h: 200 }, style: {},
+      children: [{
+        id: 'table', tag: 'table', role: 'table', layout: { kind: 'table', columnWidths: [100, 300] },
+        box: { x: 0, y: 0, w: 400, h: 80 },
+        style: {},
+        children: [{
+          id: 'tbody', tag: 'tbody', role: 'container', layout: { kind: 'table' },
+          box: { x: 0, y: 0, w: 400, h: 80 }, style: {},
+          children: [row('r1', 0, 'a', 'b'), row('r2', 40, 'c', 'd')],
+        }],
+      }],
+    },
+  }
+  const qml = generateQml(ir, { semantic: true })
+  assert.match(qml, /Column \{/)
+  assert.match(qml, /Row \{/)
+  assert.match(qml, /width: 400/)
+})
+
+await test('figmaToIr maps frames, auto-layout and text', async () => {
+  const { figmaToIr } = await import('../core/figma.mjs')
+  const document = {
+    id: '0:1', type: 'FRAME', name: 'Root',
+    absoluteBoundingBox: { x: 0, y: 0, width: 400, height: 200 },
+    fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
+    children: [{
+      id: '0:2', type: 'FRAME', name: 'Header',
+      absoluteBoundingBox: { x: 0, y: 0, width: 400, height: 60 },
+      layoutMode: 'HORIZONTAL', itemSpacing: 8,
+      paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
+      fills: [{ type: 'SOLID', color: { r: 0.1, g: 0.1, b: 0.2, a: 1 } }],
+      children: [{
+        id: '0:3', type: 'TEXT', characters: 'Figma hello',
+        absoluteBoundingBox: { x: 16, y: 20, width: 120, height: 20 },
+        style: { fontFamily: 'Inter', fontSize: 14, fontWeight: 400, lineHeightPx: 20, letterSpacing: 0 },
+        fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
+      }],
+    }],
+  }
+  const ir = figmaToIr({ document })
+  assert.equal(ir.source.viewport.width, 400)
+  assert.equal(ir.source.viewport.height, 200)
+  const nodes = flattenIr(ir.root)
+  const header = nodes.find(node => node.layout.kind === 'flex')
+  assert.ok(header !== undefined)
+  assert.equal(header.layout.direction, 'row')
+  assert.equal(header.layout.gap, '8px')
+  const text = nodes.find(node => node.textRuns !== undefined)
+  assert.equal(text.textRuns[0].text, 'Figma hello')
+  assert.ok(Object.keys(ir.tokens.colors).length > 0)
+  assert.deepEqual(validateIr(ir), [])
+})
+
 await test('init detects framework, port, routes, and Playwright', () => {
   const repoRoot = createFixtureRepo()
   const detection = detectRepo(repoRoot)
@@ -501,6 +575,39 @@ if (repo === undefined) {
     assert.ok(existsSync(viewport.ir.qml.semantic.path))
     assert.match(readFileSync(viewport.ir.qml.semantic.path, 'utf8'), /Row|Column/)
     assert.ok(viewport.ir.qml.semantic.mismatchRatio < 0.5, `semantic QML mismatch ${viewport.ir.qml.semantic.mismatchRatio}`)
+  })
+
+  await test('Figma reference renders through the same pipeline', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-figma-'))
+    const configPath = join(repoRoot, 'figma.config.mjs')
+    const document = {
+      id: '0:1', type: 'FRAME', name: 'Root',
+      absoluteBoundingBox: { x: 0, y: 0, width: 400, height: 200 },
+      fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1, a: 1 } }],
+      children: [{
+        id: '0:2', type: 'TEXT', characters: 'Figma reference',
+        absoluteBoundingBox: { x: 20, y: 20, width: 200, height: 24 },
+        style: { fontFamily: 'Arial', fontSize: 16, fontWeight: 400, lineHeightPx: 24, letterSpacing: 0 },
+        fills: [{ type: 'SOLID', color: { r: 0.1, g: 0.1, b: 0.2, a: 1 } }],
+      }],
+    }
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'svg-icon.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 200 }],
+      cases: [{ id: 'figma-case', reference: { kind: 'figma', document }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      outDir: join(repoRoot, '.parity', 'runs', 'figma'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.notEqual(viewport.status, 'incomplete', viewport.error)
+    assert.equal(viewport.driver.reference, 'figma')
+    assert.ok(existsSync(join(repoRoot, '.parity', 'runs', 'figma', 'cases', 'figma-case', 'desktop', 'reference.ir.json')))
   })
 
   await test('init detects the real repo workspace app and routes', () => {

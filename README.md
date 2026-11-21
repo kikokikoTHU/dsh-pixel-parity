@@ -33,9 +33,12 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
   measured text runs) plus `generated.html` rendered back from it. This is the seam for
   other targets (QML, desktop); see [docs/IR.md](docs/IR.md).
 - **QML export** (`--export-qml`) — writes `generated.qml` (absolute snapshot) and
-  `generated.semantic.qml` (Row/Column where sequential layout is provable), renders both
-  with Qt's `qmlscene`, and records the pixel difference (5.56% / 5.78% on the prototype).
+  `generated.semantic.qml` (Row/Column + table mapping where provable), renders both with
+  Qt's `qmlscene`, and records the pixel difference (5.56% / 5.77% on the prototype).
   See [docs/QML.md](docs/QML.md).
+- **Figma input** — a case can use a Figma frame (`kind: "figma"`) as its reference: the
+  frame is converted to the same IR, rendered to an image, and compared like any other
+  reference. See [docs/FIGMA.md](docs/FIGMA.md).
 - **`pixel-parity` skill** — the workflow: config → anchors → run → fix by layer → re-run.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM

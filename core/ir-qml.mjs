@@ -76,13 +76,17 @@ ${children.join('\n')}
 
 function renderNode(node, parent, ir, depth, placement, semantic) {
   const style = expandStyle(node.style, ir.tokens)
+  if (semantic && node.tag === 'table') {
+    const table = tableLayout(node)
+    if (table !== undefined) return renderTable(node, parent, ir, depth, placement, table, semantic)
+  }
   const flow = semantic ? flowInfo(node) : undefined
   if (flow !== undefined) return renderFlow(node, parent, ir, depth, placement, flow, semantic)
   return renderAbsolute(node, parent, ir, depth, placement, style, semantic)
 }
 
 function placementProps(node, parent, placement) {
-  const width = number(node.box.w)
+  const width = number(placement.width ?? node.box.w)
   const height = number(node.box.h)
   if (placement.kind === 'rowChild') {
     return [`width: ${width}`, `height: ${height}`, `y: ${number(placement.offset)}`]
@@ -115,14 +119,22 @@ function paintProps(node, style) {
 
 function renderAbsolute(node, parent, ir, depth, placement, style, semantic) {
   const indent = '  '.repeat(depth)
-  const properties = [...placementProps(node, parent, placement), ...paintProps(node, style)]
+  const base = placementProps(node, parent, placement)
+  if (node.tag === 'svg') {
+    return `${indent}Image {
+${indent}  ${base.join(`\n${indent}  `)}
+${indent}  source: "${svgDataUri(node, ir)}"
+${indent}  fillMode: Image.Stretch
+${indent}}`
+  }
   if (node.tag === 'img' && node.attributes?.src !== undefined) {
     return `${indent}Image {
-${indent}  ${properties.join(`\n${indent}  `)}
+${indent}  ${base.join(`\n${indent}  `)}
 ${indent}  source: "${escapeQml(imageSource(node.attributes.src))}"
 ${indent}  fillMode: Image.Stretch
 ${indent}}`
   }
+  const properties = [...base, ...paintProps(node, style)]
   const runs = (node.textRuns ?? []).map(run => renderText(run, node, style, depth + 1))
   const children = (node.children ?? []).map(child => renderNode(child, node, ir, depth + 1, { kind: 'absolute' }, semantic))
   if (runs.length === 0 && children.length === 0) {
@@ -156,6 +168,90 @@ ${indent}    x: ${number(flow.padLeft)}
 ${indent}    y: ${number(flow.padTop)}
 ${indent}    spacing: ${number(flow.gap)}
 ${children.join('\n')}
+${indent}  }
+${indent}}`
+}
+
+/**
+ * Collect rows and verify that cells can be laid out with the captured column
+ * widths. Returns undefined when the table must stay an absolute snapshot.
+ */
+function tableLayout(node) {
+  const columns = node.layout?.columnWidths
+  if (!Array.isArray(columns) || columns.length === 0) return undefined
+  const rows = []
+  const collect = (parent) => {
+    for (const child of parent.children ?? []) {
+      if (child.tag === 'tr') rows.push(child)
+      else if (['thead', 'tbody', 'tfoot'].includes(child.tag)) collect(child)
+    }
+  }
+  collect(node)
+  if (rows.length === 0) return undefined
+
+  for (const row of rows) {
+    let index = 0
+    for (const cell of row.children ?? []) {
+      if (cell.tag !== 'td' && cell.tag !== 'th') continue
+      const span = Math.max(1, cell.colSpan ?? 1)
+      if (index + span > columns.length) return undefined
+      index += span
+    }
+    if (index !== columns.length) return undefined
+  }
+
+  const first = rows[0]
+  const offsetX = first.box.x - node.box.x
+  const offsetY = first.box.y - node.box.y
+  let rowGap
+  for (let index = 1; index < rows.length; index += 1) {
+    const gap = rows[index].box.y - (rows[index - 1].box.y + rows[index - 1].box.h)
+    if (rowGap === undefined) rowGap = gap
+    else if (Math.abs(rowGap - gap) > 1) return undefined
+  }
+  return {
+    columns,
+    rows,
+    offsetX,
+    offsetY,
+    rowGap: Math.max(0, rowGap ?? 0),
+    width: columns.reduce((total, width) => total + width, 0),
+  }
+}
+
+function renderTable(node, parent, ir, depth, placement, table, semantic) {
+  const indent = '  '.repeat(depth)
+  const style = expandStyle(node.style, ir.tokens)
+  const properties = [...placementProps(node, parent, placement), ...paintProps(node, style)]
+  const rows = table.rows.map((row) => {
+    const cells = []
+    let index = 0
+    for (const cell of row.children ?? []) {
+      if (cell.tag !== 'td' && cell.tag !== 'th') continue
+      const span = Math.max(1, cell.colSpan ?? 1)
+      let width = 0
+      for (let step = 0; step < span; step += 1) width += table.columns[index + step]
+      cells.push(renderNode(cell, row, ir, depth + 4, {
+        kind: 'rowChild',
+        offset: cell.box.y - row.box.y,
+        width,
+      }, semantic))
+      index += span
+    }
+    return `${indent}    Row {
+${indent}      width: ${number(table.width)}
+${indent}      height: ${number(row.box.h)}
+${indent}      spacing: 0
+${cells.join('\n')}
+${indent}    }`
+  })
+  return `${indent}Rectangle {
+${indent}  ${properties.join(`\n${indent}  `)}
+${indent}  Column {
+${indent}    x: ${number(table.offsetX)}
+${indent}    y: ${number(table.offsetY)}
+${indent}    spacing: ${number(table.rowGap)}
+${rows.join('\n')}
 ${indent}  }
 ${indent}}`
 }
@@ -255,6 +351,65 @@ function imageSource(source) {
   if (/^(file:|https?:|data:)/i.test(source)) return source
   if (/^[a-zA-Z]:[\\/]/.test(source)) return `file:///${source.replaceAll('\\', '/')}`
   return source
+}
+
+const SVG_SHAPES = new Set(['circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'path', 'g'])
+
+/** Serialize an inline SVG subtree into a data URI the QML Image can load. */
+function svgDataUri(node, ir) {
+  const attributes = node.attributes ?? {}
+  const viewBox = attributes.viewBox ?? `0 0 ${node.box.w} ${node.box.h}`
+  const width = attributes.width ?? node.box.w
+  const height = attributes.height ?? node.box.h
+  const shapes = (node.children ?? []).map(child => svgShape(child, ir)).join('')
+  const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${xml(viewBox)}" width="${xml(width)}" height="${xml(height)}">${shapes}</svg>`
+  return `data:image/svg+xml;base64,${Buffer.from(source, 'utf8').toString('base64')}`
+}
+
+function svgShape(node, ir) {
+  if (!SVG_SHAPES.has(node.tag)) return ''
+  const attributes = Object.entries(node.attributes ?? {})
+    .map(([key, value]) => `${key}="${xml(value)}"`)
+    .join(' ')
+  const style = expandStyle(node.style ?? {}, ir.tokens)
+  const paint = []
+  const fill = svgColor(style.fill)
+  if (fill !== undefined) {
+    paint.push(`fill="${fill.color}"`)
+    if (fill.opacity !== undefined) paint.push(`fill-opacity="${fill.opacity}"`)
+  }
+  const stroke = svgColor(style.stroke)
+  if (stroke !== undefined && stroke.color !== 'none') {
+    paint.push(`stroke="${stroke.color}"`)
+    if (stroke.opacity !== undefined) paint.push(`stroke-opacity="${stroke.opacity}"`)
+  }
+  if (style.strokeWidth !== undefined) paint.push(`stroke-width="${xml(style.strokeWidth)}"`)
+  if (style.strokeLinecap !== undefined) paint.push(`stroke-linecap="${xml(style.strokeLinecap)}"`)
+  if (style.strokeLinejoin !== undefined) paint.push(`stroke-linejoin="${xml(style.strokeLinejoin)}"`)
+  if (style.strokeDasharray !== undefined && style.strokeDasharray !== 'none') {
+    paint.push(`stroke-dasharray="${xml(style.strokeDasharray)}"`)
+  }
+  const children = (node.children ?? []).map(child => svgShape(child, ir)).join('')
+  return `<${node.tag} ${attributes} ${paint.join(' ')}>${children}</${node.tag}>`
+}
+
+function svgColor(value) {
+  if (typeof value !== 'string' || value === '' || value === 'none') return undefined
+  const color = colorOf(value)
+  if (color === undefined) return { color: value }
+  if (color.startsWith('#') && color.length === 9) {
+    const alpha = Number.parseInt(color.slice(1, 3), 16) / 255
+    return { color: `#${color.slice(3)}`, opacity: Math.round(alpha * 1000) / 1000 }
+  }
+  return { color }
+}
+
+function xml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
 }
 
 function number(value) {
