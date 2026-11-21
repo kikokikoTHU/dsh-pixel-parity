@@ -287,7 +287,8 @@ cases/<case>/<viewport>/
 | M32 ✅ | 容差档位：`defaults.preset` 支持 strict(1%,1px)/balanced(2%,2px)/tolerant(5%,4px)，显式数值覆盖档位 | 一行配置“容忍多少” |
 | M33 ✅ | 组合树：Shadow DOM 按 composed tree 采集（slot → assigned elements），文本 run 记录 `afterChild` 保持“图标+文字”顺序；anubis 盒子 108/108 ≤1px、像素差 0.01% | 组件化页面与按钮顺序正确 |
 | M34 ✅ | QML 收尾：纯旋转映射 `rotation`+`transformOrigin`、线性渐变→`Gradient`、`background-image`→`Image`、`video poster`→`Image`；`content:url()` 伪元素转背景图；插件详情页 `docs/DETAIL*.md` + `preview.svg`，版本 0.3.0 | P0/P1 采集与展示补齐 |
-| M35 ✅ | 语义 HTML/CSS 生成器：`--export-component` 输出 `generated.component.html/.css`（97 类复用、`:root` token 变量、`::before/::after` 还原、`@font-face`、相对资源）；原型像素差 0.43%，优于语义版 0.52% | 从“保真证明页”到可维护代码 |
+| M35 ✅ | 语义 HTML/CSS 生成器：`--export-component` 输出 `generated.component.html/.css`（类复用、`:root` token 变量、`::before/::after` 还原、`@font-face`、相对资源）；原型像素差 0.43%，优于语义版 0.52% | 从“保真证明页”到可维护代码 |
+| M36 ✅ | 组件 CSS 剪枝与可读类名：默认值剪除 + `button` UA 重置 + 伪元素签名入类键；CSS 159KB→93KB，类名 `div-container` 等，像素差保持 0.44% | 产物更接近可维护代码 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

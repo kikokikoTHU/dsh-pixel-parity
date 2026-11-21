@@ -110,7 +110,7 @@ await test('component generator emits classes and token variables', async () => 
     },
   }
   const { html, css } = generateComponent(ir)
-  assert.match(html, /<body class="c\d+">/)
+  assert.match(html, /<body class="body-container">/)
   assert.match(html, /Hello/)
   assert.doesNotMatch(html, / style="/, 'no inline styles on nodes')
   assert.match(css, /:root \{/)
@@ -119,6 +119,9 @@ await test('component generator emits classes and token variables', async () => 
   assert.match(css, /var\(--color-1\)/)
   assert.match(css, /var\(--type-1-font-size\)/)
   assert.match(css, /var\(--radius-1\)/)
+  assert.doesNotMatch(css, /padding-top: 0px/)
+  assert.doesNotMatch(css, /border-top-width: 0px/)
+  assert.doesNotMatch(css, /opacity: 1/)
   assert.match(css, /@font-face \{/)
   assert.match(css, /assets\/fonts\/x\.woff2/)
 })
@@ -1172,7 +1175,7 @@ http.createServer((req, res) => {
     assert.ok(existsSync(component.css), 'component css written')
     const html = readFileSync(component.html, 'utf8')
     const css = readFileSync(component.css, 'utf8')
-    assert.match(html, /<body class="c\d+">/)
+    assert.match(html, /<body class="body-container">/)
     assert.doesNotMatch(html.replace(/<colgroup>[\s\S]*?<\/colgroup>/g, ''), /style="/, 'no inline node styles')
     assert.match(css, /:root \{/)
     assert.match(css, /var\(--/)

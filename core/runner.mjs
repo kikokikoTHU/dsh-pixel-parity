@@ -337,6 +337,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
           maxRegionMismatch: entry.thresholds.maxRegionMismatch,
         })
         artifact.screenshot = join(caseDir, 'component.png')
+        writePng(artifact.screenshot, captured.image)
         artifact.mismatchRatio = round(diff.metrics.mismatchRatio, 6)
       } catch (error) {
         artifact.error = error instanceof Error ? error.message : String(error)

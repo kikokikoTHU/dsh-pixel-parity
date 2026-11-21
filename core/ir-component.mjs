@@ -44,14 +44,24 @@ const COLOR_KEYS = ['color', 'backgroundColor', 'borderTopColor']
  */
 export function generateComponent(ir) {
   const classMap = new Map()
+  const nameCounts = new Map()
   const rules = []
   const pseudoRules = []
-  let counter = 0
-  const classOf = (declarations) => {
-    const key = declarations.join(';')
+  const classOf = (declarations, node) => {
+    // Two parents may share declarations but carry different generated content;
+    // keeping one class would make their ::before/::after rules override each
+    // other, so the pseudo signature participates in the class key.
+    const pseudoSignature = (node.children ?? [])
+      .filter(child => child.pseudo !== undefined)
+      .map(child => `${child.pseudo}:${JSON.stringify(child.style ?? {})}:${child.textRuns?.[0]?.text ?? ''}`)
+      .join('|')
+    const key = `${declarations.join(';')}||${pseudoSignature}`
     const found = classMap.get(key)
     if (found !== undefined) return found
-    const name = `c${++counter}`
+    const base = `${slug(node.tag)}-${slug(node.role ?? 'node')}`
+    const count = (nameCounts.get(base) ?? 0) + 1
+    nameCounts.set(base, count)
+    const name = count === 1 ? base : `${base}-${count}`
     const entry = { name, declarations }
     classMap.set(key, entry)
     rules.push(entry)
@@ -77,7 +87,7 @@ function renderNode(node, ir, classOf, pseudoRules, isRoot = false) {
   if (SKIP_TAGS.has(node.tag)) return ''
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style, ir)
-  const classEntry = classOf(declarations)
+  const classEntry = classOf(declarations, node)
 
   const children = (node.children ?? []).filter(child => child.pseudo === undefined)
   for (const pseudo of (node.children ?? []).filter(child => child.pseudo !== undefined)) {
@@ -128,6 +138,15 @@ function pushPseudoRule(pseudo, parentClass, ir, pseudoRules) {
 
 function buildDeclarations(node, style, ir) {
   const declarations = []
+  const zero = value => typeof value === 'string' && /^0(?:\.0+)?px$/.test(value)
+  const DEFAULT_VALUES = new Map([
+    ['flexDirection', 'row'], ['flexWrap', 'nowrap'], ['justifyContent', 'normal'],
+    ['alignItems', 'normal'], ['alignSelf', 'auto'], ['flexGrow', '0'], ['flexShrink', '1'],
+    ['flexBasis', 'auto'], ['order', '0'], ['opacity', '1'], ['tableLayout', 'auto'],
+    ['backgroundSize', 'auto'],
+    ['backgroundPosition', '0% 0%'], ['backgroundRepeat', 'repeat'],
+    ['backgroundOrigin', 'padding-box'], ['backgroundClip', 'border-box'],
+  ])
   const display = style.display
   if (display !== undefined && display !== '') declarations.push(`display:${display}`)
 
@@ -180,6 +199,13 @@ function buildDeclarations(node, style, ir) {
   for (const key of CSS_KEYS) {
     const value = style[key]
     if (value === undefined || value === '' || value === 'normal' || value === 'auto' || value === 'none') continue
+    if (DEFAULT_VALUES.get(key) === value) continue
+    if (/^(padding|margin)/.test(key) && zero(value)) continue
+    if (/^border(Top|Right|Bottom|Left)Width$/.test(key) && zero(value)) continue
+    if (/^border(Top|Right|Bottom|Left)(Style|Color)$/.test(key)) {
+      const side = /^border(Top|Right|Bottom|Left)/.exec(key)[1]
+      if (zero(style[`border${side}Width`])) continue
+    }
     if (key === 'fontFamily' || key === 'fontSize' || key === 'fontWeight' || key === 'lineHeight' || key === 'letterSpacing') continue
     if (key === 'borderRadius' && node.style?.borderRadius?.startsWith('radius.')) {
       declarations.push(`border-radius:var(--${String(node.style.borderRadius).replace('.', '-')})`)
@@ -225,6 +251,7 @@ function buildStylesheet(ir, rules, pseudoRules) {
   if ((ir.assets?.fonts ?? []).length > 0) lines.push('')
   lines.push('*, *::before, *::after { box-sizing: border-box; }')
   lines.push(`html, body { margin: 0; padding: 0; }`)
+  lines.push('button { font: inherit; border: 0; background: none; color: inherit; }')
   lines.push(`body { width: ${viewport.width}px; height: ${viewport.height}px; }`)
   lines.push('')
   for (const rule of rules) {
@@ -256,4 +283,12 @@ function escapeHtml(value) {
 
 function escapeCssString(value) {
   return String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+}
+
+function slug(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24) || 'node'
 }
