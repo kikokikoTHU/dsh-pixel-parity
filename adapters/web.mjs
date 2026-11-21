@@ -78,6 +78,14 @@ const IR_STYLE_PROPS = [
   'borderSpacing',
   'tableLayout',
   'opacity',
+  'fill',
+  'fillOpacity',
+  'stroke',
+  'strokeOpacity',
+  'strokeWidth',
+  'strokeLinecap',
+  'strokeLinejoin',
+  'strokeDasharray',
   'borderTopStyle',
   'borderRightWidth',
   'borderRightStyle',
@@ -89,6 +97,21 @@ const IR_STYLE_PROPS = [
   'borderLeftStyle',
   'borderLeftColor',
 ]
+
+/** Attributes that carry geometry or content for SVG/img elements. */
+const ELEMENT_ATTRIBUTES = {
+  svg: ['viewBox', 'preserveAspectRatio', 'width', 'height'],
+  circle: ['cx', 'cy', 'r'],
+  ellipse: ['cx', 'cy', 'rx', 'ry'],
+  rect: ['x', 'y', 'width', 'height', 'rx', 'ry'],
+  line: ['x1', 'y1', 'x2', 'y2'],
+  polyline: ['points'],
+  polygon: ['points'],
+  path: ['d'],
+  g: ['transform'],
+  use: ['href', 'x', 'y', 'width', 'height'],
+  img: ['src', 'alt'],
+}
 
 const FREEZE_CSS = `
 *,*::before,*::after{
@@ -224,7 +247,7 @@ function createPlaywrightDriver(playwright, options) {
 
       let dom
       if (input.exportDom === true) {
-        dom = await page.evaluate(({ maxNodes, styleKeys }) => {
+        dom = await page.evaluate(({ maxNodes, styleKeys, elementAttributes }) => {
           const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE', 'COLGROUP', 'COL'])
           const round = value => Math.round(value * 10) / 10
           const pick = (style) => {
@@ -262,8 +285,9 @@ function createPlaywrightDriver(playwright, options) {
                 box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
               })
             }
+            const localName = (element.localName ?? element.tagName).toLowerCase()
             const node = {
-              tag: element.tagName.toLowerCase(),
+              tag: localName,
               box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
               style: pick(style),
             }
@@ -272,14 +296,27 @@ function createPlaywrightDriver(playwright, options) {
             if (element.dataset?.irRun !== undefined) node.irRun = element.dataset.irRun
             if (element.colSpan > 1) node.colSpan = element.colSpan
             if (element.rowSpan > 1) node.rowSpan = element.rowSpan
-            if (element.tagName === 'IMG') node.src = element.getAttribute('src') ?? ''
+            const attributeNames = elementAttributes[localName]
+            if (attributeNames !== undefined) {
+              const attributes = {}
+              for (const name of attributeNames) {
+                if (name === 'src') {
+                  const source = element.currentSrc || element.src
+                  if (source) attributes.src = source
+                  continue
+                }
+                const value = element.getAttribute(name)
+                if (value !== null && value !== '') attributes[name] = value
+              }
+              if (Object.keys(attributes).length > 0) node.attributes = attributes
+            }
             const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
             if (children.length > 0) node.children = children
             return node
           }
           const root = walk(document.body, 0)
           return { root, truncated, count }
-        }, { maxNodes: 2000, styleKeys: IR_STYLE_PROPS })
+        }, { maxNodes: 2000, styleKeys: IR_STYLE_PROPS, elementAttributes: ELEMENT_ATTRIBUTES })
       }
 
       return {

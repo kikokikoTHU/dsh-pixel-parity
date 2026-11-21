@@ -265,6 +265,7 @@ cases/<case>/<viewport>/
 | M10 ✅ | 布局语义（flex/grid/table/block）+ 语义化 HTML 生成，345 节点中 336 个盒子 ≤2px，像素差 0.65% | IR 不再只靠坐标 |
 | M11 ✅ | 尺寸合成：flow 渲染回测，仅按需写 `layout.pins`；345 节点中 247 个需固定尺寸（表格占 143），336 个盒子 ≤2px | IR 自描述“哪些尺寸是硬性的” |
 | M12 ✅ | 表格列宽：采集首行派生 `columnWidths` + `colspan`/`rowspan`，生成 `<colgroup>`；表格单元格不再单独 pin，pin 从 247 降到 120 | 表格结构可移植 |
+| M13 ✅ | SVG 几何 + 图片引用：`viewBox`/`cx`/`d`/`points`/`src` 入 IR；语义渲染图标不再丢失，pin 115，337 节点中 332 个 ≤2px | 图标与资源可复现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

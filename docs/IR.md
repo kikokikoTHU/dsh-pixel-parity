@@ -121,25 +121,27 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 | Metric | Result |
 | --- | --- |
 | Nodes | 337 (col/colgroup nodes are folded into `columnWidths`) |
-| Size pins after synthesis | 120 (2 iterations) |
-| Box within 1px | 225 |
-| Box within 2px | 328 |
-| Box off by more than 2px | 9 |
-| Pixel difference (minimal pins) | 2.04% |
+| Size pins after synthesis | 115 (2 iterations) |
+| Box within 1px | 229 |
+| Box within 2px | 332 |
+| Box off by more than 2px | 5 |
+| Pixel difference (minimal pins) | 2.02% |
 | Pixel difference (all sizes pinned) | 0.61% |
 
 The two pixel numbers are the honest trade-off: pinning every size reproduces the pixels
-but makes the IR a coordinate dump; minimal pins keep 328 of 337 boxes within 2px and move
+but makes the IR a coordinate dump; minimal pins keep 332 of 337 boxes within 2px and move
 the rest by at most a few pixels. Pins are data, so a generator can choose how much of the
-viewport it wants to inherit.
+viewport it wants to inherit. The five outliers are four 10px inline icon spans (rendered
+7px wide because the inline box depends on glyph metrics) and one `<input>` shifted 15.6px
+by flex distribution.
 
 Pin distribution tells you where the IR still lacks layout information:
 
 | Kind | Pinned / total | Why |
 | --- | --- | --- |
-| flex | 49 / 62 | content-driven flex sizes that the capture cannot re-derive |
-| block | 30 / 94 | explicit block sizes |
-| inline | 21 / 37 | inline boxes whose width depends on text shaping |
+| flex | 47 / 62 | content-driven flex sizes that the capture cannot re-derive |
+| block | 28 / 94 | explicit block sizes |
+| inline | 20 / 37 | inline boxes whose width depends on text shaping |
 | table | 20 / 139 | table and row boxes only; cells derive from columns/rows |
 | grid | 0 / 5 | grid layout reproduces from templates |
 
@@ -151,20 +153,20 @@ and silently changed the font. Any generator must escape quoted font families.
 - One screen, static: no interactions, states, hover, or responsive rules.
 - Images and `<canvas>` are boxes only; no asset payloads.
 - Layout **kinds** are captured (flex/grid/table/block), item props
-  (`flexGrow`/`flexShrink`/`flexBasis`) are stored, and tables carry `columnWidths`
-  (derived from the first row) plus `colspan`/`rowspan`. Flow layout alone reproduces
-  about a third of the page; 120 of 337 nodes carry size pins.
+  (`flexGrow`/`flexShrink`/`flexBasis`) are stored, tables carry `columnWidths` and
+  `colspan`/`rowspan`, and SVG geometry (`viewBox`, `cx/cy/r`, `d`, `points`, ...) plus
+  `img.src` are kept as `attributes` on the node. Flow layout alone reproduces about a
+  third of the page; 115 of 337 nodes carry size pins.
 - Table cells derive their size from columns and rows; they are deliberately not pinned.
-- SVG geometry (`<circle cx>`, `<path d>`, ...) is not captured yet, so icon nodes render
-  empty and count as the few remaining >2px boxes.
+- Inline icon spans and form controls can still drift a few pixels; they are the remaining
+  five outliers.
 - Text runs are captured for one line box; wrapped multi-line text is approximated.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Capture SVG geometry attributes (and image `src`/alt) so icons and assets survive.
-2. Derive flex item sizes from content/flex-basis to drop more pins.
-3. Carry images and fonts as referenced assets.
-4. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
-5. A QML generator + desktop capture adapter.
-6. Figma as another IR source.
+1. Derive flex item sizes from content/flex-basis to drop more pins.
+2. Carry fonts and binary assets as referenced files (image URLs are captured, bytes are not).
+3. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
+4. A QML generator + desktop capture adapter.
+5. Figma as another IR source.

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IR → semantic HTML (layout-preserving clone).
  *
  * Unlike the absolute renderer, this rebuilds the element tree with the captured
@@ -28,6 +28,7 @@ const CSS_KEYS = [
   'backgroundColor', 'color',
   'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
   'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity', 'zIndex',
+  'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 
 /**
@@ -57,7 +58,10 @@ function renderNode(node, ir, isRoot = false) {
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style)
   const spans = `${node.colSpan > 1 ? ` colspan="${node.colSpan}"` : ''}${node.rowSpan > 1 ? ` rowspan="${node.rowSpan}"` : ''}`
-  const attributes = `data-ir="${escapeHtml(node.id)}"${spans} style="${escapeHtml(declarations.join(';'))}"`
+  const extra = node.attributes === undefined
+    ? ''
+    : Object.entries(node.attributes).map(([name, value]) => ` ${name}="${escapeHtml(value)}"`).join('')
+  const attributes = `data-ir="${escapeHtml(node.id)}"${spans}${extra} style="${escapeHtml(declarations.join(';'))}"`
   const colgroup = node.tag === 'table' && Array.isArray(node.layout?.columnWidths)
     ? `<colgroup>${node.layout.columnWidths.map(width => `<col style="width:${width}px">`).join('')}</colgroup>`
     : ''

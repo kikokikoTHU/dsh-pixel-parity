@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v2 core tests: config normalization, G/S comparisons, masking, and one
  * end-to-end run over the web fixtures.
  *
@@ -354,6 +354,37 @@ if (repo === undefined) {
     assert.equal(viewport.ir.over2, 0, `boxes over 2px: ${viewport.ir.over2} (pins ${viewport.ir.pins}, iterations ${viewport.ir.iterations})`)
     assert.ok(viewport.ir.within1 >= Math.floor(viewport.ir.nodes * 0.8), `within1 ${viewport.ir.within1} of ${viewport.ir.nodes}`)
     assert.ok(existsSync(viewport.ir.semantic))
+  })
+
+  await test('SVG geometry and paint survive the IR', async () => {
+    const { createWebDriver } = await import('../adapters/web.mjs')
+    const { generateSemanticHtml } = await import('../core/ir-html.mjs')
+    const driver = await createWebDriver({ repoRoot: repo })
+    const viewport = { width: 400, height: 200, dpr: 1 }
+    const url = pathToFileURL(join(here, 'fixtures', 'web', 'svg-icon.html')).href
+    const captured = await driver.capture({ url, viewport, exportDom: true })
+    const ir = buildIr({ kind: 'web', url, viewport, capturedAt: new Date().toISOString() }, captured.dom)
+    const circle = flattenIr(ir.root).find(node => node.tag === 'circle')
+    assert.ok(circle !== undefined, 'circle node captured')
+    assert.equal(circle.attributes?.cx, '20')
+    assert.equal(circle.attributes?.r, '16')
+    assert.ok(String(circle.style.fill ?? '').includes('77, 107, 254') || circle.style.fill === '#4D6BFE')
+
+    const html = generateSemanticHtml(ir)
+    assert.match(html, /<circle[^>]*cx="20"[^>]*r="16"/)
+    assert.match(html, /fill:/)
+
+    const renderedPath = join(mkdtempSync(join(tmpdir(), 'parity-svg-')), 'semantic.html')
+    writeFileSync(renderedPath, html)
+    const rendered = await driver.capture({ url: pathToFileURL(renderedPath).href, viewport, exportDom: true })
+    await driver.dispose()
+    const map = new Map()
+    const walkDom = (node) => { if (node.ir) map.set(node.ir, node); for (const child of node.children ?? []) walkDom(child) }
+    walkDom(rendered.dom.root)
+    const got = map.get(circle.id)
+    assert.ok(got !== undefined, 'circle rendered')
+    assert.equal(got.box.w, circle.box.w)
+    assert.equal(got.box.h, circle.box.h)
   })
 
   await test('init detects the real repo workspace app and routes', () => {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IR v1: a renderer-neutral description of one static screen.
  *
  * Built from a captured DOM (best fidelity source) so the same artifacts can
@@ -23,6 +23,7 @@ const STYLE_KEYS = [
   'borderLeftWidth', 'borderLeftStyle', 'borderLeftColor',
   'borderCollapse', 'borderSpacing', 'tableLayout', 'verticalAlign',
   'boxShadow', 'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity',
+  'fill', 'fillOpacity', 'stroke', 'strokeOpacity', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'strokeDasharray',
 ]
 
 /**
@@ -138,6 +139,7 @@ function convert(node, tokens) {
   }
   if (node.colSpan !== undefined) result.colSpan = node.colSpan
   if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
+  if (node.attributes !== undefined) result.attributes = node.attributes
   if (node.children !== undefined && node.children.length > 0) result.children = node.children.map(child => convert(child, tokens))
   return result
 }
@@ -259,6 +261,16 @@ export function validateIr(ir) {
     }
     if (node.colSpan !== undefined && (!Number.isInteger(node.colSpan) || node.colSpan < 1)) {
       violations.push(`${path}.colSpan must be a positive integer`)
+    }
+    if (node.attributes !== undefined) {
+      if (node.attributes === null || typeof node.attributes !== 'object' || Array.isArray(node.attributes)) {
+        violations.push(`${path}.attributes must be an object`)
+      } else {
+        for (const [name, value] of Object.entries(node.attributes)) {
+          if (!/^[a-zA-Z][a-zA-Z0-9-]*$/.test(name)) violations.push(`${path}.attributes has an unsafe name ${JSON.stringify(name)}`)
+          if (typeof value !== 'string') violations.push(`${path}.attributes.${name} must be a string`)
+        }
+      }
     }
     for (const [index, run] of (node.textRuns ?? []).entries()) {
       if (typeof run.text !== 'string' || run.text.length === 0) violations.push(`${path}.textRuns[${index}].text must be a non-empty string`)
