@@ -260,6 +260,32 @@ function createPlaywrightDriver(playwright, options) {
           }
           let count = 0
           let truncated = false
+
+          // Authored sizing declarations (width/height/min/max/flex-basis) from
+          // same-origin CSS. Flow layout cannot derive an explicit height from
+          // content, so the IR keeps the authored value instead of a measured pin.
+          const sizingRules = []
+          for (const sheet of document.styleSheets) {
+            let rules
+            try {
+              rules = sheet.cssRules
+            } catch {
+              continue
+            }
+            for (const rule of rules ?? []) {
+              if (rule.type !== 1) continue
+              const values = {}
+              for (const property of ['width', 'height', 'min-width', 'max-width', 'min-height', 'max-height', 'flex-basis']) {
+                const value = rule.style.getPropertyValue(property)
+                if (value !== '' && value !== 'auto' && value !== 'none' && value !== 'normal') {
+                  const key = property.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+                  values[key] = value
+                }
+              }
+              if (Object.keys(values).length > 0) sizingRules.push({ selector: rule.selectorText, values })
+            }
+          }
+
           const walk = (element, depth) => {
             if (depth > 14 || count >= maxNodes) {
               if (count >= maxNodes) truncated = true
@@ -310,6 +336,20 @@ function createPlaywrightDriver(playwright, options) {
               }
               if (Object.keys(attributes).length > 0) node.attributes = attributes
             }
+            const authored = {}
+            for (const rule of sizingRules) {
+              try {
+                if (!element.matches(rule.selector)) continue
+              } catch {
+                continue
+              }
+              Object.assign(authored, rule.values)
+            }
+            for (const key of ['width', 'height', 'minWidth', 'maxWidth', 'minHeight', 'maxHeight', 'flexBasis']) {
+              const value = element.style?.[key]
+              if (typeof value === 'string' && value !== '') authored[key] = value
+            }
+            if (Object.keys(authored).length > 0) node.authored = authored
             const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
             if (children.length > 0) node.children = children
             return node

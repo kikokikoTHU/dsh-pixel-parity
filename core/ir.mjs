@@ -144,6 +144,19 @@ function convert(node, tokens) {
   if (node.colSpan !== undefined) result.colSpan = node.colSpan
   if (node.rowSpan !== undefined) result.rowSpan = node.rowSpan
   if (node.attributes !== undefined) result.attributes = node.attributes
+  if (node.authored !== undefined) {
+    // Keep only fixed pixel sizes that actually explain the measured box; a
+    // percentage or a rule that does not match the box would fight layout.
+    const authored = {}
+    for (const [key, value] of Object.entries(node.authored)) {
+      if (key !== 'width' && key !== 'height') continue
+      if (!/^\d+(?:\.\d+)?px$/.test(value)) continue
+      const measured = key === 'width' ? node.box.w : node.box.h
+      if (Math.abs(Number.parseFloat(value) - measured) > 1) continue
+      authored[key] = value
+    }
+    if (Object.keys(authored).length > 0) result.authored = authored
+  }
   if (node.children !== undefined && node.children.length > 0) result.children = node.children.map(child => convert(child, tokens))
   return result
 }
@@ -286,6 +299,15 @@ export function validateIr(ir) {
         for (const [name, value] of Object.entries(node.attributes)) {
           if (!/^[a-zA-Z][a-zA-Z0-9-]*$/.test(name)) violations.push(`${path}.attributes has an unsafe name ${JSON.stringify(name)}`)
           if (typeof value !== 'string') violations.push(`${path}.attributes.${name} must be a string`)
+        }
+      }
+    }
+    if (node.authored !== undefined) {
+      if (node.authored === null || typeof node.authored !== 'object' || Array.isArray(node.authored)) {
+        violations.push(`${path}.authored must be an object`)
+      } else {
+        for (const [name, value] of Object.entries(node.authored)) {
+          if (typeof value !== 'string') violations.push(`${path}.authored.${name} must be a string`)
         }
       }
     }

@@ -98,6 +98,12 @@ function buildDeclarations(node, style) {
   if (pins.width === true) declarations.push(`width:${node.box.w}px`)
   if (pins.height === true) declarations.push(`height:${node.box.h}px`)
 
+  // Authored sizes are design intent, not measured compensation: emit them after
+  // pins so the source value wins when both exist.
+  for (const [key, value] of Object.entries(node.authored ?? {})) {
+    declarations.push(`${kebab(key)}:${value}`)
+  }
+
   for (const key of CSS_KEYS) {
     const value = style[key]
     if (value === undefined || value === '' || value === 'normal' || value === 'auto') continue

@@ -118,6 +118,20 @@ instead of inheriting a viewport-bound coordinate dump. Synthesis runs at most 3
 - Cross-origin stylesheets that block `cssRules` are skipped; serve those fonts
   same-origin or declare them in the target page.
 
+## Authored sizes
+
+Measured pins are a fallback. When the source CSS already says how big a box is, the IR
+keeps that declaration instead:
+
+- Same-origin `CSSStyleRule`s are scanned for `width` / `height` / `min-*` / `max-*` /
+  `flex-basis`; matching rules are applied in document order, then inline styles.
+- Only fixed `px` `width`/`height` values that match the measured box within 1px are kept
+  (as `node.authored`); percentages and values that contradict the box are dropped.
+- The semantic renderer emits authored values after pins, so design intent wins.
+
+On the 337-node page this moved **70 sizes from measured pins to authored values**: pins
+went from 94 to 24 with identical box accuracy.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -134,18 +148,18 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 | Metric | Result |
 | --- | --- |
 | Nodes | 337 (col/colgroup nodes are folded into `columnWidths`) |
-| Size pins after synthesis | 115 |
-| Pins pruned as redundant | 21 (block pins re-tested one by one) |
-| Final pins | 94 (2 iterations + prune pass) |
-| Box within 1px | 224 |
+| Authored sizes | 201 |
+| Size pins after synthesis | 94 → **24** after authored sizes |
+| Pins pruned as redundant | 4 |
+| Box within 1px | 229 |
 | Box within 2px | 332 |
 | Box off by more than 2px | 5 |
-| Pixel difference (minimal pins) | 2.05% |
+| Pixel difference (minimal pins) | 2.02% |
 | Pixel difference (all sizes pinned) | 0.61% |
 
 Pruning removes a pin, re-renders, and keeps the removal only when box accuracy does not
-regress. It is bounded to 30 renders (about 18 s on this 337-node page) and only tries
-block-level nodes; flex and inline pins proved load-bearing in experiments.
+regress. It is bounded to 30 renders and only tries block-level nodes; after authored sizes
+replaced most explicit sizes, only 4 pins were pruned.
 
 Second sample — anubis `/projects` (a PrimeVue app with an icon font):
 
@@ -169,10 +183,10 @@ Pin distribution tells you where the IR still lacks layout information:
 
 | Kind | Pinned / total | Why |
 | --- | --- | --- |
-| flex | 47 / 62 | content-driven flex sizes that the capture cannot re-derive |
-| inline | 20 / 37 | inline boxes whose width depends on text shaping |
-| table | 20 / 139 | table and row boxes only; cells derive from columns/rows |
-| block | 7 / 94 | the few explicit block sizes that survive pruning |
+| flex | 23 / 62 | content-driven flex sizes that neither CSS nor flow explains |
+| block | 1 / 94 | one explicit block size that survived pruning |
+| inline | 0 / 37 | inline boxes are reproduced from text runs |
+| table | 0 / 139 | columns/rows reproduce the cells |
 | grid | 0 / 5 | grid layout reproduces from templates |
 
 The last fix matters: a font stack containing `"Microsoft YaHei"` broke the HTML attribute
@@ -185,8 +199,9 @@ and silently changed the font. Any generator must escape quoted font families.
 - Layout **kinds** are captured (flex/grid/table/block), item props
   (`flexGrow`/`flexShrink`/`flexBasis`) are stored, tables carry `columnWidths` and
   `colspan`/`rowspan`, and SVG geometry (`viewBox`, `cx/cy/r`, `d`, `points`, ...) plus
-  `img.src` are kept as `attributes` on the node. Flow layout alone reproduces about a
-  third of the page; 94 of 337 nodes carry size pins.
+  `img.src` are kept as `attributes` on the node, and fixed source sizes are kept as
+  `authored`. Flow layout alone reproduces about a third of the page; only 24 of 337 nodes
+  still carry measured size pins.
 - Table cells derive their size from columns and rows; they are deliberately not pinned.
 - Fonts are materialized; image bytes are not (only their absolute URLs are captured).
 - Cross-origin stylesheets that expose no `cssRules` are skipped, so their fonts are not
