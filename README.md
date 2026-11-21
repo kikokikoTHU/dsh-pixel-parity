@@ -148,14 +148,19 @@ It is the seam for future generators (QML, desktop). See [docs/IR.md](docs/IR.md
 ## Judging rules
 | Check | Default | Meaning |
 | --- | --- | --- |
-| geometry tolerance | 1px | per edge of every anchor |
+| `geometryTolerance` | 1px | per edge of every anchor |
 | `maxMismatch` | 1% | mismatched pixels after masking |
 | `maxRegionMismatch` | 40% | any single 16×16 grid cell |
 | anchors | required for `verified` | missing selector = hard failure |
 
+All three are configurable: in `defaults`, per case in `cases[].thresholds`, or per run via
+`parity_run({ ..., geometryTolerance: 4, maxMismatch: 0.02 })` / `--geometry-tolerance 4
+--max-mismatch 0.02`. Raise `geometryTolerance` when small layout shifts are acceptable;
+the pixel ratio and style diffs are still reported, so the tolerance stays visible rather
+than silent.
+
 Masks exist for genuinely dynamic content (table bodies, charts, timestamps). Do not
-mask a region whose layout is being verified, and do not relax thresholds to turn a
-failure into a pass.
+mask a region whose layout is being verified.
 
 ## Requirements
 

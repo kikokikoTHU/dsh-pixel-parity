@@ -34,6 +34,17 @@ export async function runConfig(options) {
   const dependenciesRoot = resolve(options.dependenciesRoot ?? repoRoot)
   const config = await loadConfig(options.configPath)
   const cases = select(config.cases, options.caseIds, 'case')
+  if (options.thresholds !== undefined) {
+    const geometryTolerance = options.thresholds.geometryTolerance
+    if (geometryTolerance !== undefined && (!Number.isFinite(geometryTolerance) || geometryTolerance < 0)) {
+      throw new Error('geometryTolerance must be a non-negative number')
+    }
+    const maxMismatch = options.thresholds.maxMismatch
+    if (maxMismatch !== undefined && (!Number.isFinite(maxMismatch) || maxMismatch < 0 || maxMismatch > 1)) {
+      throw new Error('maxMismatch must be a number between 0 and 1')
+    }
+    for (const entry of cases) entry.thresholds = { ...entry.thresholds, ...options.thresholds }
+  }
   const viewports = select(config.viewports, options.viewportIds, 'viewport')
 
   for (const surface of new Set(cases.map(entry => entry.surface))) {
@@ -208,7 +219,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     writePng(join(caseDir, 'reference.png'), reference.image)
     writePng(join(caseDir, 'implementation.png'), implementation.image)
 
-    const geometry = compareGeometry(reference.anchors ?? {}, implementation.anchors ?? {}, 1)
+    const geometry = compareGeometry(reference.anchors ?? {}, implementation.anchors ?? {}, entry.thresholds.geometryTolerance)
     const styles = compareStyles(reference.anchors ?? {}, implementation.anchors ?? {})
     const pixels = comparePixels(reference.image, implementation.image, {
       tolerance: entry.thresholds.tolerance,

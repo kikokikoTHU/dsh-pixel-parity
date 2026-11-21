@@ -972,6 +972,35 @@ http.createServer((req, res) => {
     assert.ok(shifted.pixels.metrics.mismatchRatio < 0.01, 'pixels alone would not have caught the shift')
   })
 
+  await test('run thresholds tolerate a shift and can tighten pixel tolerance', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-tolerance-'))
+    const tolerant = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['shifted'],
+      outDir: join(repoRoot, '.parity', 'runs', 'tolerant'),
+      thresholds: { geometryTolerance: 4 },
+    })
+    const tolerantViewport = tolerant.manifest.cases[0].viewports[0]
+    assert.equal(tolerantViewport.status, 'verified', tolerantViewport.error)
+    assert.equal(tolerantViewport.geometry.tolerance, 4)
+
+    const strict = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['shifted'],
+      outDir: join(repoRoot, '.parity', 'runs', 'strict'),
+      thresholds: { geometryTolerance: 4, maxMismatch: 0.0005 },
+    })
+    const strictViewport = strict.manifest.cases[0].viewports[0]
+    assert.equal(strictViewport.status, 'failed')
+    assert.equal(strictViewport.pixels.pass, false)
+  })
+
   await test('end-to-end: pin writes a baseline and baseline mode rejects a 4px regression', async () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'parity-baseline-'))
     const pinned = await runConfig({

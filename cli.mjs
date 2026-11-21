@@ -50,6 +50,9 @@ async function run() {
     process.exit(2)
   }
   try {
+    const thresholds = {}
+    if (args.geometryTolerance !== undefined) thresholds.geometryTolerance = Number(args.geometryTolerance)
+    if (args.maxMismatch !== undefined) thresholds.maxMismatch = Number(args.maxMismatch)
     const result = await runConfig({
       configPath,
       repoRoot,
@@ -61,6 +64,7 @@ async function run() {
       baselineMode,
       exportIr: args.exportIr === true,
       exportQml: args.exportQml === true,
+      thresholds: Object.keys(thresholds).length === 0 ? undefined : thresholds,
     })
     if (args.json === true) {
       process.stdout.write(`${JSON.stringify({ runDir: result.runDir, summary: result.summary, manifest: result.manifest }, null, 2)}\n`)
@@ -230,6 +234,8 @@ run:
   --out <dir>            artifact directory (default: <repo>/.parity/runs/<runId>)
   --export-ir            also write ir.json and generated.html per case/viewport
   --export-qml           also write generated.qml and render it with qmlscene
+  --geometry-tolerance <px>  allowed anchor delta for this run (default: config, 1)
+  --max-mismatch <ratio> allowed mismatched-pixel share 0-1 (default: config, 0.01)
   --json                 print the full manifest as JSON
   --headed               show the browser window
 

@@ -234,6 +234,14 @@ const RUN_PARAMETERS = {
       type: 'boolean',
       description: 'Also generate a QML snapshot (generated.qml) and render it with qmlscene when available, recording the pixel difference.',
     },
+    geometryTolerance: {
+      type: 'number',
+      description: 'Allowed anchor delta in CSS pixels for this run (overrides config; default 1). Raise it to tolerate small layout shifts.',
+    },
+    maxMismatch: {
+      type: 'number',
+      description: 'Allowed share of mismatched pixels for this run, 0-1 (overrides config; default 0.01 = 1%).',
+    },
   },
 }
 
@@ -624,6 +632,9 @@ export function apply(ctx) {
     async execute(args, exec) {
       const repo = text(args.repo, 'repo')
       const configPath = isAbsolute(args.config) ? args.config : join(repo, args.config)
+      const thresholds = {}
+      if (args.geometryTolerance !== undefined) thresholds.geometryTolerance = Number(args.geometryTolerance)
+      if (args.maxMismatch !== undefined) thresholds.maxMismatch = Number(args.maxMismatch)
       const result = await runConfig({
         configPath,
         repoRoot: repo,
@@ -635,6 +646,7 @@ export function apply(ctx) {
         baselineMode: args.baselineMode === undefined ? 'auto' : text(args.baselineMode, 'baselineMode'),
         exportIr: args.exportIr === true,
         exportQml: args.exportQml === true,
+        thresholds: Object.keys(thresholds).length === 0 ? undefined : thresholds,
         ask: createBaselineAsker(ctx, exec),
         signal: exec?.signal,
       })

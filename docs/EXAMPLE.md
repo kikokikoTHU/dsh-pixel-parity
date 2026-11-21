@@ -34,6 +34,8 @@ export default {
     tolerance: 24,
     maxMismatch: 0.01,
     maxRegionMismatch: 0.4,
+    // acceptable anchor drift; raise to 2-4 when small shifts are tolerable
+    geometryTolerance: 1,
     freeze: { animations: true, caret: true, clock: '2026-08-04T14:33:00+08:00' },
   },
   targets: {

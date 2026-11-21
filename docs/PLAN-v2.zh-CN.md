@@ -283,6 +283,7 @@ cases/<case>/<viewport>/
 | M28 ✅ | QML 对齐：`justify-content: center/flex-end` 映射为 anchors（水平/垂直居中、右/底对齐）；原型 QML 5.55%/5.77% 不回归 | 布局语义更完整 |
 | M29 ✅ | QML `space-between`：分布间距均匀时按起始对齐映射，不再回退绝对定位；TableView 尝试因 Qt 5.14 抓图限制暂不采用 | 常见工具栏布局可语义化 |
 | M30 ✅ | 几何边界：零尺寸 flex/grid 子节点保留（占 gap）、transform(matrix) + transformedSize、grid justify-items/place-items、content-box 尺寸；anubis 盒子 ≤1px 从 89 升到 107/112，语义像素差 0.19% → 0.05% | 修复头部 8px 偏移根因 |
+| M31 ✅ | 可配置容差：`geometryTolerance`（像素）进入 defaults/case/run 三层，`maxMismatch` 可按 run 覆盖；工具参数 `geometryTolerance`/`maxMismatch`，CLI `--geometry-tolerance`/`--max-mismatch` | 不再硬性 ±1px |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

@@ -51,6 +51,7 @@ export function normalizeConfig(raw, absolutePath) {
     tolerance: 24,
     maxMismatch: 0.01,
     maxRegionMismatch: 0.4,
+    geometryTolerance: 1,
     masks: [],
     freeze: { animations: true, caret: true, clock: null },
     locale: 'zh-CN',
@@ -169,6 +170,16 @@ function normalizeCase(entry, index, directory, defaults, targets) {
     return { ref: mask.ref, impl: mask.impl ?? mask.ref }
   })
 
+  const thresholds = {
+    tolerance: entry.thresholds?.tolerance ?? defaults.tolerance,
+    maxMismatch: entry.thresholds?.maxMismatch ?? defaults.maxMismatch,
+    maxRegionMismatch: entry.thresholds?.maxRegionMismatch ?? defaults.maxRegionMismatch,
+    geometryTolerance: entry.thresholds?.geometryTolerance ?? defaults.geometryTolerance,
+  }
+  number(thresholds.geometryTolerance, `cases[${index}].thresholds.geometryTolerance`, 0, 64)
+  number(thresholds.maxMismatch, `cases[${index}].thresholds.maxMismatch`, 0, 1)
+  number(thresholds.maxRegionMismatch, `cases[${index}].thresholds.maxRegionMismatch`, 0, 1)
+
   return {
     id,
     surface,
@@ -176,11 +187,7 @@ function normalizeCase(entry, index, directory, defaults, targets) {
     implementation,
     anchors,
     masks,
-    thresholds: {
-      tolerance: entry.thresholds?.tolerance ?? defaults.tolerance,
-      maxMismatch: entry.thresholds?.maxMismatch ?? defaults.maxMismatch,
-      maxRegionMismatch: entry.thresholds?.maxRegionMismatch ?? defaults.maxRegionMismatch,
-    },
+    thresholds,
     hide: { ref: entry.hide?.ref ?? targets.reference.hide, impl: entry.hide?.impl ?? targets.implementation.hide },
     waitFor: { ref: entry.waitFor?.ref ?? targets.reference.waitFor, impl: entry.waitFor?.impl ?? targets.implementation.waitFor },
   }
@@ -235,6 +242,13 @@ function resolveUrl(value, baseUrl, directory) {
 function integer(value, label, minimum, maximum) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum || value > maximum) {
     throw new Error(`${label} must be an integer between ${minimum} and ${maximum}`)
+  }
+  return value
+}
+
+function number(value, label, minimum, maximum) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`${label} must be a number between ${minimum} and ${maximum}`)
   }
   return value
 }

@@ -31,7 +31,12 @@ export default {
     { id: 'desktop', width: 1440, height: 900, dpr: 1 },
     { id: 'mobile', width: 390, height: 844, dpr: 3 },
   ],
-  defaults: { tolerance: 24, maxMismatch: 0.01, maxRegionMismatch: 0.4 },
+  defaults: {
+    tolerance: 24,
+    maxMismatch: 0.01,
+    maxRegionMismatch: 0.4,
+    geometryTolerance: 1,
+  },
   targets: {
     reference: { baseUrl: 'https://example.dev/proto/' },
     implementation: { baseUrl: 'http://127.0.0.1:5173' },
@@ -66,6 +71,25 @@ Rules:
   comparable; masks hide the data region but cannot verify it.
 - Thresholds may be changed only with a measured reason (text-dense design,
   non-deterministic content), and the reason must be reported.
+
+### Tolerances
+
+Two independent knobs, both percentage/pixel based:
+
+| Knob | Meaning | Default |
+| --- | --- | --- |
+| `maxMismatch` | share of mismatched pixels allowed, `0`–`1` | `0.01` (1%) |
+| `maxRegionMismatch` | share allowed inside one 16×16 grid cell | `0.4` (40%) |
+| `geometryTolerance` | anchor edge delta allowed, in CSS pixels | `1` |
+
+Set them in `defaults`, per case in `cases[].thresholds`, or per run as
+`parity_run({ ..., geometryTolerance: 4, maxMismatch: 0.02 })` (the CLI equivalents are
+`--geometry-tolerance` and `--max-mismatch`).
+
+When the product only needs "close enough", raise `geometryTolerance` first: it accepts
+small layout shifts without hiding real color/typography errors, because styles are still
+compared exactly and the pixel ratio is still reported. Do not raise `maxMismatch` past a
+few percent to paper over a layout bug — check `pixels.regions` first.
 
 ### 2. Add anchors to the implementation
 
