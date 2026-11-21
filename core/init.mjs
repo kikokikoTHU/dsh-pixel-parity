@@ -193,7 +193,7 @@ function findExistingConfig(root) {
 function readJson(path) {
   if (!existsSync(path)) return undefined
   try {
-    return JSON.parse(readFileSync(path, 'utf8'))
+    return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''))
   } catch {
     return undefined
   }

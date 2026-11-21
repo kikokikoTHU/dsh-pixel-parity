@@ -23,7 +23,7 @@ export async function loadConfig(configPath) {
   const extension = extname(absolute).toLowerCase()
   let raw
   if (extension === '.json') {
-    raw = JSON.parse(readFileSync(absolute, 'utf8'))
+    raw = JSON.parse(readFileSync(absolute, 'utf8').replace(/^\uFEFF/, ''))
   } else if (extension === '.mjs' || extension === '.js') {
     const module = await import(`${pathToFileURL(absolute).href}?v=${Date.now()}`)
     raw = module.default ?? module.config

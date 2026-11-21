@@ -130,6 +130,16 @@ await test('init detects framework, port, routes, and Playwright', () => {
   assert.deepEqual(detection.routes.map(route => route.path), ['/alpha', '/beta'])
 })
 
+await test('init tolerates a UTF-8 BOM in package.json', () => {
+  const repoRoot = createFixtureRepo()
+  const pkgPath = join(repoRoot, 'package.json')
+  const text = readFileSync(pkgPath, 'utf8')
+  writeFileSync(pkgPath, `\uFEFF${text}`, 'utf8')
+  const detection = detectRepo(repoRoot)
+  assert.equal(detection.framework, 'vue')
+  assert.equal(detection.port, 4321)
+})
+
 await test('init writes a config draft that loads and points at the first route', async () => {
   const repoRoot = createFixtureRepo()
   const result = initRepo({ repoRoot })
