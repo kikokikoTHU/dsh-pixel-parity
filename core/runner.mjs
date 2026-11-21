@@ -14,6 +14,7 @@ import { compareGeometry, comparePixels, compareStyles } from './compare.mjs'
 import { hasBaseline, readBaseline, writeBaseline } from './baselines.mjs'
 import { buildIr, flattenIr, validateIr } from './ir.mjs'
 import { generateHtml } from './ir-web.mjs'
+import { generateSemanticHtml } from './ir-html.mjs'
 import { createWebDriver } from '../adapters/web.mjs'
 import { loadImage } from '../lib/image.js'
 import { encodePng } from '../lib/png.js'
@@ -172,9 +173,12 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       writeFileSync(irPath, `${JSON.stringify(ir, null, 2)}\n`)
       const generatedPath = join(caseDir, 'generated.html')
       writeFileSync(generatedPath, generateHtml(ir))
+      const semanticPath = join(caseDir, 'generated.semantic.html')
+      writeFileSync(semanticPath, generateSemanticHtml(ir))
       irArtifacts = {
         path: irPath,
         generated: generatedPath,
+        semantic: semanticPath,
         nodes: flattenIr(ir.root).length,
         truncated: ir.source.truncated === true,
       }

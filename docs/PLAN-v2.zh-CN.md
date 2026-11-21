@@ -262,6 +262,7 @@ cases/<case>/<viewport>/
 | M7 | `desktop` 的 UIA 几何（Windows 先行） | 有可访问性树才升到 geometry |
 | M8 | Figma 输入（REST API） | 替代截图基准 |
 | M9 ✅ | IR v1：DOM → IR（tokens/节点/文本 run）→ 重新生成 Web，真实原型页回环 0.61% | 多端生成的地基 |
+| M10 ✅ | 布局语义（flex/grid/table/block）+ 语义化 HTML 生成，345 节点中 336 个盒子 ≤2px，像素差 0.65% | IR 不再只靠坐标 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

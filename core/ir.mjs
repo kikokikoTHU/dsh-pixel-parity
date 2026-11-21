@@ -11,13 +11,18 @@ const COLOR_KEYS = ['color', 'backgroundColor', 'borderTopColor']
 const TYPE_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing']
 const RADIUS_KEYS = ['borderRadius']
 const STYLE_KEYS = [
-  'display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'gap',
+  'display', 'position', 'flexDirection', 'flexWrap', 'justifyContent', 'alignItems', 'alignSelf',
+  'flexGrow', 'flexShrink', 'flexBasis', 'order', 'gap', 'rowGap', 'columnGap',
+  'gridTemplateColumns', 'gridTemplateRows', 'gridAutoFlow',
   'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+  'minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'boxSizing',
+  'top', 'left', 'right', 'bottom', 'zIndex',
   'borderTopWidth', 'borderTopStyle', 'borderRightWidth', 'borderRightStyle', 'borderRightColor',
   'borderBottomWidth', 'borderBottomStyle', 'borderBottomColor',
   'borderLeftWidth', 'borderLeftStyle', 'borderLeftColor',
-  'boxShadow', 'textAlign', 'overflow', 'whiteSpace', 'opacity',
+  'borderCollapse', 'borderSpacing', 'tableLayout', 'verticalAlign',
+  'boxShadow', 'textAlign', 'textOverflow', 'overflow', 'whiteSpace', 'opacity',
 ]
 
 /**
@@ -124,6 +129,7 @@ function convert(node, tokens) {
     id: node.__id,
     tag: node.tag,
     role: roleOf(node),
+    layout: layoutOf(node),
     box: node.box,
     style: irStyle,
   }
@@ -132,6 +138,32 @@ function convert(node, tokens) {
   }
   if (node.children !== undefined && node.children.length > 0) result.children = node.children.map(child => convert(child, tokens))
   return result
+}
+
+function layoutOf(node) {
+  const display = node.style?.display ?? 'block'
+  const kind = display.includes('flex')
+    ? 'flex'
+    : display.includes('grid')
+      ? 'grid'
+      : display === 'inline-table' || display.startsWith('table')
+        ? 'table'
+        : display.startsWith('inline')
+          ? 'inline'
+          : 'block'
+  const layout = { kind }
+  if (kind === 'flex') {
+    layout.direction = node.style.flexDirection ?? 'row'
+    layout.justify = node.style.justifyContent ?? 'normal'
+    layout.align = node.style.alignItems ?? 'normal'
+    layout.wrap = node.style.flexWrap ?? 'nowrap'
+    if (typeof node.style.gap === 'string' && node.style.gap !== 'normal') layout.gap = node.style.gap
+  } else if (kind === 'grid') {
+    layout.columns = node.style.gridTemplateColumns ?? ''
+    layout.rows = node.style.gridTemplateRows ?? ''
+    layout.gap = node.style.gap ?? 'normal'
+  }
+  return layout
 }
 
 function roleOf(node) {

@@ -286,10 +286,11 @@ const RUN_OUTPUT_SCHEMA = {
                 ir: {
                   type: 'object',
                   additionalProperties: false,
-                  required: ['path', 'generated', 'nodes', 'truncated'],
+                  required: ['path', 'generated', 'semantic', 'nodes', 'truncated'],
                   properties: {
                     path: { type: 'string' },
                     generated: { type: 'string' },
+                    semantic: { type: 'string' },
                     nodes: { type: 'integer' },
                     truncated: { type: 'boolean' },
                   },

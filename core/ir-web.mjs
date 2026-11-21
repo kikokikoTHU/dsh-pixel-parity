@@ -33,6 +33,11 @@ export function generateHtml(ir) {
       // The generated page is an absolute layout: a captured `position: static`
       // must not override the `position: absolute` written above.
       if (property === 'position') continue
+      // Boxes are captured as border-box rectangles; forcing border-box keeps the
+      // pinned width/height equal to the measured size.
+      if (property === 'boxSizing') continue
+      // Offsets are derived from the captured box, not from the computed style.
+      if (property === 'top' || property === 'left' || property === 'right' || property === 'bottom') continue
       // Text is rendered from measured runs, not from the element's own box.
       if (property === 'textAlign') continue
       if (property.startsWith('margin')) continue

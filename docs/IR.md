@@ -4,8 +4,9 @@
 
 ```
 .parity/runs/<runId>/cases/<case>/<viewport>/
-  ir.json          # IR v1 document
-  generated.html   # static HTML rendered back from the IR
+  ir.json                   # IR v1 document
+  generated.html            # absolute-layout render (fidelity proof)
+  generated.semantic.html   # layout-preserving clone (portability proof)
 ```
 
 The goal is to prove the IR keeps enough information to reproduce a screen, before any
@@ -71,6 +72,24 @@ DOM (Playwright) → IR (tokens + tree + measured text runs) → HTML (absolute 
 boxes, and that every `color.*` / `type.*` / `radius.*` reference exists. `parity_run`
 fails the case if the produced IR is invalid.
 
+## Layout model
+
+Every node carries a `layout` classification and keeps its captured box:
+
+```json
+"layout": { "kind": "flex", "direction": "row", "justify": "flex-start", "align": "center", "gap": "8px" }
+```
+
+- `kind`: `flex` | `grid` | `table` | `inline` | `block`.
+- Flex containers keep direction/justify/align/wrap/gap; grid keeps template columns/rows.
+- Items keep `flexGrow`/`flexShrink`/`flexBasis`/`alignSelf`/`order`.
+- `box` remains the measured geometry, used for verification and for the absolute renderer.
+
+The semantic renderer (`core/ir-html.mjs`) rebuilds the element tree with these layout
+kinds and computed styles, lets the browser re-run layout, and keeps `data-ir` ids so every
+node can be checked back against the IR. A QML generator can map the same `layout.kind`
+instead of copying coordinates.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -82,6 +101,17 @@ Measured on a real 345-node prototype page (1440×900):
 | Typography token fix | 5.42% |
 | Escaped `style` attributes | **0.61%** |
 
+Semantic render (layout re-run by the browser instead of absolute boxes):
+
+| Metric | Result |
+| --- | --- |
+| Nodes reproduced | 341 of 345 visible boxes (4 `<option>` elements have no box) |
+| Box within 1px | 334 |
+| Box within 2px | 2 (336) |
+| Box within 5px | 4 (340) |
+| Box off by more | 1 (an `<input>` shifted 15.6px) |
+| Pixel difference | **0.65%** |
+
 The last fix matters: a font stack containing `"Microsoft YaHei"` broke the HTML attribute
 and silently changed the font. Any generator must escape quoted font families.
 
@@ -89,14 +119,17 @@ and silently changed the font. Any generator must escape quoted font families.
 
 - One screen, static: no interactions, states, hover, or responsive rules.
 - Images and `<canvas>` are boxes only; no asset payloads.
-- Layout is absolute page coordinates. It reproduces the captured viewport but is not a
-  portability model yet (`flex`/constraints come next).
+- Layout **kinds** are captured (flex/grid/table/block), and item props
+  (`flexGrow`/`flexShrink`/`flexBasis`) are stored, but the semantic render still pins
+  each node's measured size. Removing those pinned sizes in favor of pure constraints is
+  the next step and will expose places where the capture lacks information.
 - Text runs are captured for one line box; wrapped multi-line text is approximated.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Normalize layout into flex/stack/anchors so the IR is not viewport-bound.
+1. Drop pinned sizes where flex constraints suffice; compare the resulting layout to the
+   captured boxes and record which nodes need explicit sizes.
 2. Carry images and fonts as referenced assets.
 3. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
 4. A QML generator + desktop capture adapter.

@@ -125,11 +125,13 @@ baseline just to make a regression pass.
 
 ## IR export
 
-`parity_run({ ..., exportIr: true })` or `node cli.mjs run --export-ir` writes `ir.json`
-and `generated.html` per case/viewport. The IR is a static snapshot — design tokens, a
-node tree with boxes, and measured text runs — and the generated page reproduces the
-captured screen at **0.61%** pixel difference on a 345-node real page. It is the seam for
-future generators (QML, desktop). See [docs/IR.md](docs/IR.md) for the schema and limits.
+`parity_run({ ..., exportIr: true })` or `node cli.mjs run --export-ir` writes `ir.json`,
+`generated.html`, and `generated.semantic.html` per case/viewport. The IR is a static
+snapshot — design tokens, a node tree with boxes and layout kinds (flex/grid/table/block),
+and measured text runs. On a 345-node real page the absolute render reproduces the screen
+at **0.61%** pixel difference; the semantic render (layout re-run by the browser) keeps
+336 of 345 boxes within 2px at **0.65%** pixels. It is the seam for future generators
+(QML, desktop). See [docs/IR.md](docs/IR.md) for the schema and limits.
 
 ## Judging rules
 | Check | Default | Meaning |
