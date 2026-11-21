@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dsh-pixel-parity architecture</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    width: 1400px; height: 1000px; margin: 0; padding: 34px 40px 28px;
+    background: #f6f8fb; color: #1b2430;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  header { margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.2px; }
+  .sub { margin-top: 4px; color: #5b6b7f; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 972px 1fr; gap: 18px; }
+  .stack { display: flex; flex-direction: column; gap: 0; }
+  .band {
+    position: relative; border: 1px solid #cfd8e4; background: #fff;
+    border-radius: 10px; padding: 14px 16px 12px;
+  }
+  .band .tag {
+    position: absolute; top: -9px; left: 14px; padding: 2px 8px;
+    background: #e8eef8; color: #334a66; border-radius: 999px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .box {
+    border: 1px solid #d7dee8; background: #fbfcfe; border-radius: 8px;
+    padding: 8px 11px; font-size: 12.5px; line-height: 1.35;
+  }
+  .box b { display: block; font-size: 13px; font-weight: 600; }
+  .box span { color: #64748b; font-size: 11.5px; }
+  .box code, code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; color: #24364d; }
+  .arrow { color: #94a3b8; font-size: 17px; }
+  .down { text-align: center; color: #6b7c92; font-size: 11.5px; padding: 7px 0 6px; }
+  .down b { color: #94a3b8; font-size: 15px; display: block; line-height: 10px; }
+  .core-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip {
+    border: 1px solid #d7dee8; background: #f8fafd; border-radius: 999px;
+    padding: 3px 9px; font-size: 11.5px; color: #334a66;
+  }
+  .reserved { border-style: dashed; background: #fafbfd; color: #8b98ac; }
+  .rail {
+    border: 1px solid #cfd8e4; background: #fff; border-radius: 10px;
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .rail h2 { margin: 0; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #5b6b7f; }
+  .layer { border-left: 3px solid #8aa4c8; padding-left: 9px; }
+  .layer b { display: block; font-size: 12.5px; }
+  .layer span { color: #64748b; font-size: 11.5px; }
+  .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; margin: 3px 4px 0 0; }
+  .ok { color: #167a4b; background: #e7f5ee; }
+  .warn { color: #a7650a; background: #fbf1e2; }
+  .bad { color: #c43d3d; background: #fbe9e9; }
+  .muted { color: #5b6b7f; background: #eef2f7; }
+  .foot {
+    margin-top: 14px; color: #6b7c92; font-size: 11.5px;
+    display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>dsh-pixel-parity — architecture</h1>
+  <div class="sub">DSH plugin that aligns a repository implementation with a design image, reference page, or prototype — measured, not eyeballed.</div>
+</header>
+
+<div class="grid">
+  <div class="stack">
+
+    <section class="band">
+      <div class="tag">DSH host</div>
+      <div class="row">
+        <div class="box"><b>Agent / model</b><span>tool calls, one case at a time</span></div>
+        <div class="arrow">→</div>
+        <div class="box"><b>Tools</b><span><code>parity_init</code> · <code>parity_run</code> · <code>parity_approve</code> · <code>parity_check</code></span></div>
+        <div class="box"><b>Skill</b><span><code>pixel-parity</code> workflow</span></div>
+        <div class="box"><b>User questions</b><span><code>ctx.userQuestions.ask()</code> baseline strategy</span></div>
+      </div>
+    </section>
+
+    <div class="down"><b>↓</b>ctx.tools.register · ctx.skills.register</div>
+
+    <section class="band">
+      <div class="tag">Entry points</div>
+      <div class="row">
+        <div class="box"><b>index.js</b><span>tool schemas · argument validation · result rendering</span></div>
+        <div class="box"><b>cli.mjs</b><span><code>run</code> · <code>approve</code> · <code>init</code> — CI and humans, no DSH</span></div>
+        <div class="box"><b>cordis.patch.yml</b><span>plugin row · <code>locale/</code> · <code>icon.svg</code></span></div>
+      </div>
+    </section>
+
+    <div class="down"><b>↓</b>function calls</div>
+
+    <section class="band">
+      <div class="tag">Core</div>
+      <div class="core-grid">
+        <div>
+          <div class="row">
+            <div class="box"><b>config.mjs</b><span>load .mjs/.js/.json, normalize viewports/cases</span></div>
+            <div class="box"><b>runner.mjs</b><span>case × viewport orchestration, manifest</span></div>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div class="box"><b>compare.mjs</b><span>G geometry · S styles · P masked pixels</span></div>
+            <div class="box"><b>init.mjs</b><span>repo scan → config draft</span></div>
+          </div>
+        </div>
+        <div class="box" style="height:100%">
+          <b>baselines.mjs</b>
+          <span>write: screenshot + anchors + masks<br>read: offline regression<br>approve: newest passing run</span>
+          <div class="chips"><span class="chip">.parity/baselines/&lt;case&gt;@&lt;viewport&gt;</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="down"><b>↓</b>adapter interface: prepare · capture · dispose</div>
+
+    <section class="band">
+      <div class="tag">Adapters</div>
+      <div class="row">
+        <div class="box"><b>web (Playwright)</b><span>screenshot · DOM anchors · computed styles · masks · fixtures</span></div>
+        <div class="box"><b>web (Chrome CLI)</b><span>screenshot only → <code>image-verified</code></span></div>
+        <div class="box reserved"><b>electron / desktop</b><span>reserved — explicit error, never faked</span></div>
+      </div>
+    </section>
+
+    <div class="down"><b>↓</b></div>
+
+    <section class="band">
+      <div class="tag">Shared libs</div>
+      <div class="row">
+        <div class="box"><b>png.js</b><span>decode / encode</span></div>
+        <div class="box"><b>diff.js</b><span>metrics · 16×16 regions · diff image</span></div>
+        <div class="box"><b>palette.js</b><span>dominant colors</span></div>
+        <div class="box"><b>image.js</b><span>PNG, nativeImage fallback</span></div>
+        <div class="box"><b>browser.js</b><span>Chromium discovery + capture</span></div>
+      </div>
+    </section>
+
+    <div class="down"><b>↓</b></div>
+
+    <section class="band">
+      <div class="tag">External</div>
+      <div class="row">
+        <div class="box"><b>Repo dev server</b><span>implementation URL</span></div>
+        <div class="box"><b>Reference</b><span>page URL or design image</span></div>
+        <div class="box"><b>Chromium / Playwright</b><span>resolved from the target repo</span></div>
+        <div class="box"><b>Evidence</b><span><code>.parity/runs</code> → manifest · png · diff · metrics</span></div>
+      </div>
+    </section>
+
+  </div>
+
+  <aside class="rail">
+    <h2>Three-layer judgment</h2>
+    <div class="layer"><b>G · Geometry</b><span>anchor boxes x/y/w/h within 1px; missing anchor = hard fail</span></div>
+    <div class="layer"><b>S · Styles</b><span>computed color, type, spacing, radius, shadow, gap</span></div>
+    <div class="layer"><b>P · Pixels</b><span>masked screenshot diff; 1% overall, 40% per cell</span></div>
+
+    <h2>Statuses</h2>
+    <div>
+      <span class="pill ok">verified</span>
+      <span class="pill warn">image-verified</span>
+      <span class="pill bad">failed</span>
+      <span class="pill muted">incomplete</span>
+    </div>
+
+    <h2>Baseline decision</h2>
+    <div class="layer"><b>auto</b><span>ask when an online reference has no baseline</span></div>
+    <div class="layer"><b>pin</b><span>write baseline only after a passing run</span></div>
+    <div class="layer"><b>ephemeral</b><span>compare once, save nothing</span></div>
+    <div class="layer"><b>baseline</b><span>offline regression against saved evidence</span></div>
+
+    <h2>Boundaries</h2>
+    <div class="layer"><b>core has no DSH imports</b><span>tools only adapt ctx</span></div>
+    <div class="layer"><b>adapters are pluggable</b><span>desktop reserved behind the same interface</span></div>
+  </aside>
+</div>
+
+<div class="foot">
+  <span>config → runner → adapters → compare → manifest → baselines</span>
+  <span>dsh-pixel-parity · v0.2.0</span>
+</div>
+</body>
+</html>
