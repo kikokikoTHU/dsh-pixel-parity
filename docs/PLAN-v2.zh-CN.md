@@ -280,6 +280,7 @@ cases/<case>/<viewport>/
 | M25 ✅ | 视觉效果：采集 outline/filter/backdrop-filter/mix-blend-mode（默认值剪除），渐变随 background-image 保留；IR 体积降约 2% | 描边与滤镜可复现 |
 | M26 ✅ | 生成内容与表单：`::before/::after` 作为生成子节点、百分比作者尺寸、`<select>` options、表单属性；pin 24→3，盒子 ≤1px 330/337，语义像素差 0.56% | 拟合度跨过 99.4% |
 | M27 ✅ | Canvas：`toDataURL` 抓帧 → `assets/images/`，HTML 输出 `<img>`、QML 输出 `Image`；被污染的画布只保留盒子 | 图表类页面不再空白 |
+| M28 ✅ | QML 对齐：`justify-content: center/flex-end` 映射为 anchors（水平/垂直居中、右/底对齐）；原型 QML 5.55%/5.77% 不回归 | 布局语义更完整 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

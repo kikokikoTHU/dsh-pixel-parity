@@ -275,6 +275,33 @@ await test('figmaToIr maps frames, auto-layout and text', async () => {
   assert.deepEqual(validateIr(ir), [])
 })
 
+await test('QML semantic mode maps centered rows to anchors', async () => {
+  const { generateQml } = await import('../core/ir-qml.mjs')
+  const child = (id, x) => ({
+    id, tag: 'div', role: 'container', layout: { kind: 'block' },
+    box: { x, y: 10, w: 40, h: 20 }, style: {},
+  })
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 200, height: 100, dpr: 1 }, canvas: { width: 200, height: 100 }, truncated: false },
+    tokens: { colors: {}, radius: {}, typography: {} },
+    assets: { fonts: [] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 200, h: 100 }, style: {},
+      children: [{
+        id: 'n2', tag: 'div', role: 'container',
+        layout: { kind: 'flex', direction: 'row', justify: 'center', align: 'center' },
+        box: { x: 0, y: 0, w: 200, h: 40 },
+        style: { display: 'flex', flexDirection: 'row', justifyContent: 'center' },
+        children: [child('n3', 60), child('n4', 100)],
+      }],
+    },
+  }
+  const qml = generateQml(ir, { semantic: true })
+  assert.match(qml, /anchors\.horizontalCenter: parent\.horizontalCenter/)
+})
+
 await test('init detects framework, port, routes, and Playwright', () => {
   const repoRoot = createFixtureRepo()
   const detection = detectRepo(repoRoot)

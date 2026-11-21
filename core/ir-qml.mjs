@@ -67,8 +67,7 @@ function renderRootFlow(ir, flow, semantic) {
     return renderNode(child, ir.root, ir, 2, placement, semantic)
   })
   return `  ${inner} {
-    x: ${number(flow.padLeft)}
-    y: ${number(flow.padTop)}
+    ${flowAnchors(flow).join('\n    ')}
     spacing: ${number(flow.gap)}
 ${children.join('\n')}
   }`
@@ -152,6 +151,7 @@ function renderFlow(node, parent, ir, depth, placement, flow, semantic) {
   const style = expandStyle(node.style, ir.tokens)
   const properties = [...placementProps(node, parent, placement), ...paintProps(node, style)]
   const inner = flow.direction === 'row' ? 'Row' : 'Column'
+  const anchors = flowAnchors(flow).join(`\n${indent}    `)
   const children = flow.children.map((child) => {
     const offset = flow.direction === 'row'
       ? child.box.y - (node.box.y + flow.padTop)
@@ -164,12 +164,26 @@ function renderFlow(node, parent, ir, depth, placement, flow, semantic) {
   return `${indent}Rectangle {
 ${indent}  ${properties.join(`\n${indent}  `)}
 ${indent}  ${inner} {
-${indent}    x: ${number(flow.padLeft)}
-${indent}    y: ${number(flow.padTop)}
+${indent}    ${anchors}
 ${indent}    spacing: ${number(flow.gap)}
 ${children.join('\n')}
 ${indent}  }
 ${indent}}`
+}
+
+function flowAnchors(flow) {
+  if (flow.direction === 'row') {
+    if (flow.justify === 'center') return ['anchors.horizontalCenter: parent.horizontalCenter', `y: ${number(flow.padTop)}`]
+    if (flow.justify === 'end') {
+      return ['anchors.right: parent.right', `anchors.rightMargin: ${number(flow.padRight)}`, `y: ${number(flow.padTop)}`]
+    }
+    return [`x: ${number(flow.padLeft)}`, `y: ${number(flow.padTop)}`]
+  }
+  if (flow.justify === 'center') return ['anchors.verticalCenter: parent.verticalCenter', `x: ${number(flow.padLeft)}`]
+  if (flow.justify === 'end') {
+    return ['anchors.bottom: parent.bottom', `anchors.bottomMargin: ${number(flow.padBottom)}`, `x: ${number(flow.padLeft)}`]
+  }
+  return [`x: ${number(flow.padLeft)}`, `y: ${number(flow.padTop)}`]
 }
 
 /**
@@ -279,9 +293,17 @@ function flowInfo(node) {
 
   const padLeft = px(node.style.paddingLeft)
   const padTop = px(node.style.paddingTop)
-  const start = direction === 'row' ? node.box.x + padLeft : node.box.y + padTop
+  const padRight = px(node.style.paddingRight)
+  const padBottom = px(node.style.paddingBottom)
+  const contentStart = direction === 'row' ? node.box.x + padLeft : node.box.y + padTop
+  const contentEnd = direction === 'row' ? node.box.x + node.box.w - padRight : node.box.y + node.box.h - padBottom
   const firstStart = direction === 'row' ? ordered[0].box.x : ordered[0].box.y
-  if (Math.abs(firstStart - start) > 1) return undefined
+
+  const rawJustify = node.style.justifyContent ?? 'normal'
+  let justify = 'start'
+  if (rawJustify === 'center') justify = 'center'
+  else if (rawJustify === 'flex-end' || rawJustify === 'end') justify = 'end'
+  else if (!['normal', 'flex-start', 'start', 'stretch'].includes(rawJustify)) return undefined
 
   let gap
   for (let index = 1; index < ordered.length; index += 1) {
@@ -294,11 +316,27 @@ function flowInfo(node) {
     else if (Math.abs(gap - currentGap) > 1) return undefined
   }
   if (gap === undefined || gap < -1) return undefined
+
+  let total = 0
+  ordered.forEach((child, index) => {
+    total += direction === 'row' ? child.box.w : child.box.h
+    if (index > 0) total += gap
+  })
+  const offset = justify === 'center'
+    ? (contentEnd - contentStart - total) / 2
+    : justify === 'end'
+      ? contentEnd - contentStart - total
+      : 0
+  if (Math.abs(firstStart - (contentStart + offset)) > 1) return undefined
+
   return {
     direction,
+    justify,
     gap: Math.max(0, gap),
     padLeft,
     padTop,
+    padRight,
+    padBottom,
     children: ordered,
   }
 }

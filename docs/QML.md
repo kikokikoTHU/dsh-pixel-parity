@@ -44,8 +44,13 @@ A container becomes `Row` or `Column` only when all of these hold:
 
 - layout kind is `flex` (row/column, no wrap) or `block`;
 - at least two children, none absolutely positioned;
-- the first child starts at the container's content origin (padding applied);
+- the first child sits at the position implied by `justify-content` (`start`, `center`, or
+  `end`) on the main axis;
 - the gap between every consecutive pair is equal within 1px.
+
+`justify-content: center` / `flex-end` map to Qt anchors (`anchors.horizontalCenter`,
+`anchors.right` + right margin) so the group keeps its alignment instead of falling back to
+absolute boxes.
 
 Otherwise that node falls back to absolute positioning. Padding is preserved by placing
 the `Row`/`Column` inside the node's `Rectangle` at `(paddingLeft, paddingTop)`; the
@@ -93,8 +98,9 @@ icons, which are not rendered in QML yet.
 ## Limits
 
 - Static snapshot: no interaction, states, or responsive behavior.
-- Flex/block containers with sequential children map to `Row`/`Column`; justify-center /
-  space-between and wrapping rows still fall back to absolute positioning.
+- Flex/block containers with sequential children map to `Row`/`Column` (start, center, and
+  end alignment); `space-between`/`space-around`/`space-evenly` and wrapping rows still fall
+  back to absolute positioning.
 - Tables map to `Column`/`Row` with captured column widths, not `TableView` (no data model
   or delegates yet).
 - Inline SVG is baked into a data-URI `Image`; interactions inside the SVG are lost.
