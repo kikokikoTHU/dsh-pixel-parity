@@ -30,6 +30,35 @@ The render is a **static snapshot**: boxes are absolute, so Qt layout managers a
 exercised yet. That is deliberate — it proves the IR carries enough information to render
 on another engine before a semantic generator redesigns layout.
 
+## Semantic layout mode
+
+`--export-qml` writes two components and renders both:
+
+- `generated.qml` — absolute snapshot (every node positioned).
+- `generated.semantic.qml` — semantic mapping where it is provably safe.
+
+A container becomes `Row` or `Column` only when all of these hold:
+
+- layout kind is `flex` (row/column, no wrap) or `block`;
+- at least two children, none absolutely positioned;
+- the first child starts at the container's content origin (padding applied);
+- the gap between every consecutive pair is equal within 1px.
+
+Otherwise that node falls back to absolute positioning. Padding is preserved by placing
+the `Row`/`Column` inside the node's `Rectangle` at `(paddingLeft, paddingTop)`; the
+cross-axis offset of each child is kept so vertical centering survives.
+
+Measured on the prototype:
+
+| Mode | Pixel difference vs browser |
+| --- | --- |
+| absolute | 5.56% |
+| semantic | 5.78% |
+
+The semantic render is visually identical; the small delta comes from layout rounding.
+`justify-content: center/space-between`, wrapping rows, and tables still use absolute
+positioning per node.
+
 ## Render check
 
 `adapters/qml.mjs` locates `qmlscene` (known Qt paths, `PATH`, or `PIXEL_PARITY_QMLSCENE`),
@@ -56,8 +85,9 @@ icons, which are not rendered in QML yet.
 
 ## Limits
 
-- Static absolute snapshot; no interaction, states, or responsive behavior.
-- Flex/table layout kinds are not mapped to `Row`/`Column`/`TableView` yet.
+- Static snapshot: no interaction, states, or responsive behavior.
+- Flex/block containers with sequential children map to `Row`/`Column`; justify-center /
+  space-between, wrapping rows, and tables still fall back to absolute positioning.
 - Inline SVG (`circle`, `path`) renders empty; `img` URLs work.
 - WOFF2 `@font-face` loading depends on the Qt build's FreeType support; otherwise the font
   falls back and text metrics shift.

@@ -202,6 +202,8 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     if (irArtifacts !== undefined && context.exportQml === true && irDocument !== undefined) {
       const qmlPath = join(caseDir, 'generated.qml')
       writeFileSync(qmlPath, generateQml(irDocument))
+      const semanticQmlPath = join(caseDir, 'generated.semantic.qml')
+      writeFileSync(semanticQmlPath, generateQml(irDocument, { semantic: true }))
       const qml = { path: qmlPath }
       if (findQmlScene() === undefined) {
         qml.error = 'qmlscene not available'
@@ -219,6 +221,22 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
           })
           qml.screenshot = join(caseDir, 'qml.png')
           qml.mismatchRatio = round(diff.metrics.mismatchRatio, 6)
+
+          const semanticImage = await captureQml(semanticQmlPath, {
+            width: viewport.width,
+            height: viewport.height,
+            outPath: join(caseDir, 'qml.semantic.png'),
+          })
+          const semanticDiff = comparePixels(implementation.image, semanticImage, {
+            tolerance: entry.thresholds.tolerance,
+            maxMismatch: entry.thresholds.maxMismatch,
+            maxRegionMismatch: entry.thresholds.maxRegionMismatch,
+          })
+          qml.semantic = {
+            path: semanticQmlPath,
+            screenshot: join(caseDir, 'qml.semantic.png'),
+            mismatchRatio: round(semanticDiff.metrics.mismatchRatio, 6),
+          }
         } catch (error) {
           qml.error = error instanceof Error ? error.message : String(error)
         }

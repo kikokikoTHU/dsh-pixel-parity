@@ -178,6 +178,29 @@ await test('QML generator emits a positioned snapshot', async () => {
   assert.match(qml, /color: "#ffffff"/)
 })
 
+await test('QML semantic mode maps sequential children to Column', async () => {
+  const { generateQml } = await import('../core/ir-qml.mjs')
+  const child = (id, y) => ({
+    id, tag: 'div', role: 'container', layout: { kind: 'block' },
+    box: { x: 0, y, w: 100, h: 40 },
+    style: { backgroundColor: '#eeeeee' },
+  })
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 100, height: 100, dpr: 1 }, canvas: { width: 100, height: 100 }, truncated: false },
+    tokens: { colors: {}, radius: {}, typography: {} },
+    assets: { fonts: [] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 100, h: 100 }, style: {},
+      children: [child('n2', 0), child('n3', 50)],
+    },
+  }
+  const qml = generateQml(ir, { semantic: true })
+  assert.match(qml, /Column \{/)
+  assert.match(qml, /spacing: 10/)
+})
+
 await test('init detects framework, port, routes, and Playwright', () => {
   const repoRoot = createFixtureRepo()
   const detection = detectRepo(repoRoot)
@@ -474,6 +497,10 @@ if (repo === undefined) {
     assert.ok(existsSync(viewport.ir.qml.screenshot), 'qml screenshot written')
     assert.equal(typeof viewport.ir.qml.mismatchRatio, 'number')
     assert.ok(viewport.ir.qml.mismatchRatio < 0.5, `QML mismatch ${viewport.ir.qml.mismatchRatio}`)
+    assert.ok(viewport.ir.qml.semantic !== undefined, 'semantic QML artifact')
+    assert.ok(existsSync(viewport.ir.qml.semantic.path))
+    assert.match(readFileSync(viewport.ir.qml.semantic.path, 'utf8'), /Row|Column/)
+    assert.ok(viewport.ir.qml.semantic.mismatchRatio < 0.5, `semantic QML mismatch ${viewport.ir.qml.semantic.mismatchRatio}`)
   })
 
   await test('init detects the real repo workspace app and routes', () => {

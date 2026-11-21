@@ -312,6 +312,16 @@ const RUN_OUTPUT_SCHEMA = {
                         screenshot: { type: 'string' },
                         mismatchRatio: { type: 'number' },
                         error: { type: 'string' },
+                        semantic: {
+                          type: 'object',
+                          additionalProperties: false,
+                          required: ['path', 'screenshot', 'mismatchRatio'],
+                          properties: {
+                            path: { type: 'string' },
+                            screenshot: { type: 'string' },
+                            mismatchRatio: { type: 'number' },
+                          },
+                        },
                       },
                     },
                   },
