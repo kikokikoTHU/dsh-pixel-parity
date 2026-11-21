@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>fixture implementation</title>
+<style>html, body { margin: 0; height: 100%; background: #ffffff; }</style>
+</head>
+<body>
+<script>
+fetch('https://api.example.test/color', { mode: 'cors' })
+  .then(response => response.json())
+  .then(data => {
+    document.body.style.background = data.color;
+    document.body.dataset.ready = '1';
+  })
+  .catch(() => { document.body.dataset.ready = 'error'; });
+</script>
+</body>
+</html>

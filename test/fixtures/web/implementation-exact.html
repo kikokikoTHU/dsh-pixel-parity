@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>parity fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #fff; font-family: Arial, sans-serif; }
+  header { height: 56px; background: #11141b; color: #fff; display: flex; align-items: center; padding: 0 24px; font-size: 16px; }
+  .toolbar { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 24px; }
+  button { width: 80px; height: 28px; border: 0; border-radius: 4px; background: #3478f6; color: #fff; font-size: 13px; }
+  main { padding: 0 24px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { height: 32px; text-align: left; font-size: 13px; border-bottom: 1px solid #e8edf2; }
+</style>
+</head>
+<body>
+<header data-parity="header">AOI SPC 集中管理平台</header>
+<div class="toolbar" data-parity="toolbar">
+  <button data-parity="query">查询</button>
+  <button data-parity="reset">重置</button>
+</div>
+<main>
+  <table data-parity="table">
+    <thead><tr><th>时间</th><th>类型</th><th>结果</th></tr></thead>
+    <tbody data-parity-mask>
+      <tr><td>2026-08-04 14:32:56</td><td>传输异常</td><td>无需处理</td></tr>
+      <tr><td>2026-08-04 13:55:20</td><td>人工操作</td><td>成功</td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

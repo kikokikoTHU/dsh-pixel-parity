@@ -1,0 +1,50 @@
+{
+  "name": "dsh-pixel-parity",
+  "version": "0.2.0",
+  "description": "A DeepSeek Harness plugin that aligns a frontend implementation with a design, reference page, or prototype using measured geometry, styles, and pixel diffs.",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cli.mjs",
+    "core",
+    "adapters",
+    "lib",
+    "skill",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "license": "MIT",
+  "author": "wangzhuqi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kikokikoTHU/dsh-pixel-parity.git"
+  },
+  "homepage": "https://github.com/kikokikoTHU/dsh-pixel-parity#readme",
+  "bugs": {
+    "url": "https://github.com/kikokikoTHU/dsh-pixel-parity/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "design-to-code",
+    "visual-regression",
+    "pixel-diff",
+    "playwright"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

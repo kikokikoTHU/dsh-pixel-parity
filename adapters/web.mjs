@@ -1,0 +1,241 @@
+/**
+ * Web surface adapter.
+ *
+ * Primary driver: Playwright resolved from the target repo (no bundled copy).
+ * It gives screenshots, anchor geometry, and computed styles from one render.
+ * Fallback driver: the Chrome/Edge CLI from v1, which only yields pixels.
+ */
+
+import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { decodePng } from '../lib/png.js'
+import { captureScreenshot, findBrowser } from '../lib/browser.js'
+
+/** Computed-style properties compared by the S layer. */
+export const STYLE_PROPS = [
+  'color',
+  'backgroundColor',
+  'fontFamily',
+  'fontSize',
+  'fontWeight',
+  'lineHeight',
+  'letterSpacing',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'paddingLeft',
+  'marginTop',
+  'marginRight',
+  'marginBottom',
+  'marginLeft',
+  'borderTopWidth',
+  'borderTopColor',
+  'borderRadius',
+  'boxShadow',
+  'gap',
+  'display',
+  'position',
+]
+
+const FREEZE_CSS = `
+*,*::before,*::after{
+  animation-duration:0s!important;animation-delay:0s!important;
+  transition-duration:0s!important;transition-delay:0s!important;
+  scroll-behavior:auto!important;
+}
+html{scrollbar-width:none!important}
+::-webkit-scrollbar{display:none!important}
+`
+
+/**
+ * Resolve the `playwright` package from a repository's node_modules.
+ * @param {string} repoRoot - repository root.
+ * @returns {Promise<object | undefined>} the chromium facade, or undefined.
+ */
+export async function resolvePlaywright(repoRoot) {
+  try {
+    const require = createRequire(join(repoRoot, 'package.json'))
+    const entry = require.resolve('playwright')
+    const module = await import(pathToFileURL(entry).href)
+    const chromium = module.chromium ?? module.default?.chromium
+    if (chromium === undefined) return undefined
+    const version = module.default?.version ?? module.version ?? 'unknown'
+    return { chromium, version }
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Create the web driver used by the runner.
+ * @param {{repoRoot: string, headless?: boolean}} options - driver settings.
+ * @returns {Promise<object>} driver with capture/dispose.
+ */
+export async function createWebDriver(options) {
+  const playwright = await resolvePlaywright(options.repoRoot)
+  if (playwright !== undefined) {
+    return createPlaywrightDriver(playwright, options)
+  }
+  if (findBrowser() === undefined) {
+    throw new Error('neither Playwright nor a Chromium-based browser was found; install playwright in the repo or set PIXEL_PARITY_BROWSER')
+  }
+  return createChromeDriver()
+}
+
+function createPlaywrightDriver(playwright, options) {
+  let browser
+
+  async function capture(input) {
+    if (browser === undefined) browser = await playwright.chromium.launch({ headless: options.headless !== false })
+    const { width, height, dpr } = input.viewport
+    const context = await browser.newContext({
+      viewport: { width, height },
+      deviceScaleFactor: dpr,
+      locale: input.locale ?? 'zh-CN',
+      timezoneId: input.timezone ?? 'Asia/Shanghai',
+      colorScheme: 'light',
+      reducedMotion: 'reduce',
+      bypassCSP: true,
+    })
+    try {
+      const page = await context.newPage()
+      if (input.fixtures !== undefined) {
+        await applyFixtures(page, input.fixtures, input)
+      }
+      await page.goto(toTargetUrl(input.url), { waitUntil: 'load', timeout: 45000 })
+      await page.addStyleTag({ content: FREEZE_CSS })
+      if (input.freeze?.animations !== false) {
+        await page.emulateMedia({ reducedMotion: 'reduce' })
+      }
+      if (input.freeze?.clock !== undefined && input.freeze?.clock !== null) {
+        try {
+          await page.clock.install({ time: new Date(input.freeze.clock) })
+        } catch {
+          // Older Playwright builds may not expose the clock API; the screenshot still runs.
+        }
+      }
+      for (const selector of input.hide ?? []) {
+        await page.addStyleTag({ content: `${selector}{display:none!important}` })
+      }
+      for (const selector of input.waitFor ?? []) {
+        await page.waitForSelector(selector, { state: 'visible', timeout: 15000 }).catch(() => {})
+      }
+      await page.evaluate(() => document.fonts?.ready ?? Promise.resolve())
+      await page.waitForTimeout(120)
+
+      const screenshot = await page.screenshot({ type: 'png' })
+      const image = decodePng(screenshot)
+      const expectedWidth = Math.round(width * dpr)
+      const expectedHeight = Math.round(height * dpr)
+      if (image.width !== expectedWidth || image.height !== expectedHeight) {
+        throw new Error(`screenshot is ${image.width}x${image.height}, expected ${expectedWidth}x${expectedHeight} (${width}x${height} at dpr ${dpr})`)
+      }
+
+      const anchors = await page.evaluate(({ selectors, props }) => {
+        const result = {}
+        for (const [id, selector] of Object.entries(selectors)) {
+          const element = document.querySelector(selector)
+          if (element === null) {
+            result[id] = null
+            continue
+          }
+          const rect = element.getBoundingClientRect()
+          const computed = getComputedStyle(element)
+          const styles = {}
+          for (const property of props) styles[property] = computed[property]
+          result[id] = {
+            rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+            styles,
+          }
+        }
+        return result
+      }, { selectors: input.anchors ?? {}, props: STYLE_PROPS })
+
+      const masks = await page.evaluate((selectors) => {
+        const rects = []
+        for (const selector of selectors) {
+          for (const element of document.querySelectorAll(selector)) {
+            const rect = element.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) rects.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height })
+          }
+        }
+        return rects
+      }, input.masks ?? [])
+
+      return {
+        image: { width: image.width, height: image.height, data: image.data },
+        anchors,
+        masks: masks.map(rect => scaleRect(rect, dpr)),
+        driver: `playwright ${playwright.version}`,
+      }
+    } finally {
+      await context.close()
+    }
+  }
+
+  async function dispose() {
+    if (browser !== undefined) await browser.close()
+    browser = undefined
+  }
+
+  return { id: 'playwright', capture, dispose }
+}
+
+function createChromeDriver() {
+  return {
+    id: 'chrome-cli',
+    async capture(input) {
+      const { width, height, dpr } = input.viewport
+      const outPath = input.screenshotPath
+      if (input.fixtures !== undefined) {
+        throw new Error('fixtures need Playwright: the Chrome CLI driver cannot intercept requests. Install playwright in the repo.')
+      }
+      const result = await captureScreenshot({ url: toTargetUrl(input.url), width, height, dpr, outPath, signal: input.signal })
+      const decoded = decodePng(readFileSync(outPath))
+      return {
+        image: { width: decoded.width, height: decoded.height, data: decoded.data },
+        anchors: {},
+        masks: [],
+        driver: `chrome-cli (${result.browser})`,
+      }
+    },
+    async dispose() {},
+  }
+}
+
+function scaleRect(rect, dpr) {
+  return {
+    x: Math.round(rect.x * dpr),
+    y: Math.round(rect.y * dpr),
+    w: Math.round(rect.w * dpr),
+    h: Math.round(rect.h * dpr),
+  }
+}
+
+/** Turn a local file path into a file:// URL; leave real URLs untouched. */
+export function toTargetUrl(value) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : pathToFileURL(value).href
+}
+
+/**
+ * Install request interception for one capture by importing a repo module.
+ * The module must default-export `(page, context) => Promise<void>`.
+ * @param {object} page - Playwright page.
+ * @param {string} file - absolute fixtures module path.
+ * @param {object} input - capture input, passed as context.
+ */
+async function applyFixtures(page, file, input) {
+  let module
+  try {
+    module = await import(pathToFileURL(file).href)
+  } catch (error) {
+    throw new Error(`cannot load fixtures "${file}": ${error instanceof Error ? error.message : String(error)}`)
+  }
+  const setup = module.default ?? module.setup
+  if (typeof setup !== 'function') {
+    throw new Error(`fixtures "${file}" must default-export a function (page, context)`)
+  }
+  await setup(page, { url: input.url, viewport: input.viewport })
+}
