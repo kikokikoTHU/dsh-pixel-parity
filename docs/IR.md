@@ -4,8 +4,9 @@
 
 ```
 .parity/runs/<runId>/cases/<case>/<viewport>/
-  ir.json                   # IR v1 document
+  ir.json                   # IR v1 document (with size pins)
   generated.html            # absolute-layout render (fidelity proof)
+  generated.flow.html       # flow-only render before pins (debug)
   generated.semantic.html   # layout-preserving clone (portability proof)
 ```
 
@@ -90,6 +91,20 @@ kinds and computed styles, lets the browser re-run layout, and keeps `data-ir` i
 node can be checked back against the IR. A QML generator can map the same `layout.kind`
 instead of copying coordinates.
 
+### Size synthesis
+
+The first semantic render emits **no** explicit sizes; `core/runner.mjs` then captures it
+and compares node boxes with the original. Any node whose width or height drifts by more
+than 1px gets a pin:
+
+```json
+"layout": { "kind": "flex", "pins": { "width": true } }
+```
+
+Pins are recorded in the IR, so a generator knows exactly which sizes are load-bearing
+instead of inheriting a viewport-bound coordinate dump. Synthesis runs at most 3 rounds;
+`ir.pins`, `ir.iterations`, and box-accuracy counters are reported in the run result.
+
 ## Fidelity
 
 Measured on a real 345-node prototype page (1440×900):
@@ -105,12 +120,22 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 
 | Metric | Result |
 | --- | --- |
-| Nodes reproduced | 341 of 345 visible boxes (4 `<option>` elements have no box) |
+| Nodes | 345 |
+| Size pins after synthesis | 247 (2 iterations) |
 | Box within 1px | 334 |
-| Box within 2px | 2 (336) |
-| Box within 5px | 4 (340) |
-| Box off by more | 1 (an `<input>` shifted 15.6px) |
-| Pixel difference | **0.65%** |
+| Box within 2px | 336 |
+| Box off by more than 2px | 9 |
+| Pixel difference (final semantic render) | **0.65%** |
+
+Pin distribution tells you where the IR still lacks layout information:
+
+| Kind | Pinned / total | Why |
+| --- | --- | --- |
+| table | 147 / 147 | cell and column widths are not yet captured; `<colgroup>` support is next |
+| flex | 49 / 62 | content-driven flex sizes that the capture cannot re-derive |
+| block | 30 / 94 | explicit block sizes |
+| inline | 21 / 37 | inline boxes whose width depends on text shaping |
+| grid | 0 / 5 | grid layout reproduces from templates |
 
 The last fix matters: a font stack containing `"Microsoft YaHei"` broke the HTML attribute
 and silently changed the font. Any generator must escape quoted font families.
@@ -120,17 +145,17 @@ and silently changed the font. Any generator must escape quoted font families.
 - One screen, static: no interactions, states, hover, or responsive rules.
 - Images and `<canvas>` are boxes only; no asset payloads.
 - Layout **kinds** are captured (flex/grid/table/block), and item props
-  (`flexGrow`/`flexShrink`/`flexBasis`) are stored, but the semantic render still pins
-  each node's measured size. Removing those pinned sizes in favor of pure constraints is
-  the next step and will expose places where the capture lacks information.
+  (`flexGrow`/`flexShrink`/`flexBasis`) are stored. Flow layout alone reproduces about a
+  third of a table-heavy page, so 247 of 345 nodes carry size pins; tables account for
+  143 of them.
 - Text runs are captured for one line box; wrapped multi-line text is approximated.
 - Captures above 2000 nodes are truncated (`source.truncated`).
 
 ## Next
 
-1. Drop pinned sizes where flex constraints suffice; compare the resulting layout to the
-   captured boxes and record which nodes need explicit sizes.
-2. Carry images and fonts as referenced assets.
-3. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
-4. A QML generator + desktop capture adapter.
-5. Figma as another IR source.
+1. Capture table column widths (`<colgroup>`) and emit them, removing the table pins.
+2. Derive flex item sizes from content/flex-basis to drop more pins.
+3. Carry images and fonts as referenced assets.
+4. A semantic HTML/CSS generator (usable code, not just a fidelity proof).
+5. A QML generator + desktop capture adapter.
+6. Figma as another IR source.

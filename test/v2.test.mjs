@@ -135,6 +135,7 @@ await test('generated HTML escapes quotes in font families', () => {
       id: 'n1',
       tag: 'body',
       role: 'container',
+      layout: { kind: 'block' },
       box: { x: 0, y: 0, w: 100, h: 50 },
       style: { typography: 'type.1' },
       textRuns: [{ text: 'hello', box: { x: 1, y: 1, w: 40, h: 16 } }],
@@ -266,6 +267,10 @@ if (repo === undefined) {
     const html = readFileSync(viewport.ir.generated, 'utf8')
     assert.match(html, /data-ir="/)
     assert.match(html, /AOI SPC/)
+    assert.ok(viewport.ir.pins >= 0, `pins ${viewport.ir.pins}`)
+    assert.ok(existsSync(viewport.ir.semantic), 'semantic render must exist')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /data-ir="/)
     assert.ok(Object.keys(ir.tokens.typography).length > 0, 'typography tokens must exist')
     const nodes = flattenIr(ir.root)
     assert.ok(nodes.some(node => typeof node.style.typography === 'string'), 'at least one node must reference a typography token')
@@ -329,37 +334,21 @@ if (repo === undefined) {
     }
   })
 
-  await test('semantic IR render preserves node boxes', async () => {
-    const { createWebDriver } = await import('../adapters/web.mjs')
-    const { generateSemanticHtml } = await import('../core/ir-html.mjs')
-    const driver = await createWebDriver({ repoRoot: repo })
-    const viewport = { width: 800, height: 600, dpr: 1 }
-    const referenceUrl = pathToFileURL(join(here, 'fixtures', 'web', 'reference.html')).href
-    const original = await driver.capture({ url: referenceUrl, viewport, exportDom: true })
-    const ir = buildIr({ kind: 'web', url: referenceUrl, viewport, capturedAt: new Date().toISOString() }, original.dom)
-    const generated = join(mkdtempSync(join(tmpdir(), 'parity-ir-semantic-')), 'semantic.html')
-    writeFileSync(generated, generateSemanticHtml(ir))
-    const rendered = await driver.capture({ url: pathToFileURL(generated).href, viewport, exportDom: true })
-    await driver.dispose()
-
-    const flattenDom = (node, out = []) => {
-      out.push(node)
-      for (const child of node.children ?? []) flattenDom(child, out)
-      return out
-    }
-    const expected = new Map(flattenIr(ir.root).map(node => [node.id, node]))
-    const renderedNodes = flattenDom(rendered.dom.root).filter(node => node.ir !== undefined)
-    assert.equal(renderedNodes.length, expected.size, 'every IR node must render once')
-    let worst = 0
-    for (const box of renderedNodes) {
-      const node = expected.get(box.ir)
-      assert.ok(node !== undefined, `unknown node ${box.ir}`)
-      for (const key of ['x', 'y', 'w', 'h']) {
-        worst = Math.max(worst, Math.abs(node.box[key] - box.box[key]))
-        assert.ok(Math.abs(node.box[key] - box.box[key]) <= 2, `node ${node.id} (${node.tag}) ${key}: ${node.box[key]} vs ${box.box[key]}`)
-      }
-    }
-    assert.ok(worst <= 2, `worst delta ${worst}`)
+  await test('semantic IR render preserves node boxes after size synthesis', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-ir-semantic-'))
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'semantic'),
+    })
+    const viewport = result.manifest.cases.find(entry => entry.id === 'exact').viewports[0]
+    assert.ok(viewport.ir !== undefined, JSON.stringify(viewport.error))
+    assert.equal(viewport.ir.over2, 0, `boxes over 2px: ${viewport.ir.over2} (pins ${viewport.ir.pins}, iterations ${viewport.ir.iterations})`)
+    assert.ok(viewport.ir.within1 >= Math.floor(viewport.ir.nodes * 0.8), `within1 ${viewport.ir.within1} of ${viewport.ir.nodes}`)
+    assert.ok(existsSync(viewport.ir.semantic))
   })
 
   await test('init detects the real repo workspace app and routes', () => {

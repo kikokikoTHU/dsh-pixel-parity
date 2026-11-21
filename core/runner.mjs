@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { loadConfig } from './config.mjs'
 import { compareGeometry, comparePixels, compareStyles } from './compare.mjs'
 import { hasBaseline, readBaseline, writeBaseline } from './baselines.mjs'
@@ -169,6 +170,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       }, implementation.dom)
       const violations = validateIr(ir)
       if (violations.length > 0) throw new Error(`IR validation failed: ${violations.join('; ')}`)
+      const synthesis = await synthesizeLayout(ir, driver, viewport, caseDir)
       const irPath = join(caseDir, 'ir.json')
       writeFileSync(irPath, `${JSON.stringify(ir, null, 2)}\n`)
       const generatedPath = join(caseDir, 'generated.html')
@@ -181,6 +183,11 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         semantic: semanticPath,
         nodes: flattenIr(ir.root).length,
         truncated: ir.source.truncated === true,
+        pins: synthesis.pins,
+        iterations: synthesis.iterations,
+        within1: synthesis.within1,
+        within2: synthesis.within2,
+        over2: synthesis.over2,
       }
     }
 
@@ -334,8 +341,92 @@ function summarize(cases) {
   return summary
 }
 
-function repoInfo(repoRoot) {
-  const info = { root: repoRoot, commit: null, dirty: null }
+/**
+ * Add size pins only where flow layout cannot reproduce the captured box.
+ *
+ * The semantic renderer starts with no explicit sizes; each render is compared
+ * back to the captured boxes and a node gets a width and/or height pin when it
+ * drifts. The resulting IR records exactly which sizes are load-bearing, which
+ * is the information a QML generator needs.
+ * @param {object} ir - IR document, mutated with pins.
+ * @param {object} driver - capture driver.
+ * @param {{width: number, height: number, dpr: number}} viewport - viewport.
+ * @param {string} caseDir - directory for intermediate renders.
+ * @returns {Promise<{iterations: number, pins: number, boxes: number, within1: number, within2: number, over2: number}>} synthesis stats.
+ */
+async function synthesizeLayout(ir, driver, viewport, caseDir) {
+  const nodes = flattenIr(ir.root)
+  const flowPath = join(caseDir, 'generated.flow.html')
+  const size = { width: viewport.width, height: viewport.height, dpr: viewport.dpr }
+  let iterations = 0
+  for (; iterations < 3; iterations += 1) {
+    writeFileSync(flowPath, generateSemanticHtml(ir))
+    const captured = await driver.capture({ url: pathToFileURL(flowPath).href, viewport: size, exportDom: true })
+    const rendered = domMap(captured.dom)
+    let added = 0
+    for (const node of nodes) {
+      node.layout = node.layout ?? { kind: 'block' }
+      node.layout.pins = node.layout.pins ?? {}
+      const pins = node.layout.pins
+      const got = rendered.get(node.id)
+      if (got === undefined) {
+        if (pins.width !== true || pins.height !== true) {
+          pins.width = true
+          pins.height = true
+          added += 1
+        }
+        continue
+      }
+      if (Math.abs(node.box.w - got.box.w) > 1 && pins.width !== true) {
+        pins.width = true
+        added += 1
+      }
+      if (Math.abs(node.box.h - got.box.h) > 1 && pins.height !== true) {
+        pins.height = true
+        added += 1
+      }
+    }
+    if (added === 0) break
+  }
+
+  const semanticPath = join(caseDir, 'generated.semantic.html')
+  writeFileSync(semanticPath, generateSemanticHtml(ir))
+  const finalCapture = await driver.capture({ url: pathToFileURL(semanticPath).href, viewport: size, exportDom: true })
+  const stats = measureBoxes(nodes, domMap(finalCapture.dom))
+  return {
+    iterations: iterations + 1,
+    pins: nodes.filter(node => node.layout?.pins?.width === true || node.layout?.pins?.height === true).length,
+    ...stats,
+  }
+}
+
+function domMap(dom) {
+  const map = new Map()
+  const walk = (node) => {
+    if (node.ir !== undefined) map.set(node.ir, node)
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(dom.root)
+  return map
+}
+
+function measureBoxes(nodes, rendered) {
+  const stats = { boxes: nodes.length, within1: 0, within2: 0, over2: 0 }
+  for (const node of nodes) {
+    const got = rendered.get(node.id)
+    if (got === undefined) {
+      stats.over2 += 1
+      continue
+    }
+    const delta = Math.max(...['x', 'y', 'w', 'h'].map(key => Math.abs(node.box[key] - got.box[key])))
+    if (delta <= 1) stats.within1 += 1
+    else if (delta <= 2) stats.within2 += 1
+    else stats.over2 += 1
+  }
+  return stats
+}
+
+function repoInfo(repoRoot) {  const info = { root: repoRoot, commit: null, dirty: null }
   try {
     info.commit = execFileSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
     info.dirty = execFileSync('git', ['-C', repoRoot, 'status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0

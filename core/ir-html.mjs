@@ -77,9 +77,11 @@ function buildDeclarations(node, style) {
     }
   }
 
-  // The captured box is the used size; pinning it keeps layout deterministic.
-  declarations.push(`width:${node.box.w}px`)
-  declarations.push(`height:${node.box.h}px`)
+  // Sizes are pins: a node keeps its measured width/height only when the
+  // synthesizer proved the flow layout cannot reproduce it.
+  const pins = node.layout?.pins ?? {}
+  if (pins.width === true) declarations.push(`width:${node.box.w}px`)
+  if (pins.height === true) declarations.push(`height:${node.box.h}px`)
 
   for (const key of CSS_KEYS) {
     const value = style[key]

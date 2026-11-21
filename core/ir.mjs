@@ -211,6 +211,16 @@ export function validateIr(ir) {
     if (node.box === undefined || ['x', 'y', 'w', 'h'].some(key => typeof node.box[key] !== 'number')) {
       violations.push(`${path}.box needs numeric x/y/w/h`)
     }
+    if (node.layout === undefined || typeof node.layout.kind !== 'string') {
+      violations.push(`${path}.layout.kind is required`)
+    }
+    if (node.layout?.pins !== undefined) {
+      for (const key of ['width', 'height']) {
+        if (node.layout.pins[key] !== undefined && typeof node.layout.pins[key] !== 'boolean') {
+          violations.push(`${path}.layout.pins.${key} must be a boolean`)
+        }
+      }
+    }
     for (const [index, run] of (node.textRuns ?? []).entries()) {
       if (typeof run.text !== 'string' || run.text.length === 0) violations.push(`${path}.textRuns[${index}].text must be a non-empty string`)
       if (run.box === undefined || ['x', 'y', 'w', 'h'].some(key => typeof run.box[key] !== 'number')) {
