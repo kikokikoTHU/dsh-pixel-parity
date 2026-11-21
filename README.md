@@ -43,6 +43,10 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
 - **Figma input** — a case can use a Figma frame (`kind: "figma"`) as its reference: the
   frame is converted to the same IR, rendered to an image, and compared like any other
   reference. See [docs/FIGMA.md](docs/FIGMA.md).
+- **Component export** (`--export-component`) — writes `generated.component.html` +
+  `.css`: shared classes, token variables, restored `::before`/`::after`, relative assets.
+  On the prototype it renders at 0.43% pixels with 97 classes for 337 nodes.
+  See [docs/COMPONENT.md](docs/COMPONENT.md).
 - **`pixel-parity` skill** — the workflow: config → anchors → run → fix by layer → re-run.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM

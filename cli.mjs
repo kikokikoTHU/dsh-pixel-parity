@@ -64,6 +64,7 @@ async function run() {
       baselineMode,
       exportIr: args.exportIr === true,
       exportQml: args.exportQml === true,
+      exportComponent: args.exportComponent === true,
       thresholds: Object.keys(thresholds).length === 0 ? undefined : thresholds,
     })
     if (args.json === true) {
@@ -158,7 +159,7 @@ function parseArgs(argv) {
       assign(parsed, key, inline)
       continue
     }
-    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force' || key === 'exportIr' || key === 'exportQml') {
+    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force' || key === 'exportIr' || key === 'exportQml' || key === 'exportComponent') {
       parsed[key] = true
       continue
     }
@@ -234,6 +235,7 @@ run:
   --out <dir>            artifact directory (default: <repo>/.parity/runs/<runId>)
   --export-ir            also write ir.json and generated.html per case/viewport
   --export-qml           also write generated.qml and render it with qmlscene
+  --export-component     also write a maintainable component HTML + CSS
   --geometry-tolerance <px>  allowed anchor delta for this run (default: config, 1)
   --max-mismatch <ratio> allowed mismatched-pixel share 0-1 (default: config, 0.01)
   --json                 print the full manifest as JSON

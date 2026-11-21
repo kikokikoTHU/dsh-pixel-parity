@@ -122,6 +122,11 @@ generator, a static mock, a design diff). That writes `ir.json` — design token
 tree with boxes, and measured text runs — plus `generated.html` rendered back from it. The
 run fails if the IR is invalid, so a broken export never looks like a passing run.
 
+Use `exportComponent: true` when the user wants code rather than a proof: it writes
+`generated.component.html` + `generated.component.css` with deduplicated classes, token
+variables, and restored pseudo-elements, and records `component.mismatchRatio`. The output
+is a starting point, not a finished component library — say so when reporting it.
+
 Statuses:
 
 - `verified` — geometry, styles, and pixels pass.

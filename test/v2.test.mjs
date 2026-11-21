@@ -87,6 +87,42 @@ await test('plugin detail points at one local feature image', () => {
   }
 })
 
+await test('component generator emits classes and token variables', async () => {
+  const { generateComponent } = await import('../core/ir-component.mjs')
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 200, height: 100, dpr: 1 }, canvas: { width: 200, height: 100 }, truncated: false },
+    tokens: {
+      colors: { 'color.1': 'rgb(51, 65, 85)' },
+      typography: { 'type.1': { fontFamily: 'Arial', fontSize: '14px', fontWeight: '400', lineHeight: '20px', letterSpacing: 'normal' } },
+      radius: { 'radius.1': '6px' },
+    },
+    assets: { fonts: [{ family: 'Inter', weight: '400', style: 'normal', src: 'assets/fonts/x.woff2', format: 'woff2' }] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 200, h: 100 }, style: { backgroundColor: 'color.1' },
+      children: [{
+        id: 'n2', tag: 'div', role: 'container', layout: { kind: 'block' },
+        box: { x: 10, y: 10, w: 80, h: 40 },
+        style: { backgroundColor: 'color.1', typography: 'type.1', borderRadius: 'radius.1' },
+        textRuns: [{ text: 'Hello', box: { x: 12, y: 14, w: 40, h: 18 } }],
+      }],
+    },
+  }
+  const { html, css } = generateComponent(ir)
+  assert.match(html, /<body class="c\d+">/)
+  assert.match(html, /Hello/)
+  assert.doesNotMatch(html, / style="/, 'no inline styles on nodes')
+  assert.match(css, /:root \{/)
+  assert.match(css, /--color-1: rgb\(51, 65, 85\)/)
+  assert.match(css, /--type-1-font-size: 14px/)
+  assert.match(css, /var\(--color-1\)/)
+  assert.match(css, /var\(--type-1-font-size\)/)
+  assert.match(css, /var\(--radius-1\)/)
+  assert.match(css, /@font-face \{/)
+  assert.match(css, /assets\/fonts\/x\.woff2/)
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,
@@ -1116,6 +1152,32 @@ http.createServer((req, res) => {
     if (findQmlScene() !== undefined) {
       assert.equal(viewport.ir.qml.error, undefined, viewport.ir.qml.error)
     }
+  })
+
+  await test('component export renders and records its pixel difference', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-component-'))
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['exact'],
+      exportComponent: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'component'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir?.component !== undefined, viewport.error)
+    const component = viewport.ir.component
+    assert.ok(existsSync(component.html), 'component html written')
+    assert.ok(existsSync(component.css), 'component css written')
+    const html = readFileSync(component.html, 'utf8')
+    const css = readFileSync(component.css, 'utf8')
+    assert.match(html, /<body class="c\d+">/)
+    assert.doesNotMatch(html.replace(/<colgroup>[\s\S]*?<\/colgroup>/g, ''), /style="/, 'no inline node styles')
+    assert.match(css, /:root \{/)
+    assert.match(css, /var\(--/)
+    assert.equal(typeof component.mismatchRatio, 'number', component.error)
+    assert.ok(component.mismatchRatio < 0.05, `component mismatch ${component.mismatchRatio}`)
   })
 
   await test('init detects the real repo workspace app and routes', () => {

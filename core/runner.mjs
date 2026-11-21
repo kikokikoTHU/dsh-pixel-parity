@@ -18,6 +18,7 @@ import { buildIr, flattenIr, validateIr } from './ir.mjs'
 import { generateHtml } from './ir-web.mjs'
 import { generateSemanticHtml } from './ir-html.mjs'
 import { generateQml } from './ir-qml.mjs'
+import { generateComponent } from './ir-component.mjs'
 import { figmaToIr } from './figma.mjs'
 import { captureQml, findQmlScene } from '../adapters/qml.mjs'
 import { createWebDriver } from '../adapters/web.mjs'
@@ -60,8 +61,9 @@ export async function runConfig(options) {
 
   const startedAt = new Date().toISOString()
   const repo = repoInfo(repoRoot)
-  const exportIr = options.exportIr === true || options.exportQml === true
+  const exportIr = options.exportIr === true || options.exportQml === true || options.exportComponent === true
   const exportQml = options.exportQml === true
+  const exportComponent = options.exportComponent === true
   const caseResults = []
   let driver
   let devServer
@@ -73,7 +75,7 @@ export async function runConfig(options) {
       const viewportResults = []
       for (const viewport of viewports) {
         if (options.signal?.aborted) throw new Error('run aborted')
-        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr, exportQml }))
+        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr, exportQml, exportComponent }))
       }
       caseResults.push({
         id: entry.id,
@@ -314,6 +316,32 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         }
       }
       irArtifacts.qml = qml
+    }
+
+    if (irArtifacts !== undefined && context.exportComponent === true && irDocument !== undefined) {
+      const component = generateComponent(irDocument)
+      const htmlPath = join(caseDir, 'generated.component.html')
+      writeFileSync(htmlPath, component.html)
+      const cssPath = join(caseDir, 'generated.component.css')
+      writeFileSync(cssPath, component.css)
+      const artifact = { html: htmlPath, css: cssPath }
+      try {
+        const captured = await driver.capture({
+          url: pathToFileURL(htmlPath).href,
+          viewport: { width: viewport.width, height: viewport.height, dpr: viewport.dpr },
+          screenshotPath: join(caseDir, 'component.png'),
+        })
+        const diff = comparePixels(implementation.image, captured.image, {
+          tolerance: entry.thresholds.tolerance,
+          maxMismatch: entry.thresholds.maxMismatch,
+          maxRegionMismatch: entry.thresholds.maxRegionMismatch,
+        })
+        artifact.screenshot = join(caseDir, 'component.png')
+        artifact.mismatchRatio = round(diff.metrics.mismatchRatio, 6)
+      } catch (error) {
+        artifact.error = error instanceof Error ? error.message : String(error)
+      }
+      irArtifacts.component = artifact
     }
 
     let baselineWritten = false

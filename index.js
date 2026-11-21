@@ -234,6 +234,10 @@ const RUN_PARAMETERS = {
       type: 'boolean',
       description: 'Also generate a QML snapshot (generated.qml) and render it with qmlscene when available, recording the pixel difference.',
     },
+    exportComponent: {
+      type: 'boolean',
+      description: 'Also generate a maintainable HTML component and stylesheet (generated.component.html/.css) with shared classes and token variables, recording its pixel difference.',
+    },
     geometryTolerance: {
       type: 'number',
       description: 'Allowed anchor delta in CSS pixels for this run (overrides config; default 1). Raise it to tolerate small layout shifts.',
@@ -331,6 +335,18 @@ const RUN_OUTPUT_SCHEMA = {
                             mismatchRatio: { type: 'number' },
                           },
                         },
+                      },
+                    },
+                    component: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['html', 'css'],
+                      properties: {
+                        html: { type: 'string' },
+                        css: { type: 'string' },
+                        screenshot: { type: 'string' },
+                        mismatchRatio: { type: 'number' },
+                        error: { type: 'string' },
                       },
                     },
                   },
@@ -646,6 +662,7 @@ export function apply(ctx) {
         baselineMode: args.baselineMode === undefined ? 'auto' : text(args.baselineMode, 'baselineMode'),
         exportIr: args.exportIr === true,
         exportQml: args.exportQml === true,
+        exportComponent: args.exportComponent === true,
         thresholds: Object.keys(thresholds).length === 0 ? undefined : thresholds,
         ask: createBaselineAsker(ctx, exec),
         signal: exec?.signal,
