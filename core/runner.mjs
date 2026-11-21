@@ -17,6 +17,8 @@ import { hasBaseline, readBaseline, writeBaseline } from './baselines.mjs'
 import { buildIr, flattenIr, validateIr } from './ir.mjs'
 import { generateHtml } from './ir-web.mjs'
 import { generateSemanticHtml } from './ir-html.mjs'
+import { generateQml } from './ir-qml.mjs'
+import { captureQml, findQmlScene } from '../adapters/qml.mjs'
 import { createWebDriver } from '../adapters/web.mjs'
 import { loadImage } from '../lib/image.js'
 import { encodePng } from '../lib/png.js'
@@ -47,7 +49,8 @@ export async function runConfig(options) {
   const driver = await createWebDriver({ repoRoot: dependenciesRoot, headless: options.headless })
   const startedAt = new Date().toISOString()
   const repo = repoInfo(repoRoot)
-  const exportIr = options.exportIr === true
+  const exportIr = options.exportIr === true || options.exportQml === true
+  const exportQml = options.exportQml === true
   const caseResults = []
 
   try {
@@ -55,7 +58,7 @@ export async function runConfig(options) {
       const viewportResults = []
       for (const viewport of viewports) {
         if (options.signal?.aborted) throw new Error('run aborted')
-        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr }))
+        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr, exportQml }))
       }
       caseResults.push({
         id: entry.id,
@@ -162,6 +165,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     const allPass = geometry.pass && styles.pass && pixels.pass
 
     let irArtifacts
+    let irDocument
     if (context.exportIr === true && implementation.dom !== undefined) {
       const ir = buildIr({
         kind: 'web',
@@ -179,6 +183,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       writeFileSync(generatedPath, generateHtml(ir))
       const semanticPath = join(caseDir, 'generated.semantic.html')
       writeFileSync(semanticPath, generateSemanticHtml(ir))
+      irDocument = ir
       irArtifacts = {
         path: irPath,
         generated: generatedPath,
@@ -192,6 +197,33 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
         within2: synthesis.within2,
         over2: synthesis.over2,
       }
+    }
+
+    if (irArtifacts !== undefined && context.exportQml === true && irDocument !== undefined) {
+      const qmlPath = join(caseDir, 'generated.qml')
+      writeFileSync(qmlPath, generateQml(irDocument))
+      const qml = { path: qmlPath }
+      if (findQmlScene() === undefined) {
+        qml.error = 'qmlscene not available'
+      } else {
+        try {
+          const captured = await captureQml(qmlPath, {
+            width: viewport.width,
+            height: viewport.height,
+            outPath: join(caseDir, 'qml.png'),
+          })
+          const diff = comparePixels(implementation.image, captured, {
+            tolerance: entry.thresholds.tolerance,
+            maxMismatch: entry.thresholds.maxMismatch,
+            maxRegionMismatch: entry.thresholds.maxRegionMismatch,
+          })
+          qml.screenshot = join(caseDir, 'qml.png')
+          qml.mismatchRatio = round(diff.metrics.mismatchRatio, 6)
+        } catch (error) {
+          qml.error = error instanceof Error ? error.message : String(error)
+        }
+      }
+      irArtifacts.qml = qml
     }
 
     let baselineWritten = false

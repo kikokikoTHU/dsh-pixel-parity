@@ -57,6 +57,7 @@ async function run() {
       headless: args.headed !== true,
       baselineMode,
       exportIr: args.exportIr === true,
+      exportQml: args.exportQml === true,
     })
     if (args.json === true) {
       process.stdout.write(`${JSON.stringify({ runDir: result.runDir, summary: result.summary, manifest: result.manifest }, null, 2)}\n`)
@@ -133,7 +134,7 @@ function parseArgs(argv) {
       assign(parsed, key, inline)
       continue
     }
-    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force' || key === 'exportIr') {
+    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force' || key === 'exportIr' || key === 'exportQml') {
       parsed[key] = true
       continue
     }
@@ -208,6 +209,7 @@ run:
   --viewport <id>        run one viewport (repeatable or comma-separated)
   --out <dir>            artifact directory (default: <repo>/.parity/runs/<runId>)
   --export-ir            also write ir.json and generated.html per case/viewport
+  --export-qml           also write generated.qml and render it with qmlscene
   --json                 print the full manifest as JSON
   --headed               show the browser window
 

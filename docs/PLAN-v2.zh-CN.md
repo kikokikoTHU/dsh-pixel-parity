@@ -269,6 +269,7 @@ cases/<case>/<viewport>/
 | M14 ✅ | Pin 剪枝：逐节点回测（block 类，预算 30 次渲染），21 个冗余 pin 被移除；pin 94，精度不变，导出约 18s | 只保留承重尺寸 |
 | M15 ✅ | 字体资源：采集 `@font-face` 并物化到 `assets/fonts/`，语义页注入 `@font-face`；anubis 项目页抓到 PrimeIcons（35 KB），像素差 0.28% | 图标字体不再回退 |
 | M16 ✅ | 作者尺寸：CSSOM 采集 `width/height` 等，只保留与实测盒一致的 px 值；201 个节点改为 `authored`，pin 从 94 降到 24，精度不变 | 显式尺寸回归“设计意图” |
+| M17 ✅ | QML 生成：IR → `generated.qml`（Rectangle/Text/FontLoader/Image），qmlscene 渲染校验；原型页像素差 5.56%，导出多 1~2s | 一份 IR 首次跨端渲染 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

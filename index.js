@@ -229,6 +229,10 @@ const RUN_PARAMETERS = {
       type: 'boolean',
       description: 'Also export IR v1 (ir.json) and a generated static HTML render (generated.html) per case/viewport. Requires Playwright.',
     },
+    exportQml: {
+      type: 'boolean',
+      description: 'Also generate a QML snapshot (generated.qml) and render it with qmlscene when available, recording the pixel difference.',
+    },
   },
 }
 
@@ -299,6 +303,17 @@ const RUN_OUTPUT_SCHEMA = {
                     within1: { type: 'integer' },
                     within2: { type: 'integer' },
                     over2: { type: 'integer' },
+                    qml: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['path'],
+                      properties: {
+                        path: { type: 'string' },
+                        screenshot: { type: 'string' },
+                        mismatchRatio: { type: 'number' },
+                        error: { type: 'string' },
+                      },
+                    },
                   },
                 },
                 error: { type: 'string' },
@@ -503,6 +518,7 @@ export function apply(ctx) {
         headless: args.headless !== false,
         baselineMode: args.baselineMode === undefined ? 'auto' : text(args.baselineMode, 'baselineMode'),
         exportIr: args.exportIr === true,
+        exportQml: args.exportQml === true,
         ask: createBaselineAsker(ctx, exec),
         signal: exec?.signal,
       })

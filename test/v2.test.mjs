@@ -147,6 +147,37 @@ await test('generated HTML escapes quotes in font families', () => {
   assert.doesNotMatch(html, /style="[^"]*Inter, "Microsoft/)
 })
 
+await test('QML generator emits a positioned snapshot', async () => {
+  const { generateQml } = await import('../core/ir-qml.mjs')
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 200, height: 100, dpr: 1 }, canvas: { width: 200, height: 100 }, truncated: false },
+    tokens: { colors: {}, radius: {}, typography: {} },
+    assets: { fonts: [] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 200, h: 100 },
+      style: { backgroundColor: '#ffffff' },
+      children: [{
+        id: 'n2', tag: 'div', role: 'container', layout: { kind: 'flex' },
+        box: { x: 10, y: 10, w: 80, h: 40 },
+        style: { backgroundColor: '#3366cc', borderRadius: '4px' },
+        textRuns: [{ text: 'hi "qml"', box: { x: 16, y: 18, w: 30, h: 16 } }],
+      }],
+    },
+  }
+  const qml = generateQml(ir)
+  assert.match(qml, /import QtQuick/)
+  assert.match(qml, /Rectangle \{/)
+  assert.match(qml, /x: 10/)
+  assert.match(qml, /y: 10/)
+  assert.match(qml, /width: 80/)
+  assert.match(qml, /height: 40/)
+  assert.match(qml, /Text \{/)
+  assert.match(qml, /hi \\"qml\\"/)
+  assert.match(qml, /color: "#ffffff"/)
+})
+
 await test('init detects framework, port, routes, and Playwright', () => {
   const repoRoot = createFixtureRepo()
   const detection = detectRepo(repoRoot)
@@ -417,6 +448,32 @@ if (repo === undefined) {
     const html = readFileSync(viewport.ir.semantic, 'utf8')
     assert.match(html, /@font-face/)
     assert.match(html, /assets\/fonts\//)
+  })
+
+  await test('QML snapshot renders through qmlscene', async () => {
+    const { findQmlScene } = await import('../adapters/qml.mjs')
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-qml-'))
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportQml: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'qml'),
+    })
+    const viewport = result.manifest.cases.find(entry => entry.id === 'exact').viewports[0]
+    assert.ok(viewport.ir?.qml !== undefined, viewport.error)
+    assert.ok(existsSync(viewport.ir.qml.path), 'generated.qml written')
+    if (findQmlScene() === undefined) {
+      assert.match(viewport.ir.qml.error ?? '', /qmlscene/)
+      return
+    }
+    if (viewport.ir.qml.error !== undefined) {
+      throw new Error(`QML render failed: ${viewport.ir.qml.error}`)
+    }
+    assert.ok(existsSync(viewport.ir.qml.screenshot), 'qml screenshot written')
+    assert.equal(typeof viewport.ir.qml.mismatchRatio, 'number')
+    assert.ok(viewport.ir.qml.mismatchRatio < 0.5, `QML mismatch ${viewport.ir.qml.mismatchRatio}`)
   })
 
   await test('init detects the real repo workspace app and routes', () => {

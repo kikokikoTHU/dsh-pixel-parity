@@ -32,6 +32,9 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
 - **IR export** (`--export-ir`) — writes a renderer-neutral `ir.json` (tokens, node tree,
   measured text runs) plus `generated.html` rendered back from it. This is the seam for
   other targets (QML, desktop); see [docs/IR.md](docs/IR.md).
+- **QML export** (`--export-qml`) — writes `generated.qml`, renders it with Qt's
+  `qmlscene` when installed, and records the pixel difference (5.56% on the prototype).
+  See [docs/QML.md](docs/QML.md).
 - **`pixel-parity` skill** — the workflow: config → anchors → run → fix by layer → re-run.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM
