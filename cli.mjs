@@ -56,6 +56,7 @@ async function run() {
       outDir: args.out === undefined ? undefined : resolve(String(args.out)),
       headless: args.headed !== true,
       baselineMode,
+      exportIr: args.exportIr === true,
     })
     if (args.json === true) {
       process.stdout.write(`${JSON.stringify({ runDir: result.runDir, summary: result.summary, manifest: result.manifest }, null, 2)}\n`)
@@ -132,7 +133,7 @@ function parseArgs(argv) {
       assign(parsed, key, inline)
       continue
     }
-    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force') {
+    if (key === 'json' || key === 'headed' || key === 'help' || key === 'force' || key === 'exportIr') {
       parsed[key] = true
       continue
     }
@@ -180,7 +181,8 @@ function printSummary(result) {
         ? ' geometry-fail'
         : ''
       const baseline = viewport.baseline?.written === true ? ' baseline-written' : viewport.baseline?.used === true ? ' vs-baseline' : ''
-      console.log(`  ${status} ${entry.id} @ ${viewport.viewportId}${geometry}${baseline}  ${detail}`)
+      const ir = viewport.ir === undefined ? '' : ` ir:${viewport.ir.nodes} nodes`
+      console.log(`  ${status} ${entry.id} @ ${viewport.viewportId}${geometry}${baseline}${ir}  ${detail}`)
     }
   }
   console.log('')
@@ -205,6 +207,7 @@ run:
   --case <id>            run one case (repeatable or comma-separated)
   --viewport <id>        run one viewport (repeatable or comma-separated)
   --out <dir>            artifact directory (default: <repo>/.parity/runs/<runId>)
+  --export-ir            also write ir.json and generated.html per case/viewport
   --json                 print the full manifest as JSON
   --headed               show the browser window
 

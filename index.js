@@ -225,6 +225,10 @@ const RUN_PARAMETERS = {
       type: 'string',
       description: 'Directory where Playwright resolves from. Default: the repo root.',
     },
+    exportIr: {
+      type: 'boolean',
+      description: 'Also export IR v1 (ir.json) and a generated static HTML render (generated.html) per case/viewport. Requires Playwright.',
+    },
   },
 }
 
@@ -279,6 +283,17 @@ const RUN_OUTPUT_SCHEMA = {
                 mismatchRatio: { type: 'number' },
                 geometry: { type: 'string' },
                 styles: { type: 'string' },
+                ir: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['path', 'generated', 'nodes', 'truncated'],
+                  properties: {
+                    path: { type: 'string' },
+                    generated: { type: 'string' },
+                    nodes: { type: 'integer' },
+                    truncated: { type: 'boolean' },
+                  },
+                },
                 error: { type: 'string' },
               },
             },
@@ -480,6 +495,7 @@ export function apply(ctx) {
         outDir: args.outputDir === undefined ? undefined : text(args.outputDir, 'outputDir'),
         headless: args.headless !== false,
         baselineMode: args.baselineMode === undefined ? 'auto' : text(args.baselineMode, 'baselineMode'),
+        exportIr: args.exportIr === true,
         ask: createBaselineAsker(ctx, exec),
         signal: exec?.signal,
       })
@@ -672,6 +688,7 @@ function buildRunValue(result) {
         ...(viewport.pixels?.metrics === undefined ? {} : { mismatchRatio: viewport.pixels.metrics.mismatchRatio }),
         geometry: viewport.geometry?.available === true ? (viewport.geometry.pass ? 'pass' : 'fail') : 'unavailable',
         styles: viewport.styles?.available === true ? (viewport.styles.pass ? 'pass' : 'fail') : 'unavailable',
+        ...(viewport.ir === undefined ? {} : { ir: viewport.ir }),
         ...(viewport.error === undefined ? {} : { error: viewport.error }),
       })),
     })),

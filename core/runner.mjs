@@ -12,6 +12,8 @@ import { join, resolve } from 'node:path'
 import { loadConfig } from './config.mjs'
 import { compareGeometry, comparePixels, compareStyles } from './compare.mjs'
 import { hasBaseline, readBaseline, writeBaseline } from './baselines.mjs'
+import { buildIr, flattenIr, validateIr } from './ir.mjs'
+import { generateHtml } from './ir-web.mjs'
 import { createWebDriver } from '../adapters/web.mjs'
 import { loadImage } from '../lib/image.js'
 import { encodePng } from '../lib/png.js'
@@ -42,6 +44,7 @@ export async function runConfig(options) {
   const driver = await createWebDriver({ repoRoot: dependenciesRoot, headless: options.headless })
   const startedAt = new Date().toISOString()
   const repo = repoInfo(repoRoot)
+  const exportIr = options.exportIr === true
   const caseResults = []
 
   try {
@@ -49,7 +52,7 @@ export async function runConfig(options) {
       const viewportResults = []
       for (const viewport of viewports) {
         if (options.signal?.aborted) throw new Error('run aborted')
-        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId }))
+        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr }))
       }
       caseResults.push({
         id: entry.id,
@@ -123,7 +126,9 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     } else {
       reference = await captureSide('reference', entry, entry.reference, viewport, driver, caseDir, config)
     }
-    const implementation = await captureSide('implementation', entry, entry.implementation, viewport, driver, caseDir, config)
+    const implementation = await captureSide('implementation', entry, entry.implementation, viewport, driver, caseDir, config, {
+      exportDom: context.exportIr === true,
+    })
 
     if (reference.image.width !== implementation.image.width || reference.image.height !== implementation.image.height) {
       throw new Error(
@@ -152,6 +157,29 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     const status = failed ? 'failed' : geometryAvailable ? 'verified' : 'image-verified'
 
     const allPass = geometry.pass && styles.pass && pixels.pass
+
+    let irArtifacts
+    if (context.exportIr === true && implementation.dom !== undefined) {
+      const ir = buildIr({
+        kind: 'web',
+        url: entry.implementation.url,
+        viewport: { width: viewport.width, height: viewport.height, dpr: viewport.dpr },
+        capturedAt: new Date().toISOString(),
+      }, implementation.dom)
+      const violations = validateIr(ir)
+      if (violations.length > 0) throw new Error(`IR validation failed: ${violations.join('; ')}`)
+      const irPath = join(caseDir, 'ir.json')
+      writeFileSync(irPath, `${JSON.stringify(ir, null, 2)}\n`)
+      const generatedPath = join(caseDir, 'generated.html')
+      writeFileSync(generatedPath, generateHtml(ir))
+      irArtifacts = {
+        path: irPath,
+        generated: generatedPath,
+        nodes: flattenIr(ir.root).length,
+        truncated: ir.source.truncated === true,
+      }
+    }
+
     let baselineWritten = false
     if (allPass && context.decision.mode === 'pin' && !baselineUsed) {
       writeBaseline(context.repoRoot, entry.id, viewport.id, {
@@ -178,6 +206,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       status,
       driver: { reference: reference.driver, implementation: implementation.driver },
       baseline: { used: baselineUsed, written: baselineWritten },
+      ...(irArtifacts === undefined ? {} : { ir: irArtifacts }),
       maskRects: implementation.masks,
       anchors: {
         reference: reference.anchors ?? null,
@@ -219,7 +248,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
   }
 }
 
-async function captureSide(side, entry, spec, viewport, driver, caseDir, config) {
+async function captureSide(side, entry, spec, viewport, driver, caseDir, config, extra = {}) {
   if (spec.kind === 'image') {
     const image = loadImage(spec.path)
     const expectedWidth = Math.round(viewport.width * viewport.dpr)
@@ -252,6 +281,7 @@ async function captureSide(side, entry, spec, viewport, driver, caseDir, config)
     locale: config.defaults.locale,
     timezone: config.defaults.timezone,
     screenshotPath: join(caseDir, `tmp-${side}.png`),
+    ...extra,
   })
   return result
 }

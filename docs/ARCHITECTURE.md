@@ -89,6 +89,9 @@ promotes a passing run explicitly.
   explicitly instead of degrading silently.
 - **New reference kind** (for example Figma): extend `core/config.mjs` targets and add a
   capture path that produces an image plus optional anchors.
+- **New output target**: the IR export (`core/ir.mjs` + `core/ir-web.mjs`) is the seam.
+  A generator consumes `ir.json`; the web renderer is the reference implementation that
+  proves the IR carries enough information. See `docs/IR.md`.
 - **New judgment layer**: add a function to `core/compare.mjs`, include it in the status
   calculation; keep the manifest shape additive.
 

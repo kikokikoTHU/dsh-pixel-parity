@@ -39,6 +39,28 @@ export const STYLE_PROPS = [
   'position',
 ]
 
+/** Extra properties serialized into an IR export. */
+const IR_STYLE_PROPS = [
+  ...STYLE_PROPS,
+  'flexDirection',
+  'justifyContent',
+  'alignItems',
+  'textAlign',
+  'overflow',
+  'whiteSpace',
+  'opacity',
+  'borderTopStyle',
+  'borderRightWidth',
+  'borderRightStyle',
+  'borderRightColor',
+  'borderBottomWidth',
+  'borderBottomStyle',
+  'borderBottomColor',
+  'borderLeftWidth',
+  'borderLeftStyle',
+  'borderLeftColor',
+]
+
 const FREEZE_CSS = `
 *,*::before,*::after{
   animation-duration:0s!important;animation-delay:0s!important;
@@ -88,7 +110,14 @@ function createPlaywrightDriver(playwright, options) {
   let browser
 
   async function capture(input) {
-    if (browser === undefined) browser = await playwright.chromium.launch({ headless: options.headless !== false })
+    if (browser === undefined) {
+      browser = await playwright.chromium.launch({
+        headless: options.headless !== false,
+        // Match the Chrome CLI fallback's text rendering so captures from the
+        // two drivers remain comparable.
+        args: ['--disable-lcd-text', '--font-render-hinting=none', '--hide-scrollbars'],
+      })
+    }
     const { width, height, dpr } = input.viewport
     const context = await browser.newContext({
       viewport: { width, height },
@@ -164,10 +193,69 @@ function createPlaywrightDriver(playwright, options) {
         return rects
       }, input.masks ?? [])
 
+      let dom
+      if (input.exportDom === true) {
+        dom = await page.evaluate(({ maxNodes, styleKeys }) => {
+          const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE'])
+          const round = value => Math.round(value * 10) / 10
+          const pick = (style) => {
+            const out = {}
+            for (const key of styleKeys) {
+              const value = style[key]
+              if (value !== undefined && value !== '') out[key] = value
+            }
+            return out
+          }
+          let count = 0
+          let truncated = false
+          const walk = (element, depth) => {
+            if (depth > 14 || count >= maxNodes) {
+              if (count >= maxNodes) truncated = true
+              return null
+            }
+            if (SKIP.has(element.tagName)) return null
+            const style = getComputedStyle(element)
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return null
+            const rect = element.getBoundingClientRect()
+            if (rect.width === 0 && rect.height === 0) return null
+            count += 1
+            const textRuns = []
+            for (const child of element.childNodes) {
+              if (child.nodeType !== 3) continue
+              const value = child.textContent.trim()
+              if (value.length === 0) continue
+              const range = document.createRange()
+              range.selectNodeContents(child)
+              const rect = range.getClientRects()[0] ?? range.getBoundingClientRect()
+              if (rect === undefined || (rect.width === 0 && rect.height === 0)) continue
+              textRuns.push({
+                text: value.slice(0, 200),
+                box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+              })
+            }
+            const node = {
+              tag: element.tagName.toLowerCase(),
+              box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
+              style: pick(style),
+            }
+            if (textRuns.length > 0) node.textRuns = textRuns
+            if (element.dataset?.ir !== undefined) node.ir = element.dataset.ir
+            if (element.dataset?.irRun !== undefined) node.irRun = element.dataset.irRun
+            if (element.tagName === 'IMG') node.src = element.getAttribute('src') ?? ''
+            const children = [...element.children].map(child => walk(child, depth + 1)).filter(Boolean)
+            if (children.length > 0) node.children = children
+            return node
+          }
+          const root = walk(document.body, 0)
+          return { root, truncated, count }
+        }, { maxNodes: 2000, styleKeys: IR_STYLE_PROPS })
+      }
+
       return {
         image: { width: image.width, height: image.height, data: image.data },
         anchors,
         masks: masks.map(rect => scaleRect(rect, dpr)),
+        dom,
         driver: `playwright ${playwright.version}`,
       }
     } finally {
@@ -191,6 +279,9 @@ function createChromeDriver() {
       const outPath = input.screenshotPath
       if (input.fixtures !== undefined) {
         throw new Error('fixtures need Playwright: the Chrome CLI driver cannot intercept requests. Install playwright in the repo.')
+      }
+      if (input.exportDom === true) {
+        throw new Error('IR export needs Playwright: the Chrome CLI driver cannot read the DOM. Install playwright in the repo.')
       }
       const result = await captureScreenshot({ url: toTargetUrl(input.url), width, height, dpr, outPath, signal: input.signal })
       const decoded = decodePng(readFileSync(outPath))

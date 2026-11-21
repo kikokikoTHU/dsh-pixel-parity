@@ -83,6 +83,11 @@ Use `cases` / `viewports` to narrow a run. The run writes
 `<repo>/.parity/runs/<runId>/` with `manifest.json`, and per case/viewport
 `reference.png`, `implementation.png`, `diff.png`, `metrics.json`.
 
+Add `exportIr: true` when the captured screen should feed another target (a QML or desktop
+generator, a static mock, a design diff). That writes `ir.json` — design tokens, a node
+tree with boxes, and measured text runs — plus `generated.html` rendered back from it. The
+run fails if the IR is invalid, so a broken export never looks like a passing run.
+
 Statuses:
 
 - `verified` — geometry, styles, and pixels pass.

@@ -29,6 +29,9 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
 - **`parity_approve`** — promotes the passing viewports of a run to baselines, keeping
   the anchor snapshot so regression stays geometry-aware.
 - **`parity_check`** — single-shot image-vs-page comparison for repos without a config.
+- **IR export** (`--export-ir`) — writes a renderer-neutral `ir.json` (tokens, node tree,
+  measured text runs) plus `generated.html` rendered back from it. This is the seam for
+  other targets (QML, desktop); see [docs/IR.md](docs/IR.md).
 - **`pixel-parity` skill** — the workflow: config → anchors → run → fix by layer → re-run.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM
@@ -120,8 +123,15 @@ computed styles), so `baseline` runs still verify geometry and styles offline.
 baselines. Re-approving is the deliberate way to accept a design change; never delete a
 baseline just to make a regression pass.
 
-## Judging rules
+## IR export
 
+`parity_run({ ..., exportIr: true })` or `node cli.mjs run --export-ir` writes `ir.json`
+and `generated.html` per case/viewport. The IR is a static snapshot — design tokens, a
+node tree with boxes, and measured text runs — and the generated page reproduces the
+captured screen at **0.61%** pixel difference on a 345-node real page. It is the seam for
+future generators (QML, desktop). See [docs/IR.md](docs/IR.md) for the schema and limits.
+
+## Judging rules
 | Check | Default | Meaning |
 | --- | --- | --- |
 | geometry tolerance | 1px | per edge of every anchor |

@@ -17,6 +17,8 @@ import { compareGeometry, compareStyles, maskImage, normalizeStyleValue } from '
 import { approveRun } from '../core/baselines.mjs'
 import { runConfig } from '../core/runner.mjs'
 import { detectRepo, initRepo } from '../core/init.mjs'
+import { buildIr, expandStyle, flattenIr, validateIr } from '../core/ir.mjs'
+import { generateHtml } from '../core/ir-web.mjs'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixtureConfig = join(here, 'fixtures', 'web', 'parity.config.mjs')
@@ -120,6 +122,30 @@ function createFixtureRepo() {
   return root
 }
 
+await test('generated HTML escapes quotes in font families', () => {
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 100, height: 50, dpr: 1 }, canvas: { width: 100, height: 50 }, truncated: false },
+    tokens: {
+      colors: {},
+      radius: {},
+      typography: { 'type.1': { fontFamily: 'Inter, "Microsoft YaHei", sans-serif', fontSize: '14px', fontWeight: '400', lineHeight: 'normal', letterSpacing: 'normal' } },
+    },
+    root: {
+      id: 'n1',
+      tag: 'body',
+      role: 'container',
+      box: { x: 0, y: 0, w: 100, h: 50 },
+      style: { typography: 'type.1' },
+      textRuns: [{ text: 'hello', box: { x: 1, y: 1, w: 40, h: 16 } }],
+    },
+  }
+  assert.deepEqual(validateIr(ir), [])
+  const html = generateHtml(ir)
+  assert.match(html, /&quot;Microsoft YaHei&quot;/)
+  assert.doesNotMatch(html, /style="[^"]*Inter, "Microsoft/)
+})
+
 await test('init detects framework, port, routes, and Playwright', () => {
   const repoRoot = createFixtureRepo()
   const detection = detectRepo(repoRoot)
@@ -219,6 +245,88 @@ if (repo === undefined) {
     })
     assert.equal(withoutFixtures.manifest.cases[0].status, 'failed')
     assert.ok(withoutFixtures.manifest.cases[0].viewports[0].pixels.metrics.mismatchRatio > 0.9)
+  })
+
+  await test('export-ir writes a valid IR and a generated page', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-ir-'))
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportIr: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'ir'),
+    })
+    const viewport = result.manifest.cases.find(entry => entry.id === 'exact').viewports[0]
+    assert.ok(viewport.ir !== undefined, JSON.stringify(viewport.error))
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    assert.deepEqual(validateIr(ir), [])
+    assert.ok(viewport.ir.nodes > 5, `nodes ${viewport.ir.nodes}`)
+    assert.equal(viewport.ir.truncated, false)
+    const html = readFileSync(viewport.ir.generated, 'utf8')
+    assert.match(html, /data-ir="/)
+    assert.match(html, /AOI SPC/)
+    assert.ok(Object.keys(ir.tokens.typography).length > 0, 'typography tokens must exist')
+    const nodes = flattenIr(ir.root)
+    assert.ok(nodes.some(node => typeof node.style.typography === 'string'), 'at least one node must reference a typography token')
+    for (const node of nodes) {
+      if (typeof node.style.typography === 'string') {
+        assert.ok(ir.tokens.typography[node.style.typography] !== undefined, `unknown typography token ${node.style.typography}`)
+      }
+    }
+    assert.match(html, /font-family:/)
+  })
+
+  await test('IR → HTML round-trip keeps boxes and text', async () => {
+    const { createWebDriver } = await import('../adapters/web.mjs')
+    const driver = await createWebDriver({ repoRoot: repo })
+    const viewport = { width: 800, height: 600, dpr: 1 }
+    const referenceUrl = pathToFileURL(join(here, 'fixtures', 'web', 'reference.html')).href
+    const original = await driver.capture({ url: referenceUrl, viewport, exportDom: true })
+    const ir = buildIr({ kind: 'web', url: referenceUrl, viewport, capturedAt: new Date().toISOString() }, original.dom)
+    assert.deepEqual(validateIr(ir), [])
+    const generated = join(mkdtempSync(join(tmpdir(), 'parity-ir-render-')), 'generated.html')
+    writeFileSync(generated, generateHtml(ir))
+    const rendered = await driver.capture({ url: pathToFileURL(generated).href, viewport, exportDom: true })
+    await driver.dispose()
+
+    const flattenDom = (node, out = []) => {
+      out.push(node)
+      for (const child of node.children ?? []) flattenDom(child, out)
+      return out
+    }
+    const expectedNodes = new Map(flattenIr(ir.root).map(node => [node.id, node]))
+    const generatedNodes = flattenDom(rendered.dom.root)
+    const renderedBoxes = generatedNodes.filter(node => node.ir !== undefined)
+    assert.equal(renderedBoxes.length, expectedNodes.size, 'every IR node must render one box')
+    for (const box of renderedBoxes) {
+      const node = expectedNodes.get(box.ir)
+      assert.ok(node !== undefined, `unknown rendered node ${box.ir}`)
+      for (const key of ['x', 'y', 'w', 'h']) {
+        assert.ok(Math.abs(node.box[key] - box.box[key]) <= 1, `node ${node.id} (${node.tag}) ${key}: ${node.box[key]} vs ${box.box[key]}`)
+      }
+    }
+
+    const expectedRuns = []
+    for (const node of expectedNodes.values()) {
+      for (const run of node.textRuns ?? []) expectedRuns.push({ id: node.id, run })
+    }
+    const renderedRuns = generatedNodes.filter(node => node.irRun !== undefined)
+    assert.equal(renderedRuns.length, expectedRuns.length, 'every text run must render once')
+    for (const [index, expected] of expectedRuns.entries()) {
+      const actual = renderedRuns[index]
+      assert.equal(actual.irRun, expected.id)
+      const text = actual.textRuns?.[0]?.text ?? ''
+      assert.equal(text, expected.run.text, `run ${index} text`)
+      for (const key of ['x', 'y', 'w', 'h']) {
+        assert.ok(Math.abs(expected.run.box[key] - actual.box[key]) <= 1, `run ${index} ${key}: ${expected.run.box[key]} vs ${actual.box[key]}`)
+      }
+      const node = expectedNodes.get(expected.id)
+      const expectedStyle = expandStyle(node.style, ir.tokens)
+      if (expectedStyle.fontFamily !== undefined) {
+        assert.equal(actual.style.fontFamily, expectedStyle.fontFamily, `run ${index} font family`)
+      }
+    }
   })
 
   await test('init detects the real repo workspace app and routes', () => {
@@ -392,6 +500,16 @@ if (repo === undefined) {
     assert.deepEqual(violations, [])
     assert.equal(value.passed, true)
     assert.equal(value.decision.mode, 'ephemeral')
+
+    const irValue = await definition.execute({
+      repo,
+      config: fixtureConfig,
+      cases: ['exact'],
+      outputDir: mkdtempSync(join(tmpdir(), 'parity-tool-ir-')),
+      exportIr: true,
+    }, {})
+    assert.deepEqual(tools.validateJsonSchemaValue(definition.output.schema, irValue, 'value'), [])
+    assert.ok(irValue.cases[0].viewports[0].ir !== undefined)
   })
 }
 
