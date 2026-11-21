@@ -217,7 +217,25 @@ ${indent}}`
 
 function renderAbsolute(node, parent, ir, depth, placement, style, semantic) {
   const indent = '  '.repeat(depth)
-  const base = placementProps(node, parent, placement)
+  let base = placementProps(node, parent, placement)
+  const rotation = rotationOf(style)
+  if (rotation !== undefined && node.transformedSize !== undefined) {
+    const layoutWidth = Number.parseFloat(node.transformedSize.width)
+    const layoutHeight = Number.parseFloat(node.transformedSize.height)
+    if (Number.isFinite(layoutWidth) && Number.isFinite(layoutHeight)) {
+      if (placement.kind === 'absolute') {
+        base = [
+          `x: ${number(node.box.x + node.box.w / 2 - layoutWidth / 2)}`,
+          `y: ${number(node.box.y + node.box.h / 2 - layoutHeight / 2)}`,
+          `width: ${number(layoutWidth)}`,
+          `height: ${number(layoutHeight)}`,
+        ]
+      } else {
+        base = [`width: ${number(layoutWidth)}`, `height: ${number(layoutHeight)}`, base[base.length - 1]]
+      }
+      base.push(`rotation: ${number(rotation)}`, 'transformOrigin: Item.Center')
+    }
+  }
   if (node.tag === 'svg') {
     return `${indent}Image {
 ${indent}  ${base.join(`\n${indent}  `)}
@@ -225,10 +243,11 @@ ${indent}  source: "${svgDataUri(node, ir)}"
 ${indent}  fillMode: Image.Stretch
 ${indent}}`
   }
-  if ((node.tag === 'img' || node.tag === 'canvas') && node.attributes?.src !== undefined) {
+  const mediaSource = node.tag === 'video' ? node.attributes?.poster : node.attributes?.src
+  if ((node.tag === 'img' || node.tag === 'canvas' || node.tag === 'video') && mediaSource !== undefined) {
     return `${indent}Image {
 ${indent}  ${base.join(`\n${indent}  `)}
-${indent}  source: "${escapeQml(imageSource(node.attributes.src))}"
+${indent}  source: "${escapeQml(imageSource(mediaSource))}"
 ${indent}  fillMode: Image.Stretch
 ${indent}}`
   }
@@ -450,6 +469,19 @@ function flowInfo(node) {
 function px(value) {
   const parsed = Number.parseFloat(value ?? '0')
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+/** Extract a pure-rotation angle (degrees) from a CSS matrix, or undefined. */
+function rotationOf(style) {
+  const value = style.transform
+  if (typeof value !== 'string' || !value.startsWith('matrix(')) return undefined
+  const numbers = value.slice('matrix('.length, -1).split(',').map(part => Number(part.trim()))
+  if (numbers.length !== 6 || numbers.some(part => !Number.isFinite(part))) return undefined
+  const [a, b, c, d] = numbers
+  if (Math.abs(a - d) > 0.001 || Math.abs(b + c) > 0.001) return undefined
+  const scale = Math.hypot(a, b)
+  if (Math.abs(scale - 1) > 0.001) return undefined
+  return Math.round((Math.atan2(b, a) * 180 / Math.PI) * 10) / 10
 }
 
 function renderText(run, node, style, depth) {

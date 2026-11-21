@@ -140,10 +140,11 @@ baseline just to make a regression pass.
 `generated.html`, and `generated.semantic.html` per case/viewport. The IR is a static
 snapshot — design tokens, a node tree with boxes and layout kinds (flex/grid/table/block),
 table column widths, SVG geometry, materialized `@font-face`/image files, generated
-pseudo-elements, and measured text runs. On a 362-node real page the absolute render
-reproduces the screen at **0.72%** pixel difference; the semantic render (layout re-run by
-the browser, with 3 measured pins) keeps 330 of 337 boxes within 1px at **0.56%** pixels.
-It is the seam for future generators (QML, desktop). See [docs/IR.md](docs/IR.md).
+pseudo-elements, shadow-DOM composition, and measured text runs. On a 362-node real page the
+absolute render reproduces the screen at **0.72%** pixel difference; the semantic render
+(layout re-run by the browser, with 3 measured pins) keeps 335 of 337 boxes within 1px at
+**0.52%** pixels. It is the seam for future generators (QML, desktop).
+See [docs/IR.md](docs/IR.md).
 
 ## Judging rules
 | Check | Default | Meaning |

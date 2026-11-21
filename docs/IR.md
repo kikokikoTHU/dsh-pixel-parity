@@ -190,10 +190,10 @@ Semantic render (layout re-run by the browser instead of absolute boxes):
 | Authored sizes | 201 (px and `%`) |
 | Size pins after synthesis | 24 → **3** |
 | Pins pruned as redundant | 6 |
-| Box within 1px | **330** of 337 |
+| Box within 1px | **335** of 337 |
 | Box within 2px | 2 |
-| Box off by more than 2px | 5 |
-| Pixel difference, semantic render | **0.56%** |
+| Box off by more than 2px | 0 |
+| Pixel difference, semantic render | **0.52%** |
 | Pixel difference, absolute render | 0.72% |
 
 The jump came from capturing what flow was silently missing:
@@ -211,20 +211,18 @@ The jump came from capturing what flow was silently missing:
 Pruning removes a pin, re-renders, and keeps the removal only when box accuracy does not
 regress. It is bounded to 30 renders and tries block-level nodes.
 
-Second sample — anubis `/projects` (a PrimeVue app with an icon font):
+Second sample — anubis `/projects` (a PrimeVue app with an icon font, error state):
 
 | Metric | Result |
 | --- | --- |
-| Nodes | 106 |
-| Final pins | 24 (15 pruned) |
-| Box within 1px | 89 |
-| Box over 2px | 17 |
-| Pixel difference | 0.28% |
+| Nodes | 112 (108 boxes + 4 pseudo-elements) |
+| Final pins | 1 (the `main` height) |
+| Boxes within 1px | 108 / 108 |
+| Pixel difference, semantic | 0.01% |
 | Font materialized | PrimeIcons, 35 KB |
 
-The remaining three pins are the pagination controls (`select`, its label, and the wrapper):
-their width comes from the native widget, not from CSS. The five boxes still over 2px are
-inline glyph boxes whose width depends on font metrics.
+The single remaining pin is the `main` height (`height:100%` inside a flex column); every
+measured box is within 1px and the semantic render differs by 0.01% of pixels.
 
 Pin distribution tells you where the IR still lacks layout information:
 
@@ -242,26 +240,28 @@ and silently changed the font. Any generator must escape quoted font families.
 ## Limits (v1)
 
 - One screen, static: no interactions, states, hover, or responsive rules.
-- Images and `<canvas>` are boxes only; no asset payloads.
+- Images, background images and `<canvas>` snapshots are materialized into
+  `assets/images/`; `<video>` contributes its poster only.
 - Layout **kinds** are captured (flex/grid/table/block), item props
   (`flexGrow`/`flexShrink`/`flexBasis`) are stored, tables carry `columnWidths` and
   `colspan`/`rowspan`, and SVG geometry (`viewBox`, `cx/cy/r`, `d`, `points`, ...) plus
   `img.src` are kept as `attributes` on the node, and fixed source sizes are kept as
-  `authored`. Flow layout alone reproduces about a third of the page; only 24 of 337 nodes
+  `authored`. Flow layout alone reproduces about a third of the page; only 3 of 337 nodes
   still carry measured size pins.
 - Table cells derive their size from columns and rows; they are deliberately not pinned.
-- Fonts and images are materialized; external CSS, video, and canvas pixels are not.
+- Fonts and images are materialized; external CSS and video frames are not.
 - Cross-origin stylesheets that expose no `cssRules` are skipped, so their fonts are not
   materialized.
 - Wrapped text is captured as one run per visual line (character bucketing); runs longer
   than 500 characters fall back to a single box.
 - Outline, `filter`, `backdrop-filter`, and `mix-blend-mode` are captured (defaults
   pruned); CSS gradients survive as `background-image` strings.
-- Inline icon spans and form controls can still drift a few pixels.
+- Inline glyph boxes and native form controls can still drift a few pixels.
 - Pseudo-elements with `content: url()`, counters, or animations are not captured.
 - Shadow roots are traversed, but text nodes placed directly on a shadow root (not inside a
   shadow element) are not captured.
-- `<video>` frames are not captured (only the box); tainted canvases have no pixels.
+- `<video>` frames are not captured; a `poster` is materialized and rendered.
+- Tainted canvases have no pixels.
 - 3D transforms and `transform-origin` on non-centered elements are replayed only in CSS,
   not in the QML output.
 - Captures above 2000 nodes are truncated (`source.truncated`).

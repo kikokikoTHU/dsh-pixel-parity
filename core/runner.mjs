@@ -605,6 +605,9 @@ async function materializeAssets(ir, caseDir) {
     if (typeof node.attributes?.src === 'string') {
       node.attributes.src = await localize(node.attributes.src)
     }
+    if (typeof node.attributes?.poster === 'string') {
+      node.attributes.poster = await localize(node.attributes.poster)
+    }
     const background = node.style?.backgroundImage
     if (typeof background === 'string' && background.includes('url(')) {
       node.style.backgroundImage = await replaceCssUrls(background, localize)

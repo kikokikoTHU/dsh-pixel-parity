@@ -25,6 +25,10 @@ Mapping:
 | `img` attributes | `Image { source; fillMode: Stretch }` |
 | `<canvas>` snapshot | `Image { source: assets/images/... }` |
 | inline SVG subtree | serialized to an `svg` data URI and rendered as `Image` |
+| pure rotation (`matrix`) | `rotation` + `transformOrigin: Item.Center` at the pre-transform layout size |
+| CSS linear-gradient | `gradient: Gradient` (vertical, or horizontal via `Gradient.Horizontal`) |
+| `background-image: url(...)` | full-size `Image` child at `z: -1`, honoring `background-size` |
+| `<video poster>` | `Image` with the materialized poster |
 | semantic table | `Column` of `Row`s using `layout.columnWidths` (colspan aware) |
 | colors | `rgb()/rgba()` normalized to `#RRGGBB` / `#AARRGGBB` |
 | pinned / authored sizes | used as-is (no layout engine at the leaves) |
@@ -106,7 +110,9 @@ icons, which are not rendered in QML yet.
   prototyped, but Qt 5.14's `TableView` did not render through the `qmlscene` screenshot
   path, so the verified Column/Row mapping is kept.
 - Inline SVG is baked into a data-URI `Image`; interactions inside the SVG are lost.
-- `<img>` sources are local assets; CSS `background-image` is not painted in QML yet.
+- `<img>` sources are local assets; CSS `background-image` is painted as an `Image` child,
+  and `linear-gradient` becomes a `Gradient` (diagonal gradients fall back to a solid color).
+- Only pure-rotation transforms are replayed; skews and 3D transforms keep the bounding box.
 - WOFF2 `@font-face` loading depends on the Qt build's FreeType support; otherwise the font
   falls back and text metrics shift.
 - Text runs are single-line; wrapped text is approximated.

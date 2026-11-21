@@ -969,7 +969,7 @@ http.createServer((req, res) => {
       repoRoot,
       dependenciesRoot: repo,
       baselineMode: 'ephemeral',
-      exportIr: true,
+      exportQml: true,
       outDir: join(repoRoot, '.parity', 'runs', 'transform'),
     })
     const viewport = result.manifest.cases[0].viewports[0]
@@ -987,6 +987,44 @@ http.createServer((req, res) => {
     assert.match(semantic, /width:7px/)
     assert.equal(viewport.ir.pins, 0, 'no pins needed')
     assert.equal(viewport.ir.over2, 0, 'every box within 2px')
+    const qml = readFileSync(viewport.ir.qml.path, 'utf8')
+    assert.match(qml, /rotation: 45/)
+    assert.match(qml, /transformOrigin: Item\.Center/)
+    const { findQmlScene } = await import('../adapters/qml.mjs')
+    if (findQmlScene() !== undefined) {
+      assert.equal(viewport.ir.qml.error, undefined, viewport.ir.qml.error)
+    }
+  })
+
+  await test('video posters are materialized and rendered', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-video-'))
+    const configPath = join(repoRoot, 'video.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'video.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 200, height: 100 }],
+      cases: [{ id: 'video', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportQml: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'video'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir !== undefined, viewport.error)
+    const ir = JSON.parse(readFileSync(viewport.ir.path, 'utf8'))
+    const video = flattenIr(ir.root).find(node => node.tag === 'video')
+    assert.ok(video !== undefined, 'video captured')
+    assert.ok(video.attributes.poster.startsWith('assets/images/'), video.attributes.poster)
+    assert.ok(existsSync(join(dirname(viewport.ir.path), video.attributes.poster)), 'poster materialized')
+    const semantic = readFileSync(viewport.ir.semantic, 'utf8')
+    assert.match(semantic, /<video/)
+    assert.match(semantic, /poster="assets\/images\//)
+    const qml = readFileSync(viewport.ir.qml.path, 'utf8')
+    assert.match(qml, /assets\/images\//)
   })
 
   await test('shadow DOM content is captured through slots', async () => {

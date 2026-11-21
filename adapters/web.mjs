@@ -132,6 +132,7 @@ const ELEMENT_ATTRIBUTES = {
   input: ['type', 'value', 'placeholder', 'size', 'maxlength', 'checked', 'disabled', 'name', 'readonly'],
   textarea: ['rows', 'cols', 'placeholder', 'disabled', 'name'],
   select: ['multiple', 'size', 'disabled', 'name'],
+  video: ['poster', 'src', 'autoplay', 'loop', 'muted', 'controls', 'playsinline'],
 }
 
 const FREEZE_CSS = `
