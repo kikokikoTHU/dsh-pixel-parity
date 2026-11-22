@@ -759,32 +759,42 @@ export function apply(ctx, config) {
     return roots.filter(root => typeof root === 'string' && root.length > 0)
   }
 
-  ctx.effect(() => {
-    const server = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined
+  const registerPanelRoutes = (scoped) => {
+    const server = scoped?.webServer
     if (server === undefined) return
     const asJson = value => new Response(JSON.stringify(value), {
       headers: { 'content-type': 'application/json; charset=utf-8' },
     })
-    const disposers = [
-      server.register({
-        kind: 'exact',
-        path: '/pixel-parity/overview',
-        resource: async () => asJson(overview(panelRoots())),
-      }),
-      server.register({
-        kind: 'exact',
-        path: '/pixel-parity/artifact',
-        resource: async (request) => {
-          const artifact = resolveArtifact(panelRoots(), new URL(request.url).searchParams.get('path'))
-          if (artifact === undefined) return new Response('not found', { status: 404 })
-          return new Response(readFileSync(artifact.path), { headers: { 'content-type': artifact.type } })
-        },
-      }),
-    ]
-    return () => {
-      for (const dispose of disposers) dispose()
-    }
-  })
+    scoped.effect(() => {
+      const disposers = [
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/overview',
+          resource: async () => asJson(overview(panelRoots())),
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/artifact',
+          resource: async (request) => {
+            const artifact = resolveArtifact(panelRoots(), new URL(request.url).searchParams.get('path'))
+            if (artifact === undefined) return new Response('not found', { status: 404 })
+            return new Response(readFileSync(artifact.path), { headers: { 'content-type': artifact.type } })
+          },
+        }),
+      ]
+      return () => {
+        for (const dispose of disposers) dispose()
+      }
+    })
+  }
+
+  if (typeof ctx.inject === 'function') {
+    // webServer is optional: the plugin still works in hosts without a web server.
+    ctx.inject(['webServer'], registerPanelRoutes)
+  } else if (typeof ctx.get === 'function') {
+    const server = ctx.get('webServer')
+    if (server !== undefined) registerPanelRoutes({ webServer: server, effect: callback => ctx.effect(callback) })
+  }
   ctx.effect(() => ctx.tools.register({
     name: 'parity_check',
     description: DESCRIPTION,
