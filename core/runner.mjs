@@ -394,6 +394,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       baseline: { used: baselineUsed, written: baselineWritten },
       ...(irArtifacts === undefined ? {} : { ir: irArtifacts }),
       maskRects: implementation.masks,
+      thresholds: entry.thresholds,
       anchors: {
         reference: reference.anchors ?? null,
         implementation: implementation.anchors ?? null,

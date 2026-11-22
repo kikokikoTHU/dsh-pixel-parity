@@ -78,6 +78,21 @@ function diagnoseViewport(runDir, caseId, viewport) {
     })
   }
 
+  const pixelThresholds = viewport.thresholds ?? {}
+  if (viewport.pixels?.pass === false
+    && typeof viewport.pixels.metrics?.mismatchRatio === 'number'
+    && typeof pixelThresholds.maxMismatch === 'number'
+    && viewport.pixels.metrics.mismatchRatio <= pixelThresholds.maxMismatch) {
+    const worst = [...(viewport.pixels.regions ?? [])]
+      .sort((left, right) => (right.mismatchRatio ?? 0) - (left.mismatchRatio ?? 0))[0]
+    findings.push({
+      layer: 'pixels',
+      severity: 3000,
+      summary: `overall mismatch ${(viewport.pixels.metrics.mismatchRatio * 100).toFixed(2)}% is within maxMismatch ${(pixelThresholds.maxMismatch * 100).toFixed(1)}%, but a 16x16 grid cell mismatches ${(Number(worst?.mismatchRatio ?? 0) * 100).toFixed(1)}% > maxRegionMismatch ${(Number(pixelThresholds.maxRegionMismatch ?? 0) * 100).toFixed(1)}%`,
+      suggestion: `The pixel failure is region-local, not global: fix the worst cell${worst === undefined ? '' : ` at (${worst.x},${worst.y})`} before changing global thresholds.`,
+    })
+  }
+
   const regions = [...(viewport.pixels?.regions ?? [])]
     .sort((left, right) => (right.mismatchRatio ?? 0) - (left.mismatchRatio ?? 0))
     .slice(0, 5)

@@ -94,6 +94,9 @@ That is the loop this plugin exists to support: measured, attributed, and audita
   a starting draft, but the loop above is what proves the implementation matches.
 - **One hypothesis per round.** Bundling several edits makes the delta uninterpretable.
 - **No silent threshold changes.** If a threshold moved, record the measured reason.
+- **A low overall pixel ratio can still fail.** The region cap (`maxRegionMismatch`) is per
+  16×16 cell: 0.43% overall with one 50% cell fails. `parity_diagnose` says so explicitly;
+  fix that cell, do not raise the global ratio budget.
 - **Two flat rounds = wrong hypothesis**, not "needs a looser threshold". Re-read the
   diagnosis, check the DOM/selector, then change direction.
 

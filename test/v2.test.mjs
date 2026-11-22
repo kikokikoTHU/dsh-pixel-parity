@@ -141,6 +141,37 @@ await test('component generator emits classes and token variables', async () => 
   assert.match(css, /assets\/fonts\/x\.woff2/)
 })
 
+await test('diagnose explains region-local pixel failures', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'parity-region-'))
+  writeFileSync(join(directory, 'manifest.json'), JSON.stringify({
+    version: 2,
+    runId: 'synthetic',
+    iteration: 1,
+    cases: [{
+      id: 'region',
+      status: 'failed',
+      viewports: [{
+        viewportId: 'desktop',
+        status: 'failed',
+        thresholds: { tolerance: 24, maxMismatch: 0.01, maxRegionMismatch: 0.4, geometryTolerance: 1 },
+        geometry: { available: true, pass: true, tolerance: 1, anchors: [] },
+        styles: { available: true, pass: true, diffs: [], warnings: [] },
+        pixels: {
+          pass: false,
+          metrics: { mismatchRatio: 0.00435 },
+          regions: [{ x: 50, y: 26, w: 25, h: 13, mismatchRatio: 0.5046 }],
+        },
+      }],
+    }],
+  }, null, 2))
+  const { diagnoseRun } = await import('../core/diagnose.mjs')
+  const diagnosis = diagnoseRun(directory)
+  const finding = diagnosis.viewports[0].findings.find(entry => entry.layer === 'pixels' && entry.severity === 3000)
+  assert.ok(finding !== undefined, 'region-cap finding present')
+  assert.match(finding.summary, /maxRegionMismatch/)
+  assert.match(finding.suggestion, /region-local/)
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,
