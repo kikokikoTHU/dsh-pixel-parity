@@ -172,6 +172,73 @@ await test('diagnose explains region-local pixel failures', async () => {
   assert.match(finding.suggestion, /region-local/)
 })
 
+await test('panel overview and artifact guard work on run directories', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'parity-panel-'))
+  const runsDir = join(root, '.parity', 'runs')
+  mkdirSync(join(runsDir, 'run-1', 'cases', 'case', 'desktop'), { recursive: true })
+  mkdirSync(join(runsDir, 'run-2'), { recursive: true })
+  const manifest = (runId, finishedAt, iteration) => JSON.stringify({
+    version: 2,
+    runId,
+    iteration,
+    startedAt: finishedAt,
+    finishedAt,
+    decision: { mode: 'ephemeral' },
+    summary: { cases: 1, viewports: 1, verified: 1, 'image-verified': 0, failed: 0, incomplete: 0 },
+    cases: [{
+      id: 'case',
+      status: 'verified',
+      viewports: [{
+        viewportId: 'desktop',
+        status: 'verified',
+        pixels: { metrics: { mismatchRatio: 0 } },
+        geometry: { available: true, pass: true },
+        styles: { diffs: [] },
+        artifacts: { diff: join(runsDir, 'run-1', 'cases', 'case', 'desktop', 'diff.png') },
+      }],
+    }],
+  })
+  writeFileSync(join(runsDir, 'run-1', 'manifest.json'), manifest('run-1', '2026-01-01T00:00:00.000Z', 1))
+  writeFileSync(join(runsDir, 'run-2', 'manifest.json'), manifest('run-2', '2026-01-02T00:00:00.000Z', 2))
+  writeFileSync(join(runsDir, 'run-1', 'cases', 'case', 'desktop', 'diff.png'), Buffer.from([137, 80, 78, 71]))
+  writeFileSync(join(root, 'secret.png'), Buffer.from([137, 80, 78, 71]))
+
+  const { overview, resolveArtifact } = await import('../core/panel.mjs')
+  const data = overview([root])
+  assert.equal(data.roots.length, 1)
+  assert.deepEqual(data.roots[0].runs.map(run => run.runId), ['run-2', 'run-1'])
+  assert.equal(data.roots[0].runs[0].iteration, 2)
+
+  const allowed = resolveArtifact([root], join(runsDir, 'run-1', 'cases', 'case', 'desktop', 'diff.png'))
+  assert.ok(allowed !== undefined, 'artifact inside a run is served')
+  assert.equal(allowed.type, 'image/png')
+  assert.equal(resolveArtifact([root], join(root, 'secret.png')), undefined)
+  assert.equal(resolveArtifact([root], join(runsDir, 'run-1', 'manifest.json')), undefined)
+})
+
+await test('panel routes register on the web server', async () => {
+  const { apply } = await import('../index.js')
+  const registered = []
+  const stub = {
+    register(route) {
+      registered.push(route)
+      return () => {}
+    },
+  }
+  apply({
+    effect(callback) { callback() },
+    tools: { register() {} },
+    skills: { register() {} },
+    get(name) { return name === 'webServer' ? stub : undefined },
+  })
+  const paths = registered.map(route => route.path).sort()
+  assert.deepEqual(paths, ['/pixel-parity/artifact', '/pixel-parity/overview'])
+  const overviewRoute = registered.find(route => route.path === '/pixel-parity/overview')
+  const response = await overviewRoute.resource(new Request('http://local/pixel-parity/overview'), {})
+  const body = await response.json()
+  assert.ok(Array.isArray(body.roots))
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,

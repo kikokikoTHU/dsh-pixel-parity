@@ -33,6 +33,9 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
 - **`parity_diagnose`** — turns a run into ranked fix targets: geometry deltas first, then
   style diffs, then the largest pixel regions with the IR nodes that overlap them. Use it
   after every run to decide the next code change.
+- **Read-only run panel** — a Pixel parity strip above the composer lists recent runs,
+  per-case statuses, deltas, and diff thumbnails, served by `/pixel-parity/*` endpoints.
+  It never starts a run or approves a baseline. See [docs/PANEL.md](docs/PANEL.md).
 - **`parity_check`** — single-shot image-vs-page comparison for repos without a config.
 - **Dev server start** — `targets.implementation.start` (plus `baseUrl`) launches the app
   when the URL is not already reachable, waits for readiness, and stops it after the run.

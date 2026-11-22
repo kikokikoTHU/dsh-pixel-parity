@@ -180,6 +180,10 @@ If the config sets `targets.implementation.start`, the runner launches that comm
 `baseUrl` is not already reachable, waits up to `startTimeoutMs`, and stops it after the
 run. An already running server is reused and left alone.
 
+A read-only panel above the composer lists recent runs, statuses, deltas, and diff
+thumbnails. It never starts a run or approves a baseline; keep actions in `parity_run` /
+`parity_approve`.
+
 ### 5. Iterate: diagnose → edit → re-run
 
 This plugin is an LLM-native alignment harness, not a generator. The loop is the product:

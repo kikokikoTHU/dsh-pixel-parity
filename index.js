@@ -15,8 +15,12 @@ import { approveRun } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
+import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
+
+/** Repository of the most recent parity_run; the read-only panel scans it. */
+let lastRunRoot
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -749,7 +753,38 @@ const RUN_DESCRIPTION = [
  * Register the parity tool and the workflow skill.
  * @param {object} ctx - Cordis context with tools and skills services.
  */
-export function apply(ctx) {
+export function apply(ctx, config) {
+  const panelRoots = () => {
+    const roots = [lastRunRoot, ...(Array.isArray(config?.repos) ? config.repos : [])]
+    return roots.filter(root => typeof root === 'string' && root.length > 0)
+  }
+
+  ctx.effect(() => {
+    const server = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined
+    if (server === undefined) return
+    const asJson = value => new Response(JSON.stringify(value), {
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+    const disposers = [
+      server.register({
+        kind: 'exact',
+        path: '/pixel-parity/overview',
+        resource: async () => asJson(overview(panelRoots())),
+      }),
+      server.register({
+        kind: 'exact',
+        path: '/pixel-parity/artifact',
+        resource: async (request) => {
+          const artifact = resolveArtifact(panelRoots(), new URL(request.url).searchParams.get('path'))
+          if (artifact === undefined) return new Response('not found', { status: 404 })
+          return new Response(readFileSync(artifact.path), { headers: { 'content-type': artifact.type } })
+        },
+      }),
+    ]
+    return () => {
+      for (const dispose of disposers) dispose()
+    }
+  })
   ctx.effect(() => ctx.tools.register({
     name: 'parity_check',
     description: DESCRIPTION,
@@ -808,6 +843,7 @@ export function apply(ctx) {
     },
     async execute(args, exec) {
       const repo = text(args.repo, 'repo')
+      lastRunRoot = repo
       const configPath = isAbsolute(args.config) ? args.config : join(repo, args.config)
       const thresholds = {}
       if (args.geometryTolerance !== undefined) thresholds.geometryTolerance = Number(args.geometryTolerance)
