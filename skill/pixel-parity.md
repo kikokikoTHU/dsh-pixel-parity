@@ -180,22 +180,34 @@ If the config sets `targets.implementation.start`, the runner launches that comm
 `baseUrl` is not already reachable, waits up to `startTimeoutMs`, and stops it after the
 run. An already running server is reused and left alone.
 
-### 5. Fix by layer, then re-run
+### 5. Iterate: diagnose → edit → re-run
 
-1. Read the failing status and `metrics.json`.
-2. Geometry first: a layout offset shifts everything else and makes pixel noise.
-3. Styles second: colors, font size/weight/line-height, spacing, radius. These come from
-   tokens; fix the token, not the one-off rule.
-4. Pixels last: open `diff.png`, fix the largest region.
-5. Re-run the same command. Keep a one-line log per iteration.
+This plugin is an LLM-native alignment harness, not a generator. The loop is the product:
 
-Stop when every case is `verified` (or `image-verified` where DOM evidence genuinely
-does not exist). Cap at 8 iterations; beyond that the cause is structural.
+1. `parity_diagnose({ repo, runDir })` — ranked findings: geometry anchor deltas, then
+   style diffs, then the largest pixel regions with overlapping IR nodes.
+2. Pick **one** finding. Geometry first: a layout offset shifts everything else and makes
+   pixel noise. Then styles (fix the token, not the one-off rule). Pixels last.
+3. Change the implementation code. One hypothesis per round.
+4. Re-run the same command. Read `iteration`, `parentRun`, and `delta` from the result
+   (`delta.meanChange < 0` = improved). Keep the change only if the failing layer improved
+   and nothing else regressed; otherwise revert before the next hypothesis.
+5. Log one line per round: hypothesis → change → delta → kept/reverted.
+
+Stop when every case is `verified` (or `image-verified` where DOM evidence genuinely does
+not exist), or when the remaining gaps are covered by an explicitly chosen tolerance
+preset and named in the report. Two rounds without improvement means the hypothesis is
+wrong — do not answer that by loosening a threshold. Cap at 8 iterations.
+
+Never treat IR/QML/component export as the alignment step: those exports describe what was
+captured. Alignment is measured by `parity_run` + `parity_diagnose` against the real
+implementation.
 
 ### 6. Report
 
 - Config path, cases, viewports, and driver (Playwright or Chrome CLI).
 - Final statuses and mismatch ratios, run directory, residual differences with cause.
+- Iterations used, the delta chain, and the tolerance preset if one was applied.
 
 ## Quick check
 

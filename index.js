@@ -14,6 +14,7 @@ import { runConfig } from './core/runner.mjs'
 import { approveRun } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
+import { diagnoseRun } from './core/diagnose.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -255,6 +256,32 @@ const RUN_OUTPUT_SCHEMA = {
   required: ['runDir', 'passed', 'summary', 'cases', 'decision'],
   properties: {
     runDir: { type: 'string' },
+    iteration: { type: 'integer' },
+    delta: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['meanChange', 'improved', 'viewports'],
+      properties: {
+        meanChange: { type: 'number' },
+        improved: { type: 'boolean' },
+        viewports: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['case', 'viewport', 'pixels', 'previous', 'change', 'improved'],
+            properties: {
+              case: { type: 'string' },
+              viewport: { type: 'string' },
+              pixels: { type: 'number' },
+              previous: { type: 'number' },
+              change: { type: 'number' },
+              improved: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
     passed: { type: 'boolean' },
     decision: {
       type: 'object',
@@ -528,6 +555,138 @@ const REPORT_OUTPUT_SCHEMA = {
   },
 }
 
+const DIAGNOSE_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['repo'],
+  properties: {
+    repo: {
+      type: 'string',
+      description: 'Absolute path to the repository root that owns .parity/runs.',
+    },
+    runDir: {
+      type: 'string',
+      description: 'Run directory to diagnose. Default: the newest run under <repo>/.parity/runs.',
+    },
+    cases: { type: 'array', items: { type: 'string' }, description: 'Only these case ids.' },
+    viewports: { type: 'array', items: { type: 'string' }, description: 'Only these viewport ids.' },
+  },
+}
+
+const BOX_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['x', 'y', 'w', 'h'],
+  properties: {
+    x: { type: 'number' },
+    y: { type: 'number' },
+    w: { type: 'number' },
+    h: { type: 'number' },
+  },
+}
+
+const FINDING_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['layer', 'severity', 'summary', 'suggestion'],
+  properties: {
+    layer: { type: 'string' },
+    severity: { type: 'number' },
+    summary: { type: 'string' },
+    suggestion: { type: 'string' },
+    anchor: { type: 'string' },
+    property: { type: 'string' },
+    expected: { type: 'string' },
+    actual: { type: 'string' },
+    delta: BOX_SCHEMA,
+    region: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['x', 'y', 'w', 'h', 'mismatchRatio'],
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' },
+        w: { type: 'number' },
+        h: { type: 'number' },
+        mismatchRatio: { type: 'number' },
+      },
+    },
+    targets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'tag', 'role', 'box', 'coverage'],
+        properties: {
+          id: { type: 'string' },
+          tag: { type: 'string' },
+          role: { type: 'string' },
+          box: BOX_SCHEMA,
+          coverage: { type: 'number' },
+        },
+      },
+    },
+  },
+}
+
+const DIAGNOSE_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['runDir', 'viewports'],
+  properties: {
+    runDir: { type: 'string' },
+    iteration: { type: 'integer' },
+    parentRun: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        runId: { type: 'string' },
+        runDir: { type: 'string' },
+      },
+    },
+    delta: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['meanChange', 'improved', 'viewports'],
+      properties: {
+        meanChange: { type: 'number' },
+        improved: { type: 'boolean' },
+        viewports: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['case', 'viewport', 'pixels', 'previous', 'change', 'improved'],
+            properties: {
+              case: { type: 'string' },
+              viewport: { type: 'string' },
+              pixels: { type: 'number' },
+              previous: { type: 'number' },
+              change: { type: 'number' },
+              improved: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    viewports: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['case', 'viewport', 'status', 'findings', 'next'],
+        properties: {
+          case: { type: 'string' },
+          viewport: { type: 'string' },
+          status: { type: 'string' },
+          findings: { type: 'array', items: FINDING_SCHEMA },
+          next: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+  },
+}
+
 const BASELINE_OPTIONS = {
   pin: '对齐在线原型并固化基线',
   ephemeral: '仅本次比对，不保存基线',
@@ -722,6 +881,38 @@ export function apply(ctx) {
   }))
 
   ctx.effect(() => ctx.tools.register({
+    name: 'parity_diagnose',
+    description: 'Turn a finished run into ranked fix targets: geometry anchor deltas first, then style diffs, then the largest pixel regions with the IR nodes that overlap them. Use it after every parity_run to decide the next code change, instead of reading metrics.json by hand.',
+    parameters: DIAGNOSE_PARAMETERS,
+    output: {
+      schema: DIAGNOSE_OUTPUT_SCHEMA,
+      render(_args, value) {
+        const lines = [`PixelParity diagnose ${value.runDir} (iteration ${value.iteration ?? 1})`]
+        if (value.delta !== undefined) {
+          lines.push(`delta: mean ${(value.delta.meanChange * 100).toFixed(2)}% pixels (${value.delta.improved ? 'improved' : 'regressed'})`)
+        }
+        for (const viewport of value.viewports) {
+          lines.push(`${viewport.status.padEnd(15)} ${viewport.case} @ ${viewport.viewport}`)
+          for (const finding of viewport.findings.slice(0, 5)) lines.push(`  [${finding.layer}] ${finding.summary}`)
+          if (viewport.next.length > 0) lines.push(`  next: ${viewport.next[0]}`)
+        }
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args) {
+      const repo = text(args.repo, 'repo')
+      const runDir = resolveRunDir(repo, args.runDir === undefined ? undefined : text(args.runDir, 'runDir'))
+      const diagnosis = diagnoseRun(runDir, {
+        cases: arrayOfText(args.cases, 'cases') ?? undefined,
+        viewports: arrayOfText(args.viewports, 'viewports') ?? undefined,
+      })
+      if (diagnosis.parentRun === null) delete diagnosis.parentRun
+      if (diagnosis.delta === null) delete diagnosis.delta
+      return diagnosis
+    },
+  }))
+
+  ctx.effect(() => ctx.tools.register({
     name: 'parity_init',
     description: 'Scan a repository and write a parity config draft. Detects the framework, package manager, dev command and port, the route table, and Playwright availability. Never overwrites an existing config unless `force` is true. The draft still needs the reference URL filled in.',
     parameters: INIT_PARAMETERS,
@@ -854,6 +1045,8 @@ function buildRunValue(result) {
   const manifest = result.manifest
   return {
     runDir: result.runDir,
+    iteration: manifest.iteration ?? 1,
+    ...(manifest.delta === null || manifest.delta === undefined ? {} : { delta: manifest.delta }),
     passed: manifest.summary.failed === 0 && manifest.summary.incomplete === 0,
     decision: {
       mode: manifest.decision?.mode ?? 'auto',

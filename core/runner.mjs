@@ -8,7 +8,7 @@
 
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadConfig } from './config.mjs'
@@ -88,9 +88,13 @@ export async function runConfig(options) {
     await stopDevServer(devServer)
   }
 
+  const parent = findParentRun(repoRoot, runDir, startedAt)
   const manifest = {
     version: 2,
     runId,
+    iteration: parent === undefined ? 1 : (parent.manifest.iteration ?? 1) + 1,
+    parentRun: parent === undefined ? null : { runId: parent.manifest.runId, runDir: parent.dir },
+    delta: computeDelta(caseResults, parent?.manifest),
     startedAt,
     finishedAt: new Date().toISOString(),
     config: { path: config.path, sha256: config.sha256 },
@@ -517,8 +521,59 @@ function worstStatus(statuses) {
   }, 'verified')
 }
 
-function summarize(cases) {
-  const summary = { cases: cases.length, viewports: 0, verified: 0, 'image-verified': 0, failed: 0, incomplete: 0 }
+/**
+ * Find the newest finished run in the repo before this one started, so the
+ * manifest can record which iteration it improves on.
+ */
+function findParentRun(repoRoot, runDir, startedAt) {
+  const directory = join(repoRoot, '.parity', 'runs')
+  if (!existsSync(directory)) return undefined
+  let best
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const candidate = join(directory, entry.name)
+    if (resolve(candidate) === resolve(runDir)) continue
+    const manifestPath = join(candidate, 'manifest.json')
+    if (!existsSync(manifestPath)) continue
+    let manifest
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    } catch {
+      continue
+    }
+    if (typeof manifest.finishedAt !== 'string' || manifest.finishedAt >= startedAt) continue
+    if (best === undefined || manifest.finishedAt > best.manifest.finishedAt) best = { dir: candidate, manifest }
+  }
+  return best
+}
+
+function computeDelta(cases, parentManifest) {
+  if (parentManifest === undefined || parentManifest === null) return null
+  const viewports = []
+  for (const entry of cases) {
+    for (const viewport of entry.viewports) {
+      const previous = parentManifest.cases
+        ?.find(candidate => candidate.id === entry.id)
+        ?.viewports?.find(candidate => candidate.viewportId === viewport.viewportId)
+      const pixels = viewport.pixels?.metrics?.mismatchRatio
+      const previousPixels = previous?.pixels?.metrics?.mismatchRatio
+      if (typeof pixels !== 'number' || typeof previousPixels !== 'number') continue
+      viewports.push({
+        case: entry.id,
+        viewport: viewport.viewportId,
+        pixels: round(pixels, 6),
+        previous: round(previousPixels, 6),
+        change: round(pixels - previousPixels, 6),
+        improved: pixels < previousPixels,
+      })
+    }
+  }
+  if (viewports.length === 0) return { meanChange: 0, improved: false, viewports: [] }
+  const meanChange = round(viewports.reduce((sum, entry) => sum + entry.change, 0) / viewports.length, 6)
+  return { meanChange, improved: meanChange < 0, viewports }
+}
+
+function summarize(cases) {  const summary = { cases: cases.length, viewports: 0, verified: 0, 'image-verified': 0, failed: 0, incomplete: 0 }
   for (const entry of cases) {
     summary.viewports += entry.viewports.length
     for (const viewport of entry.viewports) summary[viewport.status] += 1

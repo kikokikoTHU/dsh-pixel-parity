@@ -17,6 +17,7 @@ import { runConfig } from './core/runner.mjs'
 import { approveRun, latestRunDir } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
+import { diagnoseRun } from './core/diagnose.mjs'
 
 const args = parseArgs(process.argv.slice(2))
 const command = args._[0] ?? 'run'
@@ -36,6 +37,8 @@ if (command === 'run') {
   init()
 } else if (command === 'report') {
   report()
+} else if (command === 'diagnose') {
+  diagnose()
 } else {
   console.error(`unknown command "${command}"`)
   printHelp()
@@ -115,6 +118,34 @@ function report() {
     process.exit(0)
   } catch (error) {
     console.error(`parity report failed: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(2)
+  }
+}
+
+function diagnose() {
+  try {
+    const runDir = resolveRunDir(repoRoot, args.run === undefined ? undefined : resolve(String(args.run)))
+    const diagnosis = diagnoseRun(runDir, {
+      cases: list(args.case),
+      viewports: list(args.viewport),
+    })
+    if (args.json === true) {
+      process.stdout.write(`${JSON.stringify(diagnosis, null, 2)}\n`)
+    } else {
+      const lines = [`PixelParity diagnose ${runDir} (iteration ${diagnosis.iteration ?? 1})`]
+      if (diagnosis.delta !== null && diagnosis.delta !== undefined) {
+        lines.push(`delta: mean ${(diagnosis.delta.meanChange * 100).toFixed(2)}% pixels (${diagnosis.delta.improved ? 'improved' : 'regressed'})`)
+      }
+      for (const viewport of diagnosis.viewports) {
+        lines.push(`${viewport.status.padEnd(15)} ${viewport.case} @ ${viewport.viewport}`)
+        for (const finding of viewport.findings.slice(0, 5)) lines.push(`  [${finding.layer}] ${finding.summary}`)
+        if (viewport.next.length > 0) lines.push(`  next: ${viewport.next[0]}`)
+      }
+      console.log(lines.join('\n'))
+    }
+    process.exit(0)
+  } catch (error) {
+    console.error(`parity diagnose failed: ${error instanceof Error ? error.message : String(error)}`)
     process.exit(2)
   }
 }
@@ -217,7 +248,7 @@ function printSummary(result) {
 }
 
 function printHelp() {
-  console.log(`Usage: node cli.mjs <run|approve|init|report> [options]
+  console.log(`Usage: node cli.mjs <run|approve|init|report|diagnose> [options]
 
 init:
   --repo <dir>           repository root (default: cwd)
@@ -252,5 +283,12 @@ report:
   --repo <dir>           repository root
   --run <dir>            run directory (default: newest)
   --case <id>            only these cases
-  --json                 print the report as JSON`)
+  --json                 print the report as JSON
+
+diagnose:
+  --repo <dir>           repository root
+  --run <dir>            run directory (default: newest)
+  --case <id>            only these cases
+  --viewport <id>        only these viewports
+  --json                 print the diagnosis as JSON`)
 }

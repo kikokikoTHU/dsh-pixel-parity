@@ -30,6 +30,9 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
   the anchor snapshot so regression stays geometry-aware.
 - **`parity_report`** — summarizes a finished run (newest by default) without re-capturing:
   status per case/viewport, pixel ratio, geometry failures, style diffs, worst regions.
+- **`parity_diagnose`** — turns a run into ranked fix targets: geometry deltas first, then
+  style diffs, then the largest pixel regions with the IR nodes that overlap them. Use it
+  after every run to decide the next code change.
 - **`parity_check`** — single-shot image-vs-page comparison for repos without a config.
 - **Dev server start** — `targets.implementation.start` (plus `baseUrl`) launches the app
   when the URL is not already reachable, waits for readiness, and stops it after the run.
@@ -54,6 +57,23 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM
 evidence), `failed`, `incomplete` (capture error).
+
+## The alignment loop
+
+This is **not** a design-to-code generator. The model edits the real implementation; the
+plugin supplies a measurable loop:
+
+```
+parity_run → parity_diagnose → edit code → parity_run → compare delta
+```
+
+Every manifest records `iteration`, `parentRun`, and `delta` (pixel change vs the previous
+run), so "did this change help?" is measured rather than claimed. `parity_diagnose` ranks
+the next fix: geometry deltas first, then style diffs, then the largest pixel regions with
+the IR nodes that overlap them. See [docs/WORKFLOW.md](docs/WORKFLOW.md).
+
+IR / QML / component exports are optional inspection and portability seams for reviewing
+what was captured; they are not the alignment mechanism.
 
 ## Repo alignment
 

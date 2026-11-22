@@ -291,6 +291,7 @@ cases/<case>/<viewport>/
 | M36 ✅ | 组件 CSS 剪枝与可读类名：默认值剪除 + `button` UA 重置 + 伪元素签名入类键；CSS 159KB→93KB，类名 `div-container` 等，像素差保持 0.44% | 产物更接近可维护代码 |
 | M37 ✅ | 组件抽取：按深度 3 结构签名聚类，≥3 实例输出 `generated.components.json` + `components/*.html`（`{{textN}}` 槽位）；原型抽出表格行×16、导航链接×11、信息块×6、导航按钮×4，主渲染不变 | 重复结构可复用 |
 | M38 ✅ | CSS 简写合并与作用域过滤：padding/margin/border/gap/flex 合并为简写，SVG 绘制属性只在 SVG 内输出、表格属性只在 table 上输出；CSS 93KB→59KB（累计 159KB→59KB），像素差 0.43% | 产物更精简 |
+| M39 ✅ | LLM 闭环：manifest 记录 `iteration`/`parentRun`/`delta`；新增 `parity_diagnose`（按几何→样式→像素+重叠 IR 节点排序）与 CLI `diagnose`；skill/README 明确“测量仪/迭代器，不是低代码生成器” | 迭代对齐可测量、可审计 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

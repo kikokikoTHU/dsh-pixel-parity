@@ -1230,6 +1230,60 @@ http.createServer((req, res) => {
     assert.match(partial, /\{\{text\d\}\}/)
   })
 
+  await test('runs record iteration history and pixel deltas', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-history-'))
+    const first = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['exact'],
+      outDir: join(repoRoot, '.parity', 'runs', 'iteration-1'),
+    })
+    const second = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['exact'],
+      outDir: join(repoRoot, '.parity', 'runs', 'iteration-2'),
+    })
+    assert.equal(first.manifest.iteration, 1)
+    assert.equal(second.manifest.iteration, 2)
+    assert.equal(second.manifest.parentRun.runId, first.manifest.runId)
+    const delta = second.manifest.delta
+    assert.ok(delta !== null && delta !== undefined, 'delta recorded')
+    assert.equal(delta.viewports.length, 1)
+    assert.equal(delta.viewports[0].previous, first.manifest.cases[0].viewports[0].pixels.metrics.mismatchRatio)
+
+    const { diagnoseRun } = await import('../core/diagnose.mjs')
+    const diagnosis = diagnoseRun(second.runDir)
+    assert.equal(diagnosis.iteration, 2)
+    assert.equal(diagnosis.viewports[0].case, 'exact')
+    assert.equal(diagnosis.viewports[0].findings.filter(finding => finding.layer === 'geometry').length, 0)
+  })
+
+  await test('diagnose ranks geometry failures for the shifted case', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-diagnose-'))
+    const result = await runConfig({
+      configPath: fixtureConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      caseIds: ['shifted'],
+      outDir: join(repoRoot, '.parity', 'runs', 'diagnose'),
+    })
+    const { diagnoseRun } = await import('../core/diagnose.mjs')
+    const diagnosis = diagnoseRun(result.runDir)
+    const viewport = diagnosis.viewports[0]
+    assert.equal(viewport.status, 'failed')
+    const geometry = viewport.findings.filter(finding => finding.layer === 'geometry')
+    assert.ok(geometry.length >= 1, 'geometry finding present')
+    assert.equal(geometry[0].anchor, 'query')
+    assert.ok(Math.abs(geometry[0].delta.x) >= 4)
+    assert.ok(viewport.next.length >= 1)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')
@@ -1448,6 +1502,13 @@ http.createServer((req, res) => {
     const reportValue = await reportTool.execute({ repo, runDir: value.runDir }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(reportTool.output.schema, reportValue, 'value'), [])
     assert.equal(reportValue.cases[0].id, 'exact')
+
+    const diagnoseTool = registered.get('parity_diagnose')
+    assert.ok(diagnoseTool !== undefined)
+    tools.assertSupportedJsonSchema(diagnoseTool.parameters)
+    tools.assertSupportedJsonSchema(diagnoseTool.output.schema)
+    const diagnosisValue = await diagnoseTool.execute({ repo, runDir: value.runDir }, {})
+    assert.deepEqual(tools.validateJsonSchemaValue(diagnoseTool.output.schema, diagnosisValue, 'value'), [])
   })
 }
 
