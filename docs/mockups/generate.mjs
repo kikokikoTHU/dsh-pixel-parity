@@ -1,0 +1,310 @@
+﻿/**
+ * Generate placement mockups for the Pixel Parity panel (1440x900 each).
+ * Run from a checkout that has Playwright installed:
+ *   node docs/mockups/generate.mjs
+ */
+
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { createRequire } from 'node:module'
+
+const require = createRequire(join(process.cwd(), 'package.json'))
+const { chromium } = require('playwright')
+
+const OUT = fileURLToPath(new URL('.', import.meta.url))
+mkdirSync(OUT, { recursive: true })
+
+const CSS = `
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --line: #e6e9ef; --line-strong: #d6dbe4;
+    --text: #1d2430; --muted: #6c7787; --brand: #2f6fed; --green: #16794b; --red: #c0392b;
+    --amber: #9a6a00; --chip: #eef1f6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--text); background: var(--bg); font-size: 13px;
+  }
+  .window { height: 900px; display: flex; flex-direction: column; }
+  .titlebar {
+    height: 34px; display: flex; align-items: center; gap: 16px; padding: 0 14px;
+    background: #fbfcfd; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px;
+  }
+  .titlebar .spacer { flex: 1; }
+  .traffic { letter-spacing: 10px; color: #aab2bd; font-size: 11px; }
+  .app { flex: 1; display: grid; grid-template-columns: 252px 1fr; min-height: 0; }
+  .sidebar {
+    background: #fbfcfd; border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; padding: 10px 10px 8px; gap: 6px; min-height: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 4px 6px 10px; font-weight: 700; font-size: 14px; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: #2b3444; color: #fff; display: grid; place-items: center; font-size: 12px; }
+  .new-session {
+    border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; padding: 8px 10px;
+    font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 6px;
+  }
+  .nav { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; color: #39424f; }
+  .nav-item .ico { width: 16px; text-align: center; color: var(--muted); }
+  .nav-item.active { background: #eef1f6; font-weight: 600; }
+  .nav-item .badge-new { margin-left: auto; font-size: 10px; color: #fff; background: var(--red); border-radius: 999px; padding: 0 5px; }
+  .ws { margin-top: 10px; display: flex; flex-direction: column; min-height: 0; }
+  .ws-head { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; padding: 6px; }
+  .ws-head .spacer { flex: 1; }
+  .ws-root { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 7px; font-size: 12px; }
+  .sessions { overflow: hidden; display: flex; flex-direction: column; gap: 2px; padding-left: 6px; }
+  .session { padding: 6px 8px; border-radius: 7px; font-size: 12px; color: #4a5462; display: flex; gap: 6px; }
+  .session .age { margin-left: auto; color: #9aa4b1; font-size: 10px; }
+  .session.active { background: #eef1f6; color: var(--text); font-weight: 600; }
+  .sidebar .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 8px 6px 2px; font-size: 12px; }
+  .avatar { width: 22px; height: 22px; border-radius: 50%; background: #e6a23c; color: #fff; display: grid; place-items: center; font-size: 11px; }
+  .main { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--panel); overflow: hidden; }
+  .topbar { height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .leading { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line-strong); display: grid; place-items: center; font-size: 10px; font-weight: 700; color: var(--brand); background: #f3f7ff; position: relative; }
+  .leading .dot { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--red); color: #fff; font-size: 8px; display: grid; place-items: center; }
+  .session-title { font-weight: 600; font-size: 13px; }
+  .chip { font-size: 11px; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 2px 8px; }
+  .sub { font-size: 11px; color: var(--muted); }
+  .topbar .spacer { flex: 1; }
+  .util-btn {
+    display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: #fff;
+    border-radius: 8px; padding: 4px 8px; font-size: 11px; color: var(--text);
+  }
+  .util-btn .count { background: var(--red); color: #fff; border-radius: 999px; padding: 0 5px; font-size: 10px; }
+  .icon { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); background: #f4f6f9; font-size: 12px; }
+  .tabs { display: flex; align-items: center; gap: 4px; padding: 6px 14px 0; border-bottom: 1px solid var(--line); }
+  .tab { padding: 7px 10px 9px; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .content { flex: 1; min-height: 0; overflow: hidden; padding: 26px 13% 8px; position: relative; }
+  .content.full { padding: 0; display: flex; flex-direction: column; }
+  .msg-user { margin-left: auto; max-width: 70%; background: #eef2f7; border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+  .msg-ai { margin-top: 18px; line-height: 1.75; font-size: 13px; color: #2a3341; }
+  .msg-ai h4 { margin: 18px 0 6px; font-size: 14px; }
+  .code { background: #f5f7fa; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-family: Consolas, monospace; font-size: 11px; color: #334; line-height: 1.6; }
+  .composer {
+    margin: 8px 13% 16px; border: 1px solid var(--line-strong); border-radius: 16px; background: #fff;
+    box-shadow: 0 6px 20px rgba(31, 42, 61, 0.06); padding: 10px 12px 8px;
+  }
+  .composer .placeholder { color: #97a1af; font-size: 12px; padding: 4px 2px 18px; }
+  .composer .bar { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+  .composer .bar .spacer { flex: 1; }
+  .send { width: 26px; height: 26px; border-radius: 50%; background: #b9c3d1; color: #fff; display: grid; place-items: center; }
+  .dock {
+    margin: 0 13% 6px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe;
+    padding: 8px 10px; font-size: 11px;
+  }
+  .dock .row { display: flex; align-items: center; gap: 8px; }
+  .dock .badge { background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 7px; }
+  .dock .runs { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 4px; }
+  .dock .run { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .drawer {
+    position: absolute; top: 52px; right: 12px; bottom: 92px; width: 392px;
+    background: #fff; border: 1px solid var(--line-strong); border-radius: 12px;
+    box-shadow: 0 18px 48px rgba(24, 36, 56, 0.16); display: flex; flex-direction: column; overflow: hidden;
+    z-index: 5;
+  }
+  .drawer.left { right: auto; left: 12px; top: 52px; bottom: 16px; width: 372px; }
+  .drawer header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .drawer header strong { font-size: 12px; }
+  .drawer header .spacer { flex: 1; }
+  .drawer .root { padding: 6px 12px; color: var(--muted); font-size: 10px; border-bottom: 1px solid var(--line); }
+  .drawer .list { padding: 8px 12px 12px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  .run-card { border: 1px solid var(--line); border-radius: 9px; padding: 8px; }
+  .run-card .line { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .run-card .iter { font-weight: 600; font-size: 11px; }
+  .run-card .pill { border-radius: 999px; padding: 1px 7px; font-size: 10px; background: var(--chip); color: var(--muted); }
+  .run-card .pill.ok { background: #e8f5ee; color: var(--green); }
+  .run-card .pill.bad { background: #fdecea; color: var(--red); }
+  .run-card .pill.info { background: #eaf1ff; color: #2f5fce; }
+  .run-card .meta { color: var(--muted); font-size: 10px; margin-top: 4px; }
+  .thumb { margin-top: 6px; height: 78px; border: 1px solid var(--line); border-radius: 6px; position: relative; background: #fff; overflow: hidden; }
+  .thumb .ref { position: absolute; left: 14px; top: 22px; width: 84px; height: 26px; border: 1px dashed #9fb0c6; border-radius: 4px; }
+  .thumb .impl { position: absolute; left: 50px; top: 22px; width: 84px; height: 26px; border: 1px solid rgba(192, 57, 43, 0.85); border-radius: 4px; background: rgba(192, 57, 43, 0.06); }
+  .thumb .grid { position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px); background-size: 16px 16px; }
+  .page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .page-head { padding: 16px 22px 10px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+  .page-head h2 { margin: 0; font-size: 15px; }
+  .page-head .spacer { flex: 1; }
+  .page-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 14px 22px 18px; }
+  .table { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; align-self: start; }
+  .table .tr { display: grid; grid-template-columns: 190px 92px 70px 1fr; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 11px; align-items: center; }
+  .table .tr.head { background: #f8f9fb; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .table .tr:last-child { border-bottom: 0; }
+  .table .mono { font-family: Consolas, monospace; font-size: 10px; color: #6b7684; }
+  .preview { border: 1px solid var(--line); border-radius: 10px; padding: 10px; align-self: start; }
+  .preview h3 { margin: 2px 0 8px; font-size: 12px; }
+  .preview .big { height: 180px; border: 1px solid var(--line); border-radius: 8px; position: relative; overflow: hidden; }
+  .preview .big .ghost { position: absolute; left: 28px; top: 60px; width: 190px; height: 54px; border: 1px dashed #9fb0c6; border-radius: 6px; }
+  .preview .big .shift { position: absolute; left: 96px; top: 60px; width: 190px; height: 54px; border: 1px solid rgba(192, 57, 43, 0.85); border-radius: 6px; background: rgba(192, 57, 43, 0.05); }
+  .preview .legend { margin-top: 8px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+  .caption { position: absolute; left: 12px; bottom: 10px; font-size: 10px; color: #98a2b1; background: rgba(255,255,255,0.86); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; }
+  .note { margin: 10px 0 0; font-size: 10px; color: var(--amber); }
+`
+
+function sidebarBody({ railActive } = {}) {
+  return `
+    <div class="brand"><span class="mark">D</span>DeepSeek Harness</div>
+    <div class="new-session">＋ 新会话</div>
+    <div class="nav">
+      <div class="nav-item"><span class="ico">◈</span>插件</div>
+      <div class="nav-item"><span class="ico">◷</span>自动化任务</div>
+      ${railActive ? '<div class="nav-item active"><span class="ico">◫</span>Pixel parity<span class="badge-new">1</span></div>' : ''}
+      <div class="nav-item"><span class="ico">⋯</span>更多</div>
+    </div>
+    <div class="ws">
+      <div class="ws-head"><span>工作区</span><span class="spacer"></span><span>⌕</span><span>＋</span></div>
+      <div class="ws-root"><span class="ico">▣</span>github</div>
+      <div class="sessions">
+        <div class="session active">设计图转前端代码插件命名<span class="age">1分钟</span></div>
+        <div class="session">读取 pp-verify 运行结果<span class="age">19分钟</span></div>
+        <div class="session">PS4/PS5 串流 Windows 工具<span class="age">20小时</span></div>
+      </div>
+    </div>
+    <div class="foot"><span class="avatar">M</span>Mr.kikokiko</div>`
+}
+
+function runsCard({ thumb = true } = {}) {
+  return `
+    <div class="run-card">
+      <div class="line"><span class="iter">iter 2</span><span class="pill ok">1✓</span><span class="pill">−0.43%</span><span style="margin-left:auto" class="pill info">improved</span></div>
+      <div class="meta">2026-11-22 15:21 · toolbar @ desktop · 0.00%</div>
+      ${thumb ? '<div class="thumb"><span class="grid"></span><span class="ref"></span><span class="impl"></span></div>' : ''}
+    </div>
+    <div class="run-card">
+      <div class="line"><span class="iter">iter 1</span><span class="pill bad">1✗</span><span class="pill">geometry</span><span style="margin-left:auto" class="pill">+0.43%</span></div>
+      <div class="meta">2026-11-22 15:20 · toolbar @ desktop · query +4px</div>
+      <div class="thumb"><span class="grid"></span><span class="ref"></span><span class="impl"></span></div>
+    </div>`
+}
+
+function chatBody() {
+  return `
+    <div class="msg-user">用 parity_diagnose 读取 pp-verify 这次 run 的结果</div>
+    <div class="msg-ai">
+      <p>诊断结果：最新一轮 <strong>iteration 2</strong> 已通过，delta 为 <strong>−0.43%</strong>（改善），无待修项。</p>
+      <h4>逐层结论</h4>
+      <p>几何：<code>query</code> 已与参考对齐；样式：无差异；像素：0.00%。</p>
+      <div class="code">verified        toolbar @ desktop</div>
+    </div>`
+}
+
+function drawer({ left = false } = {}) {
+  return `
+    <aside class="drawer${left ? ' left' : ''}">
+      <header><strong>Pixel parity</strong><span class="pill ok">1✓</span><span class="pill bad">1✗</span><span class="spacer"></span><span class="icon">⟳</span><span class="icon">×</span></header>
+      <div class="root">C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-loop-demo</div>
+      <div class="list">${runsCard()}</div>
+    </aside>`
+}
+
+function pageView() {
+  return `
+    <div class="page">
+      <div class="page-head">
+        <h2>Pixel parity</h2>
+        <span class="pill ok">1 verified</span><span class="pill bad">1 failed</span>
+        <span class="spacer"></span>
+        <span class="chip">pp-loop-demo</span>
+        <span class="util-btn">Refresh</span>
+      </div>
+      <div class="page-body">
+        <div>
+          <div class="table">
+            <div class="tr head"><span>run</span><span>iteration</span><span>pixels</span><span>status</span></div>
+            <div class="tr"><span class="mono">2026-11-22T07-21-02</span><span>2</span><span>0.00%</span><span style="color:var(--green)">verified</span></div>
+            <div class="tr"><span class="mono">2026-11-22T07-20-52</span><span>1</span><span>0.43%</span><span style="color:var(--red)">geometry fail · query +4px</span></div>
+            <div class="tr"><span class="mono">2026-11-22T07-19-11</span><span>0</span><span>—</span><span style="color:var(--muted)">baseline pinned</span></div>
+          </div>
+          <div class="note">只读视图：运行 / 诊断 / 批准基线仍在对话或 CLI 中完成。</div>
+        </div>
+        <div class="preview">
+          <h3>diff · toolbar @ desktop</h3>
+          <div class="big"><span class="ghost"></span><span class="shift"></span></div>
+          <div class="legend">蓝框：参考位置<br>红框：实现位置（+4px）</div>
+        </div>
+      </div>
+    </div>`
+}
+
+const variants = [
+  {
+    file: '01-current-composer-dock',
+    caption: '现状 · 输入框上方 dock',
+    body: ({ main }) => main({ content: chatBody(), dock: true }),
+  },
+  {
+    file: '02-header-button-right-drawer',
+    caption: '方案 A · 标题栏按钮 + 右侧浮层',
+    utility: true,
+    body: ({ main }) => main({ content: chatBody(), overlay: drawer() }),
+  },
+  {
+    file: '03-leading-icon-left-drawer',
+    caption: '方案 B · 左上角图标 + 左侧浮层',
+    leading: true,
+    body: ({ main }) => main({ content: chatBody(), overlay: drawer({ left: true }) }),
+  },
+  {
+    file: '04-top-tab-page',
+    caption: '方案 C · 会话视图 tab（类似“轨迹”）',
+    tab: true,
+    body: ({ main }) => main({ content: pageView(), tab: true, full: true, composer: false }),
+  },
+  {
+    file: '05-sidebar-rail-page',
+    caption: '方案 D · 左侧栏独立入口（需改核心/侧栏插件）',
+    rail: true,
+    body: ({ main }) => main({ content: pageView(), full: true, composer: false }),
+  },
+]
+
+function main({ content, leading = false, overlay = '', tab = false, dock = false, full = false, composer = true }) {
+  return `
+  <div class="tabs">
+    <div class="tab ${tab ? '' : 'active'}">对话</div>
+    <div class="tab">轨迹</div>
+    ${tab ? '<div class="tab active">Pixel parity</div>' : ''}
+  </div>
+  <div class="content${full ? ' full' : ''}">${content}</div>
+  ${dock ? '<div class="dock"><div class="row"><strong>Pixel parity</strong><span class="badge">1✓ / 1✗</span><span style="color:var(--muted)">click to hide</span><span style="margin-left:auto" class="util-btn">Refresh</span></div><div class="runs"><div class="run"><span>iter 2</span><span class="badge">1✓</span><span>−0.43%</span></div><div class="run"><span>iter 1</span><span class="badge">1✗</span><span>geometry</span></div></div></div>' : ''}
+  ${composer ? '<div class="composer"><div class="placeholder">发消息或创建任务，/ 调用指令，@ 文件或对话</div><div class="bar"><span>＋</span><span>完全权限</span><span class="spacer"></span><span>DeepSeek-V4.1-Flash High</span><span class="send">↑</span></div></div>' : ''}
+  ${overlay}`
+}
+
+function build(variant) {
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body>
+  <div class="window">
+    <div class="titlebar"><span>应用</span><span>编辑</span><div class="spacer"></div><span class="traffic">— ▢ ✕</span></div>
+    <div class="app">
+      <aside class="sidebar">${sidebarBody({ railActive: variant.rail === true })}</aside>
+      <main class="main">
+        <div class="topbar">
+          ${variant.leading === true ? '<div class="leading">PP</div>' : ''}
+          <div class="session-title">设计图转前端代码插件命名</div><span class="chip">标准模式</span><span class="sub">1 个子智能体</span>
+          <div class="spacer"></div>
+          ${variant.utility === true ? '<div class="util-btn" style="margin-right:6px">Pixel parity<span class="count">1</span></div>' : ''}
+          <span class="icon">◐</span><span class="icon">⚙</span><span class="icon">⋯</span>
+        </div>
+        ${variant.body({ main })}
+        <div class="caption">${variant.caption}</div>
+      </main>
+    </div>
+  </div></body></html>`
+  return html
+}
+
+const browser = await chromium.launch({ headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
+for (const variant of variants) {
+  const html = build(variant)
+  const file = `${OUT}/${variant.file}.html`
+  writeFileSync(file, html)
+  await page.goto(`file:///${file.replaceAll('\\', '/')}`)
+  await page.screenshot({ path: `${OUT}/${variant.file}.png` })
+  console.log('wrote', variant.file)
+}
+await browser.close()
+
+
