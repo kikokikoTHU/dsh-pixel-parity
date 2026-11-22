@@ -154,7 +154,8 @@ anchors: {
 
 The measured rect is translated into page coordinates, and styles are computed inside
 the frame. Screenshots already include iframe pixels; this adds DOM evidence for the
-same region.
+same region, and IR export captures one iframe level (absolute rendering places it
+correctly; semantic output approximates the flow).
 
 Then:
 

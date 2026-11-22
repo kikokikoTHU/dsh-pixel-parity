@@ -52,6 +52,7 @@ window.__ModuleLoader__.load({
         background: 'transparent', color: 'inherit', outline: 'none',
       },
       message: { padding: '4px 12px', fontSize: 10, borderBottom: border, ...muted },
+      diagnosis: { padding: '6px 12px', fontSize: 10, borderBottom: border, maxHeight: 140, overflow: 'auto' },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
       card: { border, borderRadius: 9, padding: 8 },
       row: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
@@ -81,6 +82,7 @@ window.__ModuleLoader__.load({
       open: zh ? '打开 Pixel parity' : 'Open Pixel parity',
       run: zh ? '用最近一次参数运行' : 'Run with the last parity_run arguments',
       approve: zh ? '批准最新基线' : 'Approve the latest baseline',
+      diagnose: zh ? '诊断最新 run' : 'Diagnose the latest run',
     }
     const statusColor = status => status === 'verified'
       ? 'var(--dsw-alias-status-success, #16794b)'
@@ -93,7 +95,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo, message: null }
+    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -194,6 +196,22 @@ window.__ModuleLoader__.load({
           : `Approved ${body.approved?.length ?? 0} baseline(s)`
         notify()
         loadOverview()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    async function diagnoseLatest() {
+      const latest = latestRun(state.data)
+      if (latest === undefined) return
+      try {
+        const response = await fetch(`/pixel-parity/diagnose?runDir=${encodeURIComponent(latest.dir)}`, { cache: 'no-store' })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.diagnosis = body
+        state.message = null
+        notify()
       } catch (failure) {
         state.message = String(failure?.message ?? failure)
         notify()
@@ -313,6 +331,11 @@ window.__ModuleLoader__.load({
             }, '✓'),
             h('button', {
               style: styles.iconButton,
+              title: t.diagnose,
+              onClick: diagnoseLatest,
+            }, '⌕'),
+            h('button', {
+              style: styles.iconButton,
               title: t.refresh,
               onClick: () => loadOverview(),
             }, '⟳'),
@@ -340,6 +363,28 @@ window.__ModuleLoader__.load({
             }, '↺'),
           ),
           store.message === null ? null : h('div', { style: styles.message }, store.message),
+          store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+              h('strong', null, 'diagnose'),
+              h('span', { style: styles.pill }, `iter ${store.diagnosis.iteration ?? 1}`),
+              h('span', { style: { flex: 1 } }),
+              h('button', {
+                style: styles.iconButton,
+                title: t.close,
+                onClick: () => { state.diagnosis = null; notify() },
+              }, '×'),
+            ),
+            (store.diagnosis.viewports ?? []).slice(0, 1).map((viewport, index) => h('div', { key: index, style: { paddingTop: 4 } },
+              h('div', { style: { fontWeight: 600 } }, `${viewport.status} ${viewport.case} @ ${viewport.viewport}`),
+              (viewport.findings ?? []).slice(0, 3).map((finding, findingIndex) => h('div', {
+                key: findingIndex,
+                style: { ...muted, paddingTop: 2 },
+              }, `[${finding.layer}] ${finding.summary}`)),
+              (viewport.next ?? []).length === 0
+                ? null
+                : h('div', { style: { ...muted, paddingTop: 3 } }, `next: ${viewport.next[0]}`),
+            )),
+          ),
           h('div', { style: styles.root }, roots.length === 0 ? 'no repository scanned yet' : roots.map(root => root.root).join(' · ')),
           h('div', { style: styles.list },
             store.error !== null

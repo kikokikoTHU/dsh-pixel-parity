@@ -260,6 +260,10 @@ and silently changed the font. Any generator must escape quoted font families.
 - Pseudo-elements with `content: url()`, counters, or animations are not captured.
 - Shadow roots are traversed, but text nodes placed directly on a shadow root (not inside a
   shadow element) are not captured.
+- Same-browser iframe content is captured one level deep; its boxes are translated into page
+  coordinates and attached under the `<iframe>` node. Nested iframes stay as plain boxes.
+  The absolute renderer draws the content at the right coordinates; semantic HTML maps the
+  `iframe` element to a `div`, so its flow layout is an approximation.
 - `<video>` frames are not captured; a `poster` is materialized and rendered.
 - Tainted canvases have no pixels.
 - 3D transforms and `transform-origin` on non-centered elements are replayed only in CSS,

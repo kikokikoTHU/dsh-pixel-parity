@@ -68,7 +68,9 @@ ${renderNode(ir.root, ir, true)}
 
 function renderNode(node, ir, isRoot = false) {
   if (SKIP_TAGS.has(node.tag)) return ''
-  const tag = node.tag === 'canvas' && node.attributes?.src !== undefined ? 'img' : node.tag
+  const tag = node.tag === 'canvas' && node.attributes?.src !== undefined
+    ? 'img'
+    : node.tag === 'iframe' ? 'div' : node.tag
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style)
   const spans = `${node.colSpan > 1 ? ` colspan="${node.colSpan}"` : ''}${node.rowSpan > 1 ? ` rowspan="${node.rowSpan}"` : ''}`

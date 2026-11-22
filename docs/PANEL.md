@@ -21,6 +21,7 @@ every 4 seconds while open, and the badge refreshes every 20 seconds.
 
 | Button | Effect |
 | --- | --- |
+| ◉ (diagnose) | fetches `parity_diagnose` for the latest run and lists its top findings |
 | ▶ | re-runs the last `parity_run` arguments with `baselineMode: ephemeral` (never writes a baseline) |
 | ✓ | approves the latest run as the baseline, same as `parity_approve` |
 | ⟳ | reloads the overview |

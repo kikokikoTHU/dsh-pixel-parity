@@ -273,6 +273,29 @@ await test('panel routes register on the web server', async () => {
   assert.ok((await job.json()) === null)
 })
 
+await test('QML generator maps 2D skew matrices to Matrix4x4', async () => {
+  const { generateQml } = await import('../core/ir-qml.mjs')
+  const ir = {
+    ir: '1.0',
+    source: { kind: 'web', url: 'x', viewport: { width: 200, height: 100, dpr: 1 }, canvas: { width: 200, height: 100 }, truncated: false },
+    tokens: { colors: {}, radius: {}, typography: {} },
+    assets: { fonts: [] },
+    root: {
+      id: 'n1', tag: 'body', role: 'container', layout: { kind: 'block' },
+      box: { x: 0, y: 0, w: 200, h: 100 }, style: {},
+      children: [{
+        id: 'n2', tag: 'div', role: 'container', layout: { kind: 'block' },
+        box: { x: 20, y: 10, w: 100, h: 40 },
+        transformedSize: { width: '100px', height: '40px' },
+        style: { backgroundColor: '#3366cc', transform: 'matrix(1, 0, 0.2, 1, 0, 0)' },
+      }],
+    },
+  }
+  const qml = generateQml(ir)
+  assert.match(qml, /Matrix4x4/)
+  assert.match(qml, /Qt\.matrix4x4\(1, 0, 0, 0, 0\.2, 1,/)
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,
@@ -1423,6 +1446,7 @@ http.createServer((req, res) => {
       repoRoot,
       dependenciesRoot: repo,
       baselineMode: 'ephemeral',
+      exportIr: true,
       outDir: join(repoRoot, '.parity', 'runs', 'interactions'),
     })
     const byId = id => result.manifest.cases.find(entry => entry.id === id)
@@ -1432,6 +1456,15 @@ http.createServer((req, res) => {
     assert.ok(anchor.pass)
     assert.equal(anchor.actual.x, 50)
     assert.equal(anchor.actual.y, 70)
+
+    const irPath = byId('iframe').viewports[0].ir.path
+    const ir = JSON.parse(readFileSync(irPath, 'utf8'))
+    const { flattenIr } = await import('../core/ir.mjs')
+    const flat = flattenIr(ir.root)
+    const frame = flat.find(node => node.tag === 'iframe')
+    assert.ok(frame !== undefined, 'iframe node kept in the IR')
+    assert.ok((frame.children ?? []).length > 0, 'iframe content captured')
+    assert.ok(flat.some(node => (node.textRuns ?? []).some(run => run.text === 'inner')), 'iframe text captured')
   })
 
   await test('config normalizes interaction steps, storageState, and frame anchors', async () => {

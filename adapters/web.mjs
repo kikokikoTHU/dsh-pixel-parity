@@ -135,6 +135,8 @@ const ELEMENT_ATTRIBUTES = {
   video: ['poster', 'src', 'autoplay', 'loop', 'muted', 'controls', 'playsinline'],
 }
 
+const CAPTURE_ARGS = { maxNodes: 2000, styleKeys: IR_STYLE_PROPS, elementAttributes: ELEMENT_ATTRIBUTES }
+
 const FREEZE_CSS = `
 *,*::before,*::after{
   animation-duration:0s!important;animation-delay:0s!important;
@@ -251,82 +253,7 @@ async function measureAnchors(page, specs, props) {
   return result
 }
 
-function createPlaywrightDriver(playwright, options) {
-  let browser
-
-  async function capture(input) {
-    if (browser === undefined) {
-      browser = await playwright.chromium.launch({
-        headless: options.headless !== false,
-        // Match the Chrome CLI fallback's text rendering so captures from the
-        // two drivers remain comparable.
-        args: ['--disable-lcd-text', '--font-render-hinting=none', '--hide-scrollbars'],
-      })
-    }
-    const { width, height, dpr } = input.viewport
-    const context = await browser.newContext({
-      viewport: { width, height },
-      deviceScaleFactor: dpr,
-      locale: input.locale ?? 'zh-CN',
-      timezoneId: input.timezone ?? 'Asia/Shanghai',
-      colorScheme: 'light',
-      reducedMotion: 'reduce',
-      bypassCSP: true,
-      ...(input.storageState === undefined ? {} : { storageState: input.storageState }),
-    })
-    try {
-      const page = await context.newPage()
-      if (input.fixtures !== undefined) {
-        await applyFixtures(page, input.fixtures, input)
-      }
-      await page.goto(toTargetUrl(input.url), { waitUntil: 'load', timeout: 45000 })
-      await page.addStyleTag({ content: FREEZE_CSS })
-      if (input.freeze?.animations !== false) {
-        await page.emulateMedia({ reducedMotion: 'reduce' })
-      }
-      if (input.freeze?.clock !== undefined && input.freeze?.clock !== null) {
-        try {
-          await page.clock.install({ time: new Date(input.freeze.clock) })
-        } catch {
-          // Older Playwright builds may not expose the clock API; the screenshot still runs.
-        }
-      }
-      if (Array.isArray(input.steps) && input.steps.length > 0) {
-        await runSteps(page, input.steps)
-      }
-      for (const selector of input.hide ?? []) {
-        await page.addStyleTag({ content: `${selector}{display:none!important}` })
-      }
-      for (const selector of input.waitFor ?? []) {
-        await page.waitForSelector(selector, { state: 'visible', timeout: 15000 }).catch(() => {})
-      }
-      await page.evaluate(() => document.fonts?.ready ?? Promise.resolve())
-      await page.waitForTimeout(120)
-
-      const screenshot = await page.screenshot({ type: 'png' })
-      const image = decodePng(screenshot)
-      const expectedWidth = Math.round(width * dpr)
-      const expectedHeight = Math.round(height * dpr)
-      if (image.width !== expectedWidth || image.height !== expectedHeight) {
-        throw new Error(`screenshot is ${image.width}x${image.height}, expected ${expectedWidth}x${expectedHeight} (${width}x${height} at dpr ${dpr})`)
-      }
-
-      const anchors = await measureAnchors(page, input.anchors ?? {}, STYLE_PROPS)
-
-      const masks = await page.evaluate((selectors) => {
-        const rects = []
-        for (const selector of selectors) {
-          for (const element of document.querySelectorAll(selector)) {
-            const rect = element.getBoundingClientRect()
-            if (rect.width > 0 && rect.height > 0) rects.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height })
-          }
-        }
-        return rects
-      }, input.masks ?? [])
-
-      let dom
-      if (input.exportDom === true) {
-        dom = await page.evaluate(({ maxNodes, styleKeys, elementAttributes }) => {
+function captureDocumentFrame({ maxNodes, styleKeys, elementAttributes }) {
           const SKIP = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'HEAD', 'NOSCRIPT', 'TEMPLATE', 'COLGROUP', 'COL'])
           const round = value => Math.round(value * 10) / 10
           const pick = (style) => {
@@ -351,6 +278,7 @@ function createPlaywrightDriver(playwright, options) {
             return out
           }
           let count = 0
+          let iframeCount = 0
           let truncated = false
           const num = value => Number.parseFloat(value) || 0
           const measureCanvas = document.createElement('canvas')
@@ -457,6 +385,7 @@ function createPlaywrightDriver(playwright, options) {
               box: { x: round(rect.x), y: round(rect.y), w: round(rect.width), h: round(rect.height) },
               style: pick(style),
             }
+            if (localName === 'iframe') node.frameIndex = iframeCount++
             // A transformed element's box is its bounding box, not its layout box;
             // keep the computed layout size so the transform can be replayed.
             if (style.transform !== 'none') {
@@ -646,8 +575,134 @@ function createPlaywrightDriver(playwright, options) {
               fonts.push({ family, weight, style: styleValue, src: absolute, format })
             }
           }
-          return { root, truncated, count, fonts }
-        }, { maxNodes: 2000, styleKeys: IR_STYLE_PROPS, elementAttributes: ELEMENT_ATTRIBUTES })
+          return { root, truncated, count, fonts, iframes: iframeCount }
+        }
+
+/**
+ * Capture same-browser iframe content into the parent IR. Coordinates are
+ * translated into page space, so the absolute renderer draws the content at the
+ * right place. Only one iframe level is attached; a nested iframe stays a plain
+ * box and is reported as such in docs/IR.md.
+ */
+async function attachIframeContent(hostFrame, dom) {
+  const handles = await hostFrame.$$('iframe')
+  if (handles.length === 0) return
+  const nodes = []
+  const visit = node => {
+    if (node === null || typeof node !== 'object') return
+    if (node.frameIndex !== undefined) nodes.push(node)
+    for (const child of node.children ?? []) visit(child)
+  }
+  if (dom.root !== null) visit(dom.root)
+  for (const node of nodes) {
+    const handle = handles[node.frameIndex]
+    if (handle === undefined) continue
+    const frame = await handle.contentFrame()
+    if (frame === null) continue
+    const origin = await handle.evaluate(element => {
+      const rect = element.getBoundingClientRect()
+      return { x: rect.left + element.clientLeft, y: rect.top + element.clientTop }
+    })
+    let sub
+    try {
+      sub = await frame.evaluate(captureDocumentFrame, CAPTURE_ARGS)
+    } catch {
+      continue
+    }
+    if (sub.root === null) continue
+    translateIr(sub.root, origin.x, origin.y)
+    node.children = sub.root.children ?? []
+    node.iframe = { url: frame.url() }
+  }
+}
+
+function translateIr(node, dx, dy) {
+  node.box.x += dx
+  node.box.y += dy
+  for (const run of node.textRuns ?? []) {
+    run.box.x += dx
+    run.box.y += dy
+  }
+  for (const child of node.children ?? []) translateIr(child, dx, dy)
+}
+
+function createPlaywrightDriver(playwright, options) {
+  let browser
+
+  async function capture(input) {
+    if (browser === undefined) {
+      browser = await playwright.chromium.launch({
+        headless: options.headless !== false,
+        // Match the Chrome CLI fallback's text rendering so captures from the
+        // two drivers remain comparable.
+        args: ['--disable-lcd-text', '--font-render-hinting=none', '--hide-scrollbars'],
+      })
+    }
+    const { width, height, dpr } = input.viewport
+    const context = await browser.newContext({
+      viewport: { width, height },
+      deviceScaleFactor: dpr,
+      locale: input.locale ?? 'zh-CN',
+      timezoneId: input.timezone ?? 'Asia/Shanghai',
+      colorScheme: 'light',
+      reducedMotion: 'reduce',
+      bypassCSP: true,
+      ...(input.storageState === undefined ? {} : { storageState: input.storageState }),
+    })
+    try {
+      const page = await context.newPage()
+      if (input.fixtures !== undefined) {
+        await applyFixtures(page, input.fixtures, input)
+      }
+      await page.goto(toTargetUrl(input.url), { waitUntil: 'load', timeout: 45000 })
+      await page.addStyleTag({ content: FREEZE_CSS })
+      if (input.freeze?.animations !== false) {
+        await page.emulateMedia({ reducedMotion: 'reduce' })
+      }
+      if (input.freeze?.clock !== undefined && input.freeze?.clock !== null) {
+        try {
+          await page.clock.install({ time: new Date(input.freeze.clock) })
+        } catch {
+          // Older Playwright builds may not expose the clock API; the screenshot still runs.
+        }
+      }
+      if (Array.isArray(input.steps) && input.steps.length > 0) {
+        await runSteps(page, input.steps)
+      }
+      for (const selector of input.hide ?? []) {
+        await page.addStyleTag({ content: `${selector}{display:none!important}` })
+      }
+      for (const selector of input.waitFor ?? []) {
+        await page.waitForSelector(selector, { state: 'visible', timeout: 15000 }).catch(() => {})
+      }
+      await page.evaluate(() => document.fonts?.ready ?? Promise.resolve())
+      await page.waitForTimeout(120)
+
+      const screenshot = await page.screenshot({ type: 'png' })
+      const image = decodePng(screenshot)
+      const expectedWidth = Math.round(width * dpr)
+      const expectedHeight = Math.round(height * dpr)
+      if (image.width !== expectedWidth || image.height !== expectedHeight) {
+        throw new Error(`screenshot is ${image.width}x${image.height}, expected ${expectedWidth}x${expectedHeight} (${width}x${height} at dpr ${dpr})`)
+      }
+
+      const anchors = await measureAnchors(page, input.anchors ?? {}, STYLE_PROPS)
+
+      const masks = await page.evaluate((selectors) => {
+        const rects = []
+        for (const selector of selectors) {
+          for (const element of document.querySelectorAll(selector)) {
+            const rect = element.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) rects.push({ x: rect.x, y: rect.y, w: rect.width, h: rect.height })
+          }
+        }
+        return rects
+      }, input.masks ?? [])
+
+      let dom
+      if (input.exportDom === true) {
+        dom = await page.evaluate(captureDocumentFrame, CAPTURE_ARGS)
+        await attachIframeContent(page, dom)
       }
 
       return {

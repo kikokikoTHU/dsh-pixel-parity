@@ -235,6 +235,31 @@ function renderAbsolute(node, parent, ir, depth, placement, style, semantic) {
       }
       base.push(`rotation: ${number(rotation)}`, 'transformOrigin: Item.Center')
     }
+  } else {
+    const affine = affineOf(style)
+    if (affine !== undefined && node.transformedSize !== undefined) {
+      const layoutWidth = Number.parseFloat(node.transformedSize.width)
+      const layoutHeight = Number.parseFloat(node.transformedSize.height)
+      if (Number.isFinite(layoutWidth) && Number.isFinite(layoutHeight)) {
+        if (placement.kind === 'absolute') {
+          base = [
+            `x: ${number(node.box.x + node.box.w / 2 - layoutWidth / 2)}`,
+            `y: ${number(node.box.y + node.box.h / 2 - layoutHeight / 2)}`,
+            `width: ${number(layoutWidth)}`,
+            `height: ${number(layoutHeight)}`,
+          ]
+        } else {
+          base = [`width: ${number(layoutWidth)}`, `height: ${number(layoutHeight)}`, base[base.length - 1]]
+        }
+        const cx = layoutWidth / 2
+        const cy = layoutHeight / 2
+        const e = affine.e + cx - affine.a * cx - affine.c * cy
+        const f = affine.f + cy - affine.b * cx - affine.d * cy
+        base.push(
+          `transform: Matrix4x4 { matrix: Qt.matrix4x4(${number(affine.a)}, ${number(affine.b)}, 0, 0, ${number(affine.c)}, ${number(affine.d)}, 0, 0, 0, 0, 1, 0, ${number(e)}, ${number(f)}, 0, 1) }`,
+        )
+      }
+    }
   }
   if (node.tag === 'svg') {
     return `${indent}Image {
@@ -482,6 +507,21 @@ function rotationOf(style) {
   const scale = Math.hypot(a, b)
   if (Math.abs(scale - 1) > 0.001) return undefined
   return Math.round((Math.atan2(b, a) * 180 / Math.PI) * 10) / 10
+}
+
+/** Parse a 2D affine `matrix(...)` for non-rotation transforms (skew/scale). */
+function affineOf(style) {
+  const value = style.transform
+  if (typeof value !== 'string' || !value.startsWith('matrix(')) return undefined
+  const numbers = value.slice('matrix('.length, -1).split(',').map(part => Number(part.trim()))
+  if (numbers.length !== 6 || numbers.some(part => !Number.isFinite(part))) return undefined
+  const [a, b, c, d, e, f] = numbers
+  const rotationOnly = Math.abs(a - d) <= 0.001
+    && Math.abs(b + c) <= 0.001
+    && Math.abs(Math.hypot(a, b) - 1) <= 0.001
+  if (rotationOnly) return undefined
+  if (Math.abs(a - 1) <= 0.0001 && Math.abs(b) <= 0.0001 && Math.abs(c) <= 0.0001 && Math.abs(d - 1) <= 0.0001 && Math.abs(e) <= 0.0001 && Math.abs(f) <= 0.0001) return undefined
+  return { a, b, c, d, e, f }
 }
 
 function renderText(run, node, style, depth) {
