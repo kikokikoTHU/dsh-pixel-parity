@@ -40,6 +40,13 @@ window.__ModuleLoader__.load({
         : 'var(--dsw-alias-text-secondary, #526176)'
 
     const shortId = id => String(id ?? '').slice(0, 19)
+    const passCount = summary => (summary?.verified ?? 0) + (summary?.['image-verified'] ?? 0)
+    const summaryLabel = summary => {
+      const passed = passCount(summary)
+      const failed = summary?.failed ?? 0
+      const image = summary?.['image-verified'] ?? 0
+      return `${passed}✓ / ${failed}✗${image > 0 ? ` (${image} image-verified)` : ''}`
+    }
 
     function ViewportRow({ viewport }) {
       return h('div', { style: styles.caseRow },
@@ -57,7 +64,7 @@ window.__ModuleLoader__.load({
         h('div', { style: styles.row, onClick: onToggle },
           h('strong', { style: text }, shortId(run.runId)),
           h('span', { style: styles.badge }, `iter ${run.iteration}`),
-          h('span', { style: muted }, `${summary.verified ?? 0}✓ ${summary.failed ?? 0}✗`),
+          h('span', { style: muted }, summaryLabel(summary)),
           run.delta !== null && run.delta !== undefined
             ? h('span', { style: { color: run.delta.improved ? statusColor('verified') : statusColor('failed') } },
                 `${run.delta.improved ? '' : '+'}${(run.delta.meanChange * 100).toFixed(2)}%`)
@@ -113,7 +120,7 @@ window.__ModuleLoader__.load({
         h('div', { style: styles.row, onClick: () => setOpen(!open) },
           h('strong', { style: text }, 'Pixel parity'),
           latest
-            ? h('span', { style: styles.badge }, `${summary?.verified ?? 0}✓ / ${summary?.failed ?? 0}✗`)
+            ? h('span', { style: styles.badge }, summaryLabel(summary))
             : h('span', { style: muted }, 'no runs yet'),
           h('span', { style: muted }, open ? 'click to hide' : runs.length > 0 ? `${runs.length} runs` : ''),
           h('button', {
