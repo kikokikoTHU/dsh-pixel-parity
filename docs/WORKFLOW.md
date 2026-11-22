@@ -55,6 +55,39 @@ HTML/CSS) are inspection and portability seams, not the alignment loop.
 Never "stop" by masking a region you are trying to align, and never approve a baseline
 before convergence — a baseline freezes whatever state you approved.
 
+## Worked example (two rounds)
+
+A toolbar implementation used `padding: 16px 24px 16px 28px` while the reference used
+`16px 24px`, shifting the query button 4px right.
+
+Round 1 — `parity_run`:
+
+```
+failed  toolbar @ desktop  geometry-fail  0.43% pixels
+```
+
+`parity_diagnose`:
+
+```
+[geometry] anchor "query" moved dx=4 dy=0 dw=0 dh=0
+[pixels]   pixel region 25x13 at (50,26) mismatches 50.5%
+next: Anchor "query" is off by up to 4px (tolerance 1px). Fix geometry first: …
+```
+
+The model fixes the padding declaration (not a color, not a threshold).
+
+Round 2 — `parity_run`:
+
+```
+verified  toolbar @ desktop  0.00% pixels
+iteration: 2
+parentRun: 2026-11-22T07-20-52-992Z-1c6m
+delta: mean -0.43% pixels (improved), viewports[0].improved = true
+```
+
+`parity_diagnose` then reports `delta: mean -0.43% pixels (improved)` and no findings.
+That is the loop this plugin exists to support: measured, attributed, and auditable.
+
 ## Guardrails
 
 - **No blind translation.** Generating IR/QML/component output is not alignment; it can be
