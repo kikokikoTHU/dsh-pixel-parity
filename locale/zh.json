@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "像素对齐",
-    "description": "把仓库的前端实现对齐设计图、参考页面、Figma 帧或代码原型：自动识别启动命令与路由，按 case 和视口比对几何、计算样式与掩码后的像素，可按次调整容差，并用已批准的基线做回归。提供 parity_init、parity_run、parity_diagnose、parity_report、parity_approve、parity_check 六个工具；会话标题栏有一个只读的 PP 按钮，点开右侧面板列出最近的 run、delta 与 diff 缩略图。可导出 IR、QML 与组件 HTML/CSS 供检查。需要本机 Chromium 或 Playwright（qmlscene 可选）；产物写入 .parity/。",
+    "description": "把仓库的前端实现对齐设计图、参考页面、Figma 帧或代码原型：自动识别启动命令与路由，按 case 和视口比对几何、计算样式与掩码后的像素，可按次调整容差、保存已批准基线，并支持交互步骤、storageState 与 iframe 锚点。提供 parity_init、parity_run、parity_diagnose、parity_report、parity_approve、parity_check 六个工具；会话标题栏的 PP 按钮打开右侧面板，列出最近的 run、delta 与 diff 缩略图，并可重跑或批准基线。可导出 IR、QML 与组件 HTML/CSS 供检查。需要本机 Chromium 或 Playwright（qmlscene 可选）；产物写入 .parity/。",
     "detail": "docs/DETAIL.zh.md"
   }
 }

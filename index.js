@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runParityCheck } from './lib/check.js'
 import { runConfig } from './core/runner.mjs'
@@ -21,6 +21,12 @@ const here = dirname(fileURLToPath(import.meta.url))
 
 /** Repository of the most recent parity_run; the read-only panel scans it. */
 let lastRunRoot
+/** Repository chosen in the panel's path field, kept for artifact/diagnose routes. */
+let panelRepoOverride
+/** Arguments of the most recent parity_run, reused by the panel's Run button. */
+let lastRunRequest
+/** The panel-launched run job, if any. */
+let activeJob
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -755,7 +761,7 @@ const RUN_DESCRIPTION = [
  */
 export function apply(ctx, config) {
   const panelRoots = () => {
-    const roots = [lastRunRoot, ...(Array.isArray(config?.repos) ? config.repos : [])]
+    const roots = [lastRunRoot, panelRepoOverride, ...(Array.isArray(config?.repos) ? config.repos : [])]
     return roots.filter(root => typeof root === 'string' && root.length > 0)
   }
 
@@ -765,6 +771,22 @@ export function apply(ctx, config) {
     const asJson = value => new Response(JSON.stringify(value), {
       headers: { 'content-type': 'application/json; charset=utf-8' },
     })
+    const readJson = async (request) => {
+      let body = ''
+      for await (const chunk of request) {
+        body += chunk
+        if (body.length > 65536) throw new Error('request body is too large')
+      }
+      return body.length === 0 ? {} : JSON.parse(body)
+    }
+    const respondJson = (response, status, value) => {
+      response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
+      response.end(JSON.stringify(value))
+    }
+    const inRuns = (directory) => {
+      const target = resolve(directory)
+      return panelRoots().some(root => target.startsWith(`${join(resolve(root), '.parity', 'runs')}${sep}`))
+    }
     scoped.effect(() => {
       const disposers = [
         server.register({
@@ -782,6 +804,7 @@ export function apply(ctx, config) {
                 })
               }
               roots.unshift(candidate)
+              panelRepoOverride = candidate
             }
             return asJson(overview(roots))
           },
@@ -793,6 +816,83 @@ export function apply(ctx, config) {
             const artifact = resolveArtifact(panelRoots(), new URL(request.url).searchParams.get('path'))
             if (artifact === undefined) return new Response('not found', { status: 404 })
             return new Response(readFileSync(artifact.path), { headers: { 'content-type': artifact.type } })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/diagnose',
+          resource: async (request) => {
+            const runDir = new URL(request.url).searchParams.get('runDir')
+            if (runDir === null || !inRuns(runDir)) return new Response(JSON.stringify({ error: 'runDir must be a run under .parity/runs' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
+            try {
+              return asJson(diagnoseRun(runDir))
+            } catch (error) {
+              return new Response(JSON.stringify({ error: String(error?.message ?? error) }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/job',
+          resource: async () => asJson(activeJob ?? null),
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/run',
+          handler: async (request, response) => {
+            if (activeJob?.status === 'running') {
+              respondJson(response, 409, { error: 'a panel run is already in progress' })
+              return
+            }
+            if (lastRunRequest === undefined) {
+              respondJson(response, 409, { error: 'run parity_run once so the panel knows the config' })
+              return
+            }
+            const jobId = `panel-${Date.now()}`
+            activeJob = { id: jobId, status: 'running', startedAt: new Date().toISOString(), repo: lastRunRequest.repo }
+            runConfig({
+              configPath: lastRunRequest.config,
+              repoRoot: lastRunRequest.repo,
+              dependenciesRoot: lastRunRequest.dependencies,
+              caseIds: lastRunRequest.cases,
+              viewportIds: lastRunRequest.viewports,
+              baselineMode: 'ephemeral',
+              headless: true,
+            }).then((result) => {
+              activeJob = {
+                id: jobId,
+                status: 'done',
+                runDir: result.runDir,
+                summary: result.manifest.summary,
+                finishedAt: new Date().toISOString(),
+              }
+            }).catch((error) => {
+              activeJob = { id: jobId, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
+            })
+            respondJson(response, 202, { jobId })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/approve',
+          handler: async (request, response) => {
+            let body
+            try {
+              body = await readJson(request)
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+              return
+            }
+            const runDir = typeof body.runDir === 'string' ? body.runDir : undefined
+            if (runDir === undefined || !inRuns(runDir)) {
+              respondJson(response, 400, { error: 'runDir must be a run under .parity/runs' })
+              return
+            }
+            try {
+              respondJson(response, 200, approveRun({ runDir, note: typeof body.note === 'string' ? body.note : 'approved from panel' }))
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
           },
         }),
       ]
@@ -872,12 +972,21 @@ export function apply(ctx, config) {
       const thresholds = {}
       if (args.geometryTolerance !== undefined) thresholds.geometryTolerance = Number(args.geometryTolerance)
       if (args.maxMismatch !== undefined) thresholds.maxMismatch = Number(args.maxMismatch)
+      const caseIds = arrayOfText(args.cases, 'cases')
+      const viewportIds = arrayOfText(args.viewports, 'viewports')
+      lastRunRequest = {
+        repo,
+        config: configPath,
+        cases: caseIds,
+        viewports: viewportIds,
+        dependencies: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
+      }
       const result = await runConfig({
         configPath,
         repoRoot: repo,
         dependenciesRoot: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
-        caseIds: arrayOfText(args.cases, 'cases'),
-        viewportIds: arrayOfText(args.viewports, 'viewports'),
+        caseIds,
+        viewportIds,
         outDir: args.outputDir === undefined ? undefined : text(args.outputDir, 'outputDir'),
         headless: args.headless !== false,
         baselineMode: args.baselineMode === undefined ? 'auto' : text(args.baselineMode, 'baselineMode'),

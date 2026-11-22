@@ -1,4 +1,4 @@
-# Read-only run panel
+# Run panel
 
 The plugin adds a **PP** launcher to the session header and a right-side drawer:
 
@@ -6,28 +6,44 @@ The plugin adds a **PP** launcher to the session header and a right-side drawer:
 … session title            [PP•]  ⚙  ⋯     ← header utilities
 
                             ┌──────────────────────────────┐
-                            │ Pixel parity  1✓ / 1✗   ⟳ ×  │
-                            │ C:\…\pp-loop-demo            │
+                            │ Pixel parity  1✓ / 1✗ ▶ ✓ ⟳ ×│
+                            │ [repo path…]              ↺  │
                             │ iter 2  1✓  −0.43%   Show    │
                             │ iter 1  1✗  geometry +0.43%  │
                             └──────────────────────────────┘
 ```
 
 The launcher shows a red badge with the failed count of the latest run. Clicking it opens
-the drawer; Escape, the close button, or a click outside closes it. It is **read-only** — it
-never starts a run, approves a baseline, or edits code.
+the drawer; Escape, the close button, or a click outside closes it. The drawer refreshes
+every 4 seconds while open, and the badge refreshes every 20 seconds.
+
+## Actions
+
+| Button | Effect |
+| --- | --- |
+| ▶ | re-runs the last `parity_run` arguments with `baselineMode: ephemeral` (never writes a baseline) |
+| ✓ | approves the latest run as the baseline, same as `parity_approve` |
+| ⟳ | reloads the overview |
+| ↺ | clears the repo override and follows the most recent `parity_run` |
+
+The repo field accepts an absolute path; it is persisted in `localStorage` and validated by
+the Host (the path must contain `.parity/runs`).
 
 ## Where the data comes from
 
-Two same-origin endpoints are registered on the DSH web server:
+Same-origin endpoints registered on the DSH web server:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /pixel-parity/overview` | recent runs under `<root>/.parity/runs` (max 20 per root) |
+| `GET /pixel-parity/overview?repo=…` | recent runs under `<root>/.parity/runs` (max 20 per root) |
 | `GET /pixel-parity/artifact?path=…` | a PNG artifact inside a run directory |
+| `GET /pixel-parity/diagnose?runDir=…` | `parity_diagnose` value for one run |
+| `POST /pixel-parity/run` | start a run with the last `parity_run` arguments |
+| `GET /pixel-parity/job` | status of the panel-launched run |
+| `POST /pixel-parity/approve` | approve a run (`{ runDir }`) |
 
-Roots scanned: the repository of the most recent `parity_run`, plus optional
-`config.repos` from the plugin row:
+Roots scanned: the repository of the most recent `parity_run`, the repo path chosen in the
+panel, plus optional `config.repos` from the plugin row:
 
 ```yaml
 - id: dsh-pixel-parity
@@ -37,8 +53,8 @@ Roots scanned: the repository of the most recent `parity_run`, plus optional
       - /abs/path/to/frontend
 ```
 
-The artifact endpoint refuses any path outside a `<root>/.parity/runs/` directory and only
-serves `.png` files, so the panel cannot read arbitrary files.
+Write endpoints only accept run directories under a scanned `<root>/.parity/runs/`, and the
+artifact endpoint serves only `.png` files inside a run.
 
 ## Client registration
 
@@ -69,11 +85,11 @@ The two components communicate through a module-level store, and both read
 
 ## Limits
 
-- Read-only: run/diagnose/approve stay in chat or CLI.
 - The drawer overlays the chat column; it does not resize the conversation.
 - Only `.parity/runs` is scanned, not arbitrary artifact directories.
+- ▶ reuses the last `parity_run` arguments; it cannot edit the config or change cases.
 - The panel shows runs only after a `parity_run` in this app session (or a configured
-  `repos` entry), because it targets the repository the model is working on.
+  `repos` entry / repo path), because it targets the repository the model is working on.
 - Panel labels use a small English/Chinese dictionary selected from `navigator.language`;
   other languages fall back to English.
 

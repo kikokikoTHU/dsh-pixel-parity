@@ -210,9 +210,10 @@ If the config sets `targets.implementation.start`, the runner launches that comm
 `baseUrl` is not already reachable, waits up to `startTimeoutMs`, and stops it after the
 run. An already running server is reused and left alone.
 
-A read-only panel is available from the **PP** button in the session header: it lists
-recent runs, statuses, deltas, and diff thumbnails. It never starts a run or approves a
-baseline; keep actions in `parity_run` / `parity_approve`.
+A panel is available from the **PP** button in the session header: it lists recent runs,
+statuses, deltas, and diff thumbnails, and can re-run the last arguments or approve the
+latest run. Prefer the panel for quick checks; use `parity_run` / `parity_approve` when you
+need different arguments or a recorded note.
 
 ### 5. Iterate: diagnose → edit → re-run
 

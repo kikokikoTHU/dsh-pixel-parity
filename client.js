@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
         flex: 1, minWidth: 0, border, borderRadius: 6, padding: '3px 6px', fontSize: 11,
         background: 'transparent', color: 'inherit', outline: 'none',
       },
+      message: { padding: '4px 12px', fontSize: 10, borderBottom: border, ...muted },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
       card: { border, borderRadius: 9, padding: 8 },
       row: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
@@ -78,6 +79,8 @@ window.__ModuleLoader__.load({
       empty: zh ? '还没有 .parity/runs，先跑一次 parity_run。' : 'No .parity/runs found. Run parity_run first.',
       failed: zh ? '面板不可用' : 'Panel unavailable',
       open: zh ? '打开 Pixel parity' : 'Open Pixel parity',
+      run: zh ? '用最近一次参数运行' : 'Run with the last parity_run arguments',
+      approve: zh ? '批准最新基线' : 'Approve the latest baseline',
     }
     const statusColor = status => status === 'verified'
       ? 'var(--dsw-alias-status-success, #16794b)'
@@ -90,7 +93,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo }
+    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo, message: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -137,6 +140,65 @@ window.__ModuleLoader__.load({
     const latestRun = data => (data?.roots ?? [])
       .flatMap(root => root.runs)
       .sort((left, right) => String(right.finishedAt ?? '').localeCompare(String(left.finishedAt ?? '')))[0]
+
+    async function startPanelRun() {
+      state.message = zh ? '已启动运行…' : 'Starting run…'
+      notify()
+      try {
+        const response = await fetch('/pixel-parity/run', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        pollPanelJob()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    function pollPanelJob() {
+      const timer = setInterval(async () => {
+        try {
+          const response = await fetch('/pixel-parity/job', { cache: 'no-store' })
+          const job = await response.json()
+          if (job?.status === 'done') {
+            clearInterval(timer)
+            state.message = zh ? `完成：${job.summary?.verified ?? 0}✓` : `Done: ${job.summary?.verified ?? 0}✓`
+            notify()
+            loadOverview()
+          } else if (job?.status === 'error') {
+            clearInterval(timer)
+            state.message = `${zh ? '失败：' : 'Failed: '}${job.error}`
+            notify()
+          }
+        } catch {}
+      }, 1000)
+    }
+
+    async function approveLatest() {
+      const latest = latestRun(state.data)
+      if (latest === undefined) return
+      try {
+        const response = await fetch('/pixel-parity/approve', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ runDir: latest.dir }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.message = zh
+          ? `已批准 ${body.approved?.length ?? 0} 个基线`
+          : `Approved ${body.approved?.length ?? 0} baseline(s)`
+        notify()
+        loadOverview()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
 
     function Launcher() {
       const store = useStore()
@@ -241,6 +303,16 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }),
             h('button', {
               style: styles.iconButton,
+              title: t.run,
+              onClick: startPanelRun,
+            }, '▶'),
+            h('button', {
+              style: styles.iconButton,
+              title: t.approve,
+              onClick: approveLatest,
+            }, '✓'),
+            h('button', {
+              style: styles.iconButton,
               title: t.refresh,
               onClick: () => loadOverview(),
             }, '⟳'),
@@ -267,6 +339,7 @@ window.__ModuleLoader__.load({
               onClick: () => { setDraft(''); setRepo('') },
             }, '↺'),
           ),
+          store.message === null ? null : h('div', { style: styles.message }, store.message),
           h('div', { style: styles.root }, roots.length === 0 ? 'no repository scanned yet' : roots.map(root => root.root).join(' · ')),
           h('div', { style: styles.list },
             store.error !== null

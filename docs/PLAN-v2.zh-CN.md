@@ -294,6 +294,8 @@ cases/<case>/<viewport>/
 | M39 ✅ | LLM 闭环：manifest 记录 `iteration`/`parentRun`/`delta`；新增 `parity_diagnose`（按几何→样式→像素+重叠 IR 节点排序）与 CLI `diagnose`；skill/README 明确“测量仪/迭代器，不是低代码生成器” | 迭代对齐可测量、可审计 |
 | M40 ✅ | 区域级解释：manifest 记录 thresholds，`parity_diagnose` 在“整体像素达标但单格超 maxRegionMismatch”时明确说明（0.43% 整体 + 50.5% 单格 → 判定失败），避免模型误读 | 像素失败原因可归因 |
 | M41 ✅ | 只读面板：Host 注册 `/pixel-parity/overview` 与 `/pixel-parity/artifact`（限制在 `.parity/runs`、仅 PNG），Client 在 `conversation.composer.dock` 渲染可折叠的 run 列表与 diff 缩略图；版本 0.4.0 | 人在 GUI 里复查迭代结果 |
+| M42 ✅ | iframe 锚点（`frame >>> selector`，rect 换算到页面坐标）、交互步骤（click/fill/press/hover/scroll/wait/waitFor）与 `storageState`；Chrome CLI 回退显式报错而不是静默漏步 | 登录态/弹窗/iframe 页面可对齐 |
+| M43 ✅ | 面板升级：标题栏 PP 按钮 + 右侧抽屉、打开时 4s 自动刷新、仓库路径选择（localStorage + Host 校验）、▶ 重跑最近参数、✓ 批准最新基线、中英文案 | 面板可操作，减少回聊天/CLI |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

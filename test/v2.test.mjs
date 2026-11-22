@@ -233,7 +233,14 @@ await test('panel routes register on the web server', async () => {
     get(name) { return name === 'webServer' ? stub : undefined },
   })
   const paths = registered.map(route => route.path).sort()
-  assert.deepEqual(paths, ['/pixel-parity/artifact', '/pixel-parity/overview'])
+  assert.deepEqual(paths, [
+    '/pixel-parity/approve',
+    '/pixel-parity/artifact',
+    '/pixel-parity/diagnose',
+    '/pixel-parity/job',
+    '/pixel-parity/overview',
+    '/pixel-parity/run',
+  ])
   const overviewRoute = registered.find(route => route.path === '/pixel-parity/overview')
   const response = await overviewRoute.resource(new Request('http://local/pixel-parity/overview'), {})
   const body = await response.json()
@@ -247,6 +254,23 @@ await test('panel routes register on the web server', async () => {
   assert.equal(scopedBody.roots[0].root, panelRepo)
   const rejected = await overviewRoute.resource(new Request('http://local/pixel-parity/overview?repo=C%3A%5CWindows'), {})
   assert.equal(rejected.status, 400)
+
+  const diagnoseRoute = registered.find(route => route.path === '/pixel-parity/diagnose')
+  const runDir = join(panelRepo, '.parity', 'runs', 'r1')
+  mkdirSync(runDir, { recursive: true })
+  writeFileSync(join(runDir, 'manifest.json'), JSON.stringify({
+    version: 2,
+    runId: 'r1',
+    iteration: 1,
+    cases: [{ id: 'one', status: 'verified', viewports: [{ viewportId: 'v', status: 'verified', geometry: { available: true, pass: true, tolerance: 1, anchors: [] }, styles: { available: true, pass: true, diffs: [] }, pixels: { pass: true, metrics: { mismatchRatio: 0 } } }] }],
+  }))
+  const diagnosed = await diagnoseRoute.resource(new Request(`http://local/pixel-parity/diagnose?runDir=${encodeURIComponent(runDir)}`), {})
+  assert.equal(diagnosed.status, 200)
+  const outside = await diagnoseRoute.resource(new Request('http://local/pixel-parity/diagnose?runDir=C%3A%5CWindows'), {})
+  assert.equal(outside.status, 400)
+  const jobRoute = registered.find(route => route.path === '/pixel-parity/job')
+  const job = await jobRoute.resource(new Request('http://local/pixel-parity/job'), {})
+  assert.ok((await job.json()) === null)
 })
 
 await test('config rejects duplicate case ids', async () => {
