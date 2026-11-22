@@ -1,14 +1,21 @@
 # Read-only run panel
 
-The plugin registers a small strip above the chat composer:
+The plugin adds a **PP** launcher to the session header and a right-side drawer:
 
 ```
-Pixel parity   [2✓ / 1✗]   3 runs            Refresh
+… session title            [PP•]  ⚙  ⋯     ← header utilities
+
+                            ┌──────────────────────────────┐
+                            │ Pixel parity  1✓ / 1✗   ⟳ ×  │
+                            │ C:\…\pp-loop-demo            │
+                            │ iter 2  1✓  −0.43%   Show    │
+                            │ iter 1  1✗  geometry +0.43%  │
+                            └──────────────────────────────┘
 ```
 
-Clicking it expands the recent runs of the current repository: iteration, status counts,
-delta vs the previous run, per case/viewport status, and the `diff.png` thumbnails of each
-case. It is **read-only** — it never starts a run, approves a baseline, or edits code.
+The launcher shows a red badge with the failed count of the latest run. Clicking it opens
+the drawer; Escape, the close button, or a click outside closes it. It is **read-only** — it
+never starts a run, approves a baseline, or edits code.
 
 ## Where the data comes from
 
@@ -35,8 +42,19 @@ serves `.png` files, so the panel cannot read arbitrary files.
 
 ## Client registration
 
-`client.js` registers into `conversation.composer.dock` through
-`ctx.slots.inject('conversation.composer.dock', …)`. `package.json` declares:
+`client.js` registers two slots:
+
+```js
+ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+  name: 'conversation.session.header.utilities', id: 'pixel-parity-launcher', order: 40,
+}, Launcher))
+ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+  name: 'shell.overlay', id: 'pixel-parity-drawer', order: 40,
+}, Drawer))
+```
+
+The two components communicate through a module-level store, and both read
+`/pixel-parity/overview`. `package.json` declares:
 
 ```json
 "dsh": {
@@ -52,7 +70,7 @@ serves `.png` files, so the panel cannot read arbitrary files.
 ## Limits
 
 - Read-only: run/diagnose/approve stay in chat or CLI.
-- One strip in the composer dock; it is not a full-page tab.
+- The drawer overlays the chat column; it does not resize the conversation.
 - Only `.parity/runs` is scanned, not arbitrary artifact directories.
 - The panel shows runs only after a `parity_run` in this app session (or a configured
   `repos` entry), because it targets the repository the model is working on.
@@ -62,5 +80,5 @@ serves `.png` files, so the panel cannot read arbitrary files.
 
 - Host: `parity_run` then `GET /pixel-parity/overview` returns the run; artifact paths are
   restricted (covered by `test/v2.test.mjs`).
-- Client: after a restart, the strip appears above the composer and expands. Visual
-  verification in the running GUI remains a manual step.
+- Client: after a restart, the **PP** launcher appears in the header; the drawer opens on
+  click. Visual verification in the running GUI remains a manual step.
