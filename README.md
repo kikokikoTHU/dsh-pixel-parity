@@ -123,6 +123,39 @@ use it to answer API requests with fixed data so a data-driven page renders
 deterministically. It requires Playwright (the Chrome CLI fallback cannot intercept
 requests).
 
+Need a post-login page, an open modal, or a filtered table? Give a target ordered
+interaction steps and, if needed, a saved browser state:
+
+```js
+implementation: {
+  url: "http://localhost:5173/records",
+  storageState: "./.parity/state.json",   // Playwright storageState
+  steps: [
+    { action: "click", selector: "[data-testid=filter]" },
+    { action: "fill", selector: "input[name=q]", value: "AOI-01" },
+    { action: "waitFor", selector: ".row" },
+  ],
+},
+```
+
+Supported actions: `click`, `fill`, `press`, `hover`, `scroll` (`x`/`y`), `wait`
+(`ms`), `waitFor` (`selector`, optional `state`). Steps run in order before capture;
+`storageState` loads cookies/localStorage for that target. Both require Playwright;
+the Chrome CLI fallback fails with an explicit message instead of capturing a
+different state.
+
+Anchors inside an iframe use `frame >>> selector` (or `{ selector, frame }`):
+
+```js
+anchors: {
+  inner: { ref: "iframe#app >>> .row", impl: { selector: ".row", frame: "iframe#app" } },
+},
+```
+
+The measured rect is translated into page coordinates, and styles are computed inside
+the frame. Screenshots already include iframe pixels; this adds DOM evidence for the
+same region.
+
 Then:
 
 ```

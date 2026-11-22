@@ -6,8 +6,8 @@
  * a JSON report, and registers the matching workflow skill.
  */
 
-import { readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runParityCheck } from './lib/check.js'
 import { runConfig } from './core/runner.mjs'
@@ -770,7 +770,21 @@ export function apply(ctx, config) {
         server.register({
           kind: 'exact',
           path: '/pixel-parity/overview',
-          resource: async () => asJson(overview(panelRoots())),
+          resource: async (request) => {
+            const roots = panelRoots()
+            const requested = new URL(request.url).searchParams.get('repo')
+            if (requested !== null && requested.length > 0) {
+              const candidate = resolve(requested)
+              if (!existsSync(join(candidate, '.parity', 'runs'))) {
+                return new Response(JSON.stringify({ error: `no .parity/runs under ${candidate}` }), {
+                  status: 400,
+                  headers: { 'content-type': 'application/json; charset=utf-8' },
+                })
+              }
+              roots.unshift(candidate)
+            }
+            return asJson(overview(roots))
+          },
         }),
         server.register({
           kind: 'exact',

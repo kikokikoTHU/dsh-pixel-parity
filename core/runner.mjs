@@ -478,6 +478,8 @@ async function captureSide(side, entry, spec, viewport, driver, caseDir, config,
     fixtures: spec.fixtures,
     hide: entry.hide[side === 'reference' ? 'ref' : 'impl'],
     waitFor: entry.waitFor[side === 'reference' ? 'ref' : 'impl'],
+    steps: entry.steps[side === 'reference' ? 'ref' : 'impl'],
+    storageState: entry.storageState[side === 'reference' ? 'ref' : 'impl'],
     freeze: config.defaults.freeze,
     locale: config.defaults.locale,
     timezone: config.defaults.timezone,
@@ -490,7 +492,7 @@ async function captureSide(side, entry, spec, viewport, driver, caseDir, config,
 function mapSelectors(anchors, key) {
   const result = {}
   for (const [id, value] of Object.entries(anchors ?? {})) {
-    if (typeof value[key] === 'string') result[id] = value[key]
+    if (value[key] !== undefined) result[id] = value[key]
   }
   return result
 }

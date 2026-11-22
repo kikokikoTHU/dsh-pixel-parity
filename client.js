@@ -46,6 +46,11 @@ window.__ModuleLoader__.load({
         color: 'var(--dsw-alias-text-secondary, #526176)', cursor: 'pointer', fontSize: 12,
       },
       root: { padding: '6px 12px', fontSize: 10, borderBottom: border, ...muted },
+      repoRow: { display: 'flex', gap: 6, padding: '6px 12px', borderBottom: border },
+      input: {
+        flex: 1, minWidth: 0, border, borderRadius: 6, padding: '3px 6px', fontSize: 11,
+        background: 'transparent', color: 'inherit', outline: 'none',
+      },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
       card: { border, borderRadius: 9, padding: 8 },
       row: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
@@ -63,14 +68,29 @@ window.__ModuleLoader__.load({
       return `${passCount(summary)}✓ / ${summary?.failed ?? 0}✗${image > 0 ? ` (${image} image-verified)` : ''}`
     }
     const shortId = id => String(id ?? '').slice(0, 19)
+    const zh = typeof navigator !== 'undefined' && /^zh/i.test(navigator.language ?? '')
+    const t = {
+      refresh: zh ? '刷新' : 'Refresh',
+      close: zh ? '关闭' : 'Close',
+      repo: zh ? '仓库路径（可选）' : 'Repo path (optional)',
+      latest: zh ? '最近' : 'Latest',
+      loading: zh ? '加载中…' : 'Loading…',
+      empty: zh ? '还没有 .parity/runs，先跑一次 parity_run。' : 'No .parity/runs found. Run parity_run first.',
+      failed: zh ? '面板不可用' : 'Panel unavailable',
+      open: zh ? '打开 Pixel parity' : 'Open Pixel parity',
+    }
     const statusColor = status => status === 'verified'
       ? 'var(--dsw-alias-status-success, #16794b)'
       : status === 'failed'
         ? 'var(--dsw-alias-status-danger, #c0392b)'
         : 'var(--dsw-alias-text-secondary, #526176)'
 
+    const storedRepo = (() => {
+      try { return localStorage.getItem('pixel-parity.repo') ?? '' } catch { return '' }
+    })()
+
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, error: null, loading: false }
+    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -78,8 +98,16 @@ window.__ModuleLoader__.load({
       state.loading = true
       notify()
       try {
-        const response = await fetch('/pixel-parity/overview', { cache: 'no-store' })
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const query = state.repo.length > 0 ? `?repo=${encodeURIComponent(state.repo)}` : ''
+        const response = await fetch(`/pixel-parity/overview${query}`, { cache: 'no-store' })
+        if (!response.ok) {
+          let detail = `HTTP ${response.status}`
+          try {
+            const body = await response.json()
+            if (typeof body?.error === 'string') detail = body.error
+          } catch {}
+          throw new Error(detail)
+        }
         state.data = await response.json()
         state.error = null
       } catch (failure) {
@@ -88,6 +116,12 @@ window.__ModuleLoader__.load({
         state.loading = false
         notify()
       }
+    }
+
+    function setRepo(value) {
+      state.repo = value.trim()
+      try { localStorage.setItem('pixel-parity.repo', state.repo) } catch {}
+      loadOverview()
     }
 
     function useStore() {
@@ -108,6 +142,8 @@ window.__ModuleLoader__.load({
       const store = useStore()
       useEffect(() => {
         if (store.data === null && !store.loading) loadOverview()
+        const timer = setInterval(() => { loadOverview() }, 20000)
+        return () => clearInterval(timer)
       }, [])
       const latest = latestRun(store.data)
       const failed = latest?.summary?.failed ?? 0
@@ -174,8 +210,12 @@ window.__ModuleLoader__.load({
 
     function Drawer() {
       const store = useStore()
+      const [draft, setDraft] = useState(store.repo)
       useEffect(() => {
-        if (state.open) loadOverview()
+        if (!state.open) return undefined
+        loadOverview()
+        const timer = setInterval(() => { loadOverview() }, 4000)
+        return () => clearInterval(timer)
       }, [store.open])
       useEffect(() => {
         const onKey = event => {
@@ -201,23 +241,40 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }),
             h('button', {
               style: styles.iconButton,
-              title: 'Refresh',
+              title: t.refresh,
               onClick: () => loadOverview(),
             }, '⟳'),
             h('button', {
               style: styles.iconButton,
-              title: 'Close',
+              title: t.close,
               onClick: () => { state.open = false; notify() },
             }, '×'),
+          ),
+          h('div', { style: styles.repoRow },
+            h('input', {
+              style: styles.input,
+              value: draft,
+              placeholder: t.repo,
+              spellCheck: false,
+              onChange: event => setDraft(event.target.value),
+              onKeyDown: event => {
+                if (event.key === 'Enter') setRepo(draft)
+              },
+            }),
+            h('button', {
+              style: styles.iconButton,
+              title: t.latest,
+              onClick: () => { setDraft(''); setRepo('') },
+            }, '↺'),
           ),
           h('div', { style: styles.root }, roots.length === 0 ? 'no repository scanned yet' : roots.map(root => root.root).join(' · ')),
           h('div', { style: styles.list },
             store.error !== null
-              ? h('div', { style: { color: statusColor('failed'), fontSize: 11 } }, `Panel unavailable: ${store.error}`)
+              ? h('div', { style: { color: statusColor('failed'), fontSize: 11 } }, `${t.failed}: ${store.error}`)
               : store.data === null
-                ? h('div', { style: { ...muted, fontSize: 11 } }, 'Loading…')
+                ? h('div', { style: { ...muted, fontSize: 11 } }, t.loading)
                 : roots.length === 0
-                  ? h('div', { style: { ...muted, fontSize: 11 } }, 'No .parity/runs found. Run parity_run first, then Refresh.')
+                  ? h('div', { style: { ...muted, fontSize: 11 } }, t.empty)
                   : roots.map(root => h('div', { key: root.root },
                       root.runs.length === 0
                         ? h('div', { style: { ...muted, fontSize: 11 } }, 'No runs')

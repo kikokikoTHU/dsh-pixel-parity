@@ -145,9 +145,58 @@ function normalizeTarget(raw, directory, label) {
     readyUrl: raw.readyUrl,
     hide: raw.hide ?? [],
     waitFor: raw.waitFor ?? [],
+    steps: normalizeSteps(raw.steps, `${label}.steps`),
+    storageState: normalizeStorageState(raw.storageState, directory, `${label}.storageState`),
     viewport: raw.viewport ?? null,
     fixtures: raw.fixtures === undefined ? undefined : resolve(directory, raw.fixtures),
   }
+}
+
+function normalizeAnchorSide(value, label) {
+  if (typeof value === 'string') {
+    const at = value.indexOf('>>>')
+    if (at !== -1) {
+      return { selector: value.slice(at + 3).trim(), frame: value.slice(0, at).trim() }
+    }
+    return { selector: value }
+  }
+  if (value === null || typeof value !== 'object' || typeof value.selector !== 'string') {
+    throw new Error(`${label} must be a selector string, "frame >>> selector", or { selector, frame }`)
+  }
+  return {
+    selector: value.selector,
+    ...(typeof value.frame === 'string' && value.frame.length > 0 ? { frame: value.frame } : {}),
+  }
+}
+
+/**
+ * Validate interaction steps. Only the supported actions pass, so an unknown
+ * action fails at config load instead of silently doing nothing.
+ */
+function normalizeSteps(steps, label) {
+  if (steps === undefined) return []
+  if (!Array.isArray(steps)) throw new Error(`${label} must be an array`)
+  const ACTIONS = new Set(['click', 'fill', 'press', 'hover', 'scroll', 'wait', 'waitFor'])
+  return steps.map((step, index) => {
+    const at = `${label}[${index}]`
+    if (step === null || typeof step !== 'object') throw new Error(`${at} must be an object`)
+    if (!ACTIONS.has(step.action)) throw new Error(`${at}.action must be one of ${[...ACTIONS].join(', ')}`)
+    const selectorActions = new Set(['click', 'fill', 'press', 'hover', 'waitFor'])
+    if (selectorActions.has(step.action) && (typeof step.selector !== 'string' || step.selector.length === 0)) {
+      throw new Error(`${at}.selector is required for ${step.action}`)
+    }
+    if (step.action === 'fill' && typeof step.value !== 'string') throw new Error(`${at}.value must be a string`)
+    if (step.action === 'press' && typeof step.value !== 'string') throw new Error(`${at}.value must be a key name`)
+    if (step.action === 'wait' && (typeof step.ms !== 'number' || !Number.isFinite(step.ms))) throw new Error(`${at}.ms must be a number`)
+    return { ...step }
+  })
+}
+
+function normalizeStorageState(value, directory, label) {
+  if (value === undefined) return undefined
+  if (typeof value === 'string') return resolve(directory, value)
+  if (value === null || typeof value !== 'object') throw new Error(`${label} must be a path or a Playwright storageState object`)
+  return value
 }
 
 function normalizeCase(entry, index, directory, defaults, targets) {
@@ -166,8 +215,9 @@ function normalizeCase(entry, index, directory, defaults, targets) {
   if (typeof anchors !== 'object' || Array.isArray(anchors)) throw new Error(`cases[${index}].anchors must be an object`)
   for (const [key, value] of Object.entries(anchors)) {
     if (value === null || typeof value !== 'object') throw new Error(`cases[${index}].anchors.${key} must be { ref, impl }`)
-    if (typeof value.ref !== 'string' || typeof value.impl !== 'string') {
-      throw new Error(`cases[${index}].anchors.${key} needs string ref and impl selectors`)
+    anchors[key] = {
+      ref: normalizeAnchorSide(value.ref, `cases[${index}].anchors.${key}.ref`),
+      impl: normalizeAnchorSide(value.impl, `cases[${index}].anchors.${key}.impl`),
     }
   }
 
@@ -195,8 +245,10 @@ function normalizeCase(entry, index, directory, defaults, targets) {
     anchors,
     masks,
     thresholds,
-    hide: { ref: entry.hide?.ref ?? targets.reference.hide, impl: entry.hide?.impl ?? targets.implementation.hide },
-    waitFor: { ref: entry.waitFor?.ref ?? targets.reference.waitFor, impl: entry.waitFor?.impl ?? targets.implementation.waitFor },
+    hide: { ref: entry.hide?.ref ?? reference.hide ?? targets.reference.hide, impl: entry.hide?.impl ?? implementation.hide ?? targets.implementation.hide },
+    waitFor: { ref: entry.waitFor?.ref ?? reference.waitFor ?? targets.reference.waitFor, impl: entry.waitFor?.impl ?? implementation.waitFor ?? targets.implementation.waitFor },
+    steps: { ref: entry.steps?.ref ?? reference.steps ?? [], impl: entry.steps?.impl ?? implementation.steps ?? [] },
+    storageState: { ref: entry.storageState?.ref ?? reference.storageState, impl: entry.storageState?.impl ?? implementation.storageState },
   }
 }
 
@@ -213,6 +265,8 @@ function resolveTargetSpec(spec, target, directory, label) {
       start: spec.start ?? target.start,
       startTimeoutMs: spec.startTimeoutMs ?? target.startTimeoutMs ?? 90000,
       readyUrl: spec.readyUrl ?? target.readyUrl,
+      steps: normalizeSteps(spec.steps ?? target.steps, `${label}.steps`),
+      storageState: normalizeStorageState(spec.storageState ?? target.storageState, directory, `${label}.storageState`),
     }
   }
   if (kind === 'figma') {

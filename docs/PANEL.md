@@ -74,7 +74,8 @@ The two components communicate through a module-level store, and both read
 - Only `.parity/runs` is scanned, not arbitrary artifact directories.
 - The panel shows runs only after a `parity_run` in this app session (or a configured
   `repos` entry), because it targets the repository the model is working on.
-- Panel labels are English; wiring them through the Client locale service is pending.
+- Panel labels use a small English/Chinese dictionary selected from `navigator.language`;
+  other languages fall back to English.
 
 ## Verification
 

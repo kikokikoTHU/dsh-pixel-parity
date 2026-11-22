@@ -107,6 +107,36 @@ Add `data-parity="<name>"` to the containers already referenced by `cases[].anch
 This is an attribute-only change: no styling, no behavior. If the repo cannot be
 touched, map to existing stable selectors instead and accept the churn risk.
 
+### Interaction steps and iframes
+
+A screen behind a login, modal, or filter needs preparation, not a different config
+shape: put ordered `steps` and an optional Playwright `storageState` on the target.
+
+```js
+implementation: {
+  url: "http://localhost:5173/records",
+  storageState: "./.parity/state.json",
+  steps: [
+    { action: "click", selector: "[data-testid=filter]" },
+    { action: "fill", selector: "input[name=q]", value: "AOI-01" },
+    { action: "waitFor", selector: ".row" },
+  ],
+},
+```
+
+Actions: `click`, `fill`, `press`, `hover`, `scroll`, `wait`, `waitFor`. Steps run
+before capture and before `hide`/`waitFor`. They need Playwright; the Chrome CLI
+fallback fails loudly rather than capturing the wrong state.
+
+Anchors inside an iframe use `frame >>> selector`:
+
+```js
+anchors: { inner: { ref: "iframe#app >>> .row", impl: { selector: ".row", frame: "iframe#app" } } }
+```
+
+Rects are translated to page coordinates; styles come from the frame. Screenshots
+already include iframe pixels, so this only adds DOM evidence.
+
 ### 3. Run
 
 ```

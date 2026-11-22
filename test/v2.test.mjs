@@ -22,6 +22,7 @@ import { generateHtml } from '../core/ir-web.mjs'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixtureConfig = join(here, 'fixtures', 'web', 'parity.config.mjs')
+const interactionConfig = join(here, 'fixtures', 'interactions', 'parity.config.mjs')
 const results = []
 let failed = 0
 
@@ -237,6 +238,15 @@ await test('panel routes register on the web server', async () => {
   const response = await overviewRoute.resource(new Request('http://local/pixel-parity/overview'), {})
   const body = await response.json()
   assert.ok(Array.isArray(body.roots))
+
+  const panelRepo = mkdtempSync(join(tmpdir(), 'parity-panel-repo-'))
+  mkdirSync(join(panelRepo, '.parity', 'runs'), { recursive: true })
+  const scoped = await overviewRoute.resource(new Request(`http://local/pixel-parity/overview?repo=${encodeURIComponent(panelRepo)}`), {})
+  assert.equal(scoped.status, 200)
+  const scopedBody = await scoped.json()
+  assert.equal(scopedBody.roots[0].root, panelRepo)
+  const rejected = await overviewRoute.resource(new Request('http://local/pixel-parity/overview?repo=C%3A%5CWindows'), {})
+  assert.equal(rejected.status, 400)
 })
 
 await test('config rejects duplicate case ids', async () => {
@@ -1380,6 +1390,57 @@ http.createServer((req, res) => {
     assert.equal(geometry[0].anchor, 'query')
     assert.ok(Math.abs(geometry[0].delta.x) >= 4)
     assert.ok(viewport.next.length >= 1)
+  })
+
+  await test('interaction steps and iframe anchors are measured', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-interactions-'))
+    const result = await runConfig({
+      configPath: interactionConfig,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      outDir: join(repoRoot, '.parity', 'runs', 'interactions'),
+    })
+    const byId = id => result.manifest.cases.find(entry => entry.id === id)
+    assert.equal(byId('steps').status, 'verified', 'steps reveal the panel before capture')
+    assert.equal(byId('iframe').status, 'verified', 'iframe anchors are measured')
+    const anchor = byId('iframe').viewports[0].geometry.anchors.find(entry => entry.id === 'inner')
+    assert.ok(anchor.pass)
+    assert.equal(anchor.actual.x, 50)
+    assert.equal(anchor.actual.y, 70)
+  })
+
+  await test('config normalizes interaction steps, storageState, and frame anchors', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'parity-config-steps-'))
+    const configPath = join(directory, 'parity.config.mjs')
+    writeFileSync(configPath, `
+      export default {
+        version: 2,
+        viewports: [{ id: 'desktop', width: 400, height: 200 }],
+        targets: {
+          implementation: {
+            steps: [{ action: 'click', selector: '#go' }],
+            storageState: './state.json',
+          },
+        },
+        cases: [{
+          id: 'one',
+          reference: { url: './a.html' },
+          implementation: { url: './b.html' },
+          anchors: {
+            inner: { ref: 'iframe >>> .box', impl: { selector: '.box', frame: 'iframe#f' } },
+          },
+        }],
+      }
+    `)
+    const { loadConfig } = await import('../core/config.mjs')
+    const config = await loadConfig(configPath)
+    assert.deepEqual(config.cases[0].steps.ref, [])
+    assert.equal(config.cases[0].steps.impl.length, 1)
+    assert.equal(config.cases[0].steps.impl[0].action, 'click')
+    assert.equal(config.cases[0].storageState.impl, join(directory, 'state.json'))
+    assert.deepEqual(config.cases[0].anchors.inner.ref, { selector: '.box', frame: 'iframe' })
+    assert.deepEqual(config.cases[0].anchors.inner.impl, { selector: '.box', frame: 'iframe#f' })
   })
 
   await test('init detects the real repo workspace app and routes', () => {

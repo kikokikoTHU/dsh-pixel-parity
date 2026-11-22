@@ -180,6 +180,77 @@ export async function createWebDriver(options) {
   return createChromeDriver()
 }
 
+/**
+ * Run configured interaction steps before capture. Steps are ordered and each
+ * one awaits, so a click can reveal a panel that a later step fills.
+ */
+async function runSteps(page, steps) {
+  for (const step of steps) {
+    const timeout = step.timeoutMs ?? 15000
+    if (step.action === 'click') await page.click(step.selector, { timeout })
+    else if (step.action === 'fill') await page.fill(step.selector, step.value, { timeout })
+    else if (step.action === 'press') await page.press(step.selector, step.value, { timeout })
+    else if (step.action === 'hover') await page.hover(step.selector, { timeout })
+    else if (step.action === 'wait') await page.waitForTimeout(step.ms)
+    else if (step.action === 'waitFor') await page.waitForSelector(step.selector, { state: step.state ?? 'visible', timeout })
+    else if (step.action === 'scroll') await page.evaluate(({ x, y }) => window.scrollTo(x, y), { x: step.x ?? 0, y: step.y ?? 0 })
+    else throw new Error(`unknown step action "${step.action}"`)
+  }
+}
+
+/** Measure one anchor inside the document of a page or frame. */
+function measureAnchorInDocument({ selector, props }) {
+  const element = document.querySelector(selector)
+  if (element === null) return null
+  const rect = element.getBoundingClientRect()
+  const computed = getComputedStyle(element)
+  const styles = {}
+  for (const property of props) styles[property] = computed[property]
+  return { rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height }, styles }
+}
+
+/**
+ * Measure anchors, including selectors scoped to an iframe. An iframe anchor is
+ * `{ selector, frame }`, where `frame` selects the iframe in the parent page;
+ * the reported rect is translated into page coordinates.
+ */
+async function measureAnchors(page, specs, props) {
+  const result = {}
+  for (const [id, raw] of Object.entries(specs)) {
+    const spec = typeof raw === 'string' ? { selector: raw } : raw
+    if (spec === null || typeof spec !== 'object' || typeof spec.selector !== 'string') {
+      result[id] = null
+      continue
+    }
+    if (spec.frame === undefined) {
+      result[id] = await page.evaluate(measureAnchorInDocument, { selector: spec.selector, props })
+      continue
+    }
+    const frameElement = await page.$(spec.frame)
+    if (frameElement === null) {
+      result[id] = null
+      continue
+    }
+    const frame = await frameElement.contentFrame()
+    if (frame === null) {
+      result[id] = null
+      continue
+    }
+    const origin = await frameElement.evaluate(element => {
+      const rect = element.getBoundingClientRect()
+      return { x: rect.left + element.clientLeft, y: rect.top + element.clientTop }
+    })
+    const measured = await frame.evaluate(measureAnchorInDocument, { selector: spec.selector, props })
+    result[id] = measured === null
+      ? null
+      : {
+          rect: { x: measured.rect.x + origin.x, y: measured.rect.y + origin.y, w: measured.rect.w, h: measured.rect.h },
+          styles: measured.styles,
+        }
+  }
+  return result
+}
+
 function createPlaywrightDriver(playwright, options) {
   let browser
 
@@ -201,6 +272,7 @@ function createPlaywrightDriver(playwright, options) {
       colorScheme: 'light',
       reducedMotion: 'reduce',
       bypassCSP: true,
+      ...(input.storageState === undefined ? {} : { storageState: input.storageState }),
     })
     try {
       const page = await context.newPage()
@@ -219,6 +291,9 @@ function createPlaywrightDriver(playwright, options) {
           // Older Playwright builds may not expose the clock API; the screenshot still runs.
         }
       }
+      if (Array.isArray(input.steps) && input.steps.length > 0) {
+        await runSteps(page, input.steps)
+      }
       for (const selector of input.hide ?? []) {
         await page.addStyleTag({ content: `${selector}{display:none!important}` })
       }
@@ -236,25 +311,7 @@ function createPlaywrightDriver(playwright, options) {
         throw new Error(`screenshot is ${image.width}x${image.height}, expected ${expectedWidth}x${expectedHeight} (${width}x${height} at dpr ${dpr})`)
       }
 
-      const anchors = await page.evaluate(({ selectors, props }) => {
-        const result = {}
-        for (const [id, selector] of Object.entries(selectors)) {
-          const element = document.querySelector(selector)
-          if (element === null) {
-            result[id] = null
-            continue
-          }
-          const rect = element.getBoundingClientRect()
-          const computed = getComputedStyle(element)
-          const styles = {}
-          for (const property of props) styles[property] = computed[property]
-          result[id] = {
-            rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
-            styles,
-          }
-        }
-        return result
-      }, { selectors: input.anchors ?? {}, props: STYLE_PROPS })
+      const anchors = await measureAnchors(page, input.anchors ?? {}, STYLE_PROPS)
 
       const masks = await page.evaluate((selectors) => {
         const rects = []
@@ -624,6 +681,12 @@ function createChromeDriver() {
       }
       if (input.exportDom === true) {
         throw new Error('IR export needs Playwright: the Chrome CLI driver cannot read the DOM. Install playwright in the repo.')
+      }
+      if (Array.isArray(input.steps) && input.steps.length > 0) {
+        throw new Error('interaction steps need Playwright: the Chrome CLI driver cannot click or fill. Install playwright in the repo.')
+      }
+      if (input.storageState !== undefined) {
+        throw new Error('storageState needs Playwright: the Chrome CLI driver cannot load a browser state. Install playwright in the repo.')
       }
       const result = await captureScreenshot({ url: toTargetUrl(input.url), width, height, dpr, outPath, signal: input.signal })
       const decoded = decodePng(readFileSync(outPath))
