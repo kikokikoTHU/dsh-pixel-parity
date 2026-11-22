@@ -42,6 +42,46 @@ Measured on the prototype (1440×900, 337 nodes):
 The component render is slightly *closer* than the semantic render (0.52%) because
 `::before`/`::after` are laid out natively instead of being placed at estimated boxes.
 
+## Component extraction
+
+Repeated subtrees are clustered by a depth-3 structural signature (tag + role + child tags,
+text ignored). Clusters with at least three instances become a component:
+
+```
+generated.components.json          # inventory: name, count, node ids, slots
+components/component-table-row.html # first instance with {{slot}} placeholders
+components/component-link.html
+components/component-block.html
+components/component-button.html
+```
+
+A partial is plain HTML that references the shared stylesheet, so any template engine can
+render it:
+
+```html
+<!-- component-table-row: 16 instances; slots: {{text1}}, {{text2}}, ... -->
+<tr class="tr-container">
+  <td class="td-container"><input class="input-field-2" type="checkbox"></td>
+  <td class="td-text">{{text1}}</td>
+  ...
+</tr>
+```
+
+On the prototype this finds:
+
+| Component | Instances | Slots |
+| --- | --- | --- |
+| `component-table-row` | 16 | 序号 / 时间 / 类型 / 变化 / 结果 / 来源 |
+| `component-link` | 11 | icon, label |
+| `component-block` | 6 | label, value |
+| `component-button` | 4 | icon, label |
+
+Slots are text positions whose values differ across instances; static text stays inline.
+The main render is unchanged by extraction (still 0.44% pixels).
+
+Limits: only text slots are detected; structural variants (a row without a checkbox) split
+into separate clusters, and there is no prop/event model.
+
 ## Limits
 
 - Class names are generated (`c1`, `c2`, …); there is no component extraction, naming, or

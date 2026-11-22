@@ -1183,6 +1183,38 @@ http.createServer((req, res) => {
     assert.ok(component.mismatchRatio < 0.05, `component mismatch ${component.mismatchRatio}`)
   })
 
+  await test('component export extracts repeated subtrees into slots', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-repeat-'))
+    const configPath = join(repoRoot, 'repeat.config.mjs')
+    const page = pathToFileURL(join(here, 'fixtures', 'web', 'repeat.html')).href
+    writeFileSync(configPath, `export default ${JSON.stringify({
+      version: 2,
+      viewports: [{ id: 'desktop', width: 400, height: 400 }],
+      cases: [{ id: 'repeat', reference: { url: page }, implementation: { url: page } }],
+    })}`)
+    const result = await runConfig({
+      configPath,
+      repoRoot,
+      dependenciesRoot: repo,
+      baselineMode: 'ephemeral',
+      exportComponent: true,
+      outDir: join(repoRoot, '.parity', 'runs', 'repeat'),
+    })
+    const viewport = result.manifest.cases[0].viewports[0]
+    assert.ok(viewport.ir?.component !== undefined, viewport.error)
+    const component = viewport.ir.component
+    assert.ok(existsSync(component.componentsJson), 'component inventory written')
+    const inventory = JSON.parse(readFileSync(component.componentsJson, 'utf8'))
+    assert.ok(inventory.components.length >= 1, 'at least one repeated component')
+    const repeated = inventory.components.find(entry => entry.count >= 4)
+    assert.ok(repeated !== undefined, 'cluster of four instances')
+    assert.ok(repeated.slots.length >= 1, 'varying text becomes a slot')
+    assert.ok(repeated.slots[0].samples.includes('Alpha'), JSON.stringify(repeated.slots[0]))
+    assert.ok(Array.isArray(component.partials) && component.partials.length >= 1, 'partial written')
+    const partial = readFileSync(component.partials[0], 'utf8')
+    assert.match(partial, /\{\{text\d\}\}/)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>repeated components fixture</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; font-family: Arial, sans-serif; font-size: 14px; }
+  .list { display: flex; flex-direction: column; gap: 6px; padding: 12px; width: 220px; }
+  .item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #d7dee8; }
+  .icon { color: #4d6bfe; }
+  table { border-collapse: collapse; margin: 12px; }
+  td { border: 1px solid #d7dee8; padding: 6px 10px; }
+</style>
+</head>
+<body>
+  <nav class="list">
+    <a class="item"><span class="icon">◉</span><span class="label">Alpha</span></a>
+    <a class="item"><span class="icon">◉</span><span class="label">Beta</span></a>
+    <a class="item"><span class="icon">◉</span><span class="label">Gamma</span></a>
+    <a class="item"><span class="icon">◉</span><span class="label">Delta</span></a>
+  </nav>
+  <table>
+    <tbody>
+      <tr><td>1</td><td>Alpha</td></tr>
+      <tr><td>2</td><td>Beta</td></tr>
+      <tr><td>3</td><td>Gamma</td></tr>
+      <tr><td>4</td><td>Delta</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

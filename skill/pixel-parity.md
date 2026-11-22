@@ -124,8 +124,10 @@ run fails if the IR is invalid, so a broken export never looks like a passing ru
 
 Use `exportComponent: true` when the user wants code rather than a proof: it writes
 `generated.component.html` + `generated.component.css` with deduplicated classes, token
-variables, and restored pseudo-elements, and records `component.mismatchRatio`. The output
-is a starting point, not a finished component library — say so when reporting it.
+variables, and restored pseudo-elements, plus `generated.components.json` and
+`components/*.html` partials (`{{text}}` slots) for repeated subtrees, and records
+`component.mismatchRatio`. The output is a starting point, not a finished component
+library — say so when reporting it.
 
 Statuses:
 

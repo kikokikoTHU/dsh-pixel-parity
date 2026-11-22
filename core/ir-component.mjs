@@ -70,6 +70,7 @@ export function generateComponent(ir) {
 
   const body = renderNode(ir.root, ir, classOf, pseudoRules, true)
   const css = buildStylesheet(ir, rules, pseudoRules)
+  const components = extractComponents(ir, classOf, pseudoRules)
   const html = `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -80,10 +81,10 @@ export function generateComponent(ir) {
 ${body}
 </html>
 `
-  return { html, css }
+  return { html, css, components }
 }
 
-function renderNode(node, ir, classOf, pseudoRules, isRoot = false) {
+function renderNode(node, ir, classOf, pseudoRules, isRoot = false, options = {}) {
   if (SKIP_TAGS.has(node.tag)) return ''
   const style = expandStyle(node.style, ir.tokens)
   const declarations = buildDeclarations(node, style, ir)
@@ -101,25 +102,142 @@ function renderNode(node, ir, classOf, pseudoRules, isRoot = false) {
   const classAttribute = ` class="${classEntry.name}"`
 
   const runs = node.textRuns ?? []
-  const childHtml = children.map(child => renderNode(child, ir, classOf, pseudoRules))
+  const childHtml = children.map(child => renderNode(child, ir, classOf, pseudoRules, false, options))
   const runAfter = run => Math.min(Number.isInteger(run.afterChild) ? run.afterChild : 0, childHtml.length)
+  const textFor = (run, runIndex) => {
+    const slot = options.slotName?.(node, runIndex)
+    return slot === undefined ? run.text : `{{${slot}}}`
+  }
+  const indexedRuns = runs.map((run, runIndex) => ({ run, runIndex }))
   const parts = []
   for (let index = 0; index <= childHtml.length; index += 1) {
-    const text = runs.filter(run => runAfter(run) === index).map(run => escapeHtml(run.text)).join(' ')
+    const text = indexedRuns
+      .filter(entry => runAfter(entry.run) === index)
+      .map(entry => escapeHtml(textFor(entry.run, entry.runIndex)))
+      .join(' ')
     if (text.length > 0) parts.push(text)
     if (index < childHtml.length) parts.push(childHtml[index])
   }
 
-  const options = node.tag === 'select' && Array.isArray(node.options)
+  const selectOptions = node.tag === 'select' && Array.isArray(node.options)
     ? node.options.map(option => `<option value="${escapeHtml(option.value)}"${option.selected ? ' selected' : ''}>${escapeHtml(option.text)}</option>`).join('')
     : ''
   const colgroup = node.tag === 'table' && Array.isArray(node.layout?.columnWidths)
     ? `<colgroup>${node.layout.columnWidths.map(width => `<col style="width:${width}px">`).join('')}</colgroup>`
     : ''
 
-  if (isRoot) return `<body${classAttribute}>${colgroup}${options}${parts.join('')}</body>`
+  if (isRoot) return `<body${classAttribute}>${colgroup}${selectOptions}${parts.join('')}</body>`
   if (VOID_TAGS.has(node.tag)) return `<${node.tag}${classAttribute}${attributes}>`
-  return `<${node.tag}${classAttribute}${attributes}>${colgroup}${options}${parts.join('')}</${node.tag}>`
+  return `<${node.tag}${classAttribute}${attributes}>${colgroup}${selectOptions}${parts.join('')}</${node.tag}>`
+}
+
+const NAME_BY_TAG = {
+  tr: 'table-row', td: 'table-cell', th: 'table-header-cell', li: 'list-item',
+  a: 'link', button: 'button', div: 'block', span: 'text', nav: 'nav', ul: 'list',
+  ol: 'list', section: 'section', header: 'header', footer: 'footer', aside: 'aside',
+  main: 'main', table: 'table', tbody: 'table-body', thead: 'table-head',
+}
+
+/**
+ * Find repeated subtrees and turn the first instance into a partial with slots.
+ * The classes are shared with the main HTML, so a partial only needs the stylesheet.
+ */
+function extractComponents(ir, classOf, pseudoRules) {
+  const nodes = []
+  const walk = (node) => {
+    nodes.push(node)
+    for (const child of node.children ?? []) {
+      if (child.pseudo === undefined) walk(child)
+    }
+  }
+  walk(ir.root)
+
+  const groups = new Map()
+  for (const node of nodes) {
+    if (node.id === ir.root.id) continue
+    if (countTree(node) < 3) continue
+    const key = signatureOf(node)
+    const list = groups.get(key) ?? []
+    list.push(node)
+    groups.set(key, list)
+  }
+
+  const components = []
+  const used = new Set()
+  for (const candidateNodes of groups.values()) {
+    if (candidateNodes.length < 3) continue
+    const { indexMap, slots, slotList } = collectSlots(candidateNodes)
+    const base = `component-${NAME_BY_TAG[candidateNodes[0].tag] ?? slug(candidateNodes[0].tag)}`
+    let name = base
+    let suffix = 2
+    while (used.has(name)) name = `${base}-${suffix++}`
+    used.add(name)
+    const html = renderNode(candidateNodes[0], ir, classOf, pseudoRules, false, {
+      slotName: (node, runIndex) => slots.get(`${indexMap.get(node)}:${runIndex}`),
+    })
+    components.push({
+      name,
+      tag: candidateNodes[0].tag,
+      count: candidateNodes.length,
+      nodeIds: candidateNodes.map(node => node.id),
+      slots: slotList,
+      html,
+    })
+  }
+  return components.sort((left, right) => right.count - left.count).slice(0, 10)
+}
+
+function countTree(node) {
+  let total = 1
+  for (const child of node.children ?? []) {
+    if (child.pseudo !== undefined) continue
+    total += countTree(child)
+  }
+  return total
+}
+
+function signatureOf(node, depth = 0) {
+  if (depth >= 3) return node.tag
+  const children = (node.children ?? [])
+    .filter(child => child.pseudo === undefined)
+    .map(child => signatureOf(child, depth + 1))
+    .join(',')
+  return `${node.tag}[${node.role ?? ''}](${children})`
+}
+
+function collectSlots(candidateNodes) {
+  const values = new Map()
+  const indexMaps = []
+  for (const node of candidateNodes) {
+    const indexMap = new Map()
+    let index = 0
+    const walk = (current) => {
+      if (current.pseudo !== undefined) return
+      indexMap.set(current, index++)
+      const runs = current.textRuns ?? []
+      runs.forEach((run, runIndex) => {
+        const key = `${indexMap.get(current)}:${runIndex}`
+        const list = values.get(key) ?? []
+        list.push(run.text)
+        values.set(key, list)
+      })
+      for (const child of current.children ?? []) walk(child)
+    }
+    walk(node)
+    indexMaps.push(indexMap)
+  }
+
+  const slots = new Map()
+  const slotList = []
+  let counter = 0
+  for (const [key, list] of values) {
+    const distinct = [...new Set(list)]
+    if (distinct.length < 2) continue
+    const name = `text${++counter}`
+    slots.set(key, name)
+    slotList.push({ name, samples: distinct.slice(0, 6) })
+  }
+  return { indexMap: indexMaps[0], slots, slotList }
 }
 
 function pushPseudoRule(pseudo, parentClass, ir, pseudoRules) {

@@ -325,6 +325,23 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       const cssPath = join(caseDir, 'generated.component.css')
       writeFileSync(cssPath, component.css)
       const artifact = { html: htmlPath, css: cssPath }
+      const partials = []
+      if (component.components.length > 0) {
+        const componentsDir = join(caseDir, 'components')
+        mkdirSync(componentsDir, { recursive: true })
+        for (const entry of component.components) {
+          const file = join(componentsDir, `${entry.name}.html`)
+          const slotSummary = entry.slots.map(slot => `{{${slot.name}}}`).join(', ')
+          writeFileSync(file, `<!-- ${entry.name}: ${entry.count} instances${slotSummary.length > 0 ? `; slots: ${slotSummary}` : ''} -->\n${entry.html}\n`)
+          partials.push(file)
+        }
+      }
+      const componentsJson = join(caseDir, 'generated.components.json')
+      writeFileSync(componentsJson, `${JSON.stringify({
+        components: component.components.map(({ html, ...rest }) => rest),
+      }, null, 2)}\n`)
+      artifact.componentsJson = componentsJson
+      if (partials.length > 0) artifact.partials = partials
       try {
         const captured = await driver.capture({
           url: pathToFileURL(htmlPath).href,

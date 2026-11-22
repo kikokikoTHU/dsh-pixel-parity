@@ -236,7 +236,7 @@ const RUN_PARAMETERS = {
     },
     exportComponent: {
       type: 'boolean',
-      description: 'Also generate a maintainable HTML component and stylesheet (generated.component.html/.css) with shared classes and token variables, recording its pixel difference.',
+      description: 'Also generate a maintainable HTML component and stylesheet (generated.component.html/.css), plus component partials with text slots for repeated subtrees (components/*.html and generated.components.json), recording the pixel difference.',
     },
     geometryTolerance: {
       type: 'number',
@@ -347,6 +347,8 @@ const RUN_OUTPUT_SCHEMA = {
                         screenshot: { type: 'string' },
                         mismatchRatio: { type: 'number' },
                         error: { type: 'string' },
+                        componentsJson: { type: 'string' },
+                        partials: { type: 'array', items: { type: 'string' } },
                       },
                     },
                   },
