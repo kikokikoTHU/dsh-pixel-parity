@@ -22,8 +22,10 @@ maintainable HTML and CSS instead of an inline-styled fidelity proof.
   `--radius-*`; declarations reference them (`var(--color-3)`).
 - **Generated content restored**: pseudo children become `.name::before` / `.name::after`
   rules with their `content`, size and paint.
-- **Pruned CSS**: default values (`padding: 0`, zero-width borders, `opacity: 1`,
-  flex defaults) are omitted, and a small base reset removes the UA button border that
+- **Pruned and merged CSS**: default values (`padding: 0`, zero-width borders,
+  `opacity: 1`, flex defaults) are omitted; `padding`/`margin`/`border`/`gap`/`flex`
+  longhands collapse into shorthands; SVG paint properties are only emitted inside SVG, and
+  table properties only on tables. A small base reset removes the UA button border that
   would otherwise reappear once `border: 0` is pruned.
 - **Assets stay relative**: `assets/images/...`, `assets/fonts/...`, plus `@font-face`
   rules for materialized fonts.
@@ -34,9 +36,9 @@ Measured on the prototype (1440×900, 337 nodes):
 
 | Metric | Result |
 | --- | --- |
-| Pixel difference vs the page | **0.44%** |
+| Pixel difference vs the page | **0.43%** |
 | Classes / nodes | 100 / 337 |
-| CSS size | ~93 KB (pruned from 159 KB) |
+| CSS size | ~59 KB (pruned and merged from 159 KB) |
 | Inline styles | only `<col>` widths inside `<colgroup>` |
 
 The component render is slightly *closer* than the semantic render (0.52%) because
@@ -86,8 +88,9 @@ into separate clusters, and there is no prop/event model.
 
 - Class names are generated (`c1`, `c2`, …); there is no component extraction, naming, or
   prop model. Repeated cards stay repeated markup.
-- The CSS still lists every captured property that is not a default; pruning cut it by
-  ~42%, and shorthand merging / unused-property analysis is the next step.
+- The CSS still lists every captured property that survives pruning; shorthand merging cut
+  it to ~59 KB, and unused-property analysis (e.g. declarations overridden by a child) is the
+  next step.
 - One file per case/viewport; no breakpoints or responsive rules.
 - Absolute/fixed nodes keep their absolute position, since the flow that produced them is
   not recoverable.
@@ -95,6 +98,6 @@ into separate clusters, and there is no prop/event model.
 
 ## Next
 
-1. Prune redundant declarations and deduplicate shorthand properties.
-2. Extract repeated subtrees into named components with slots.
+1. Remove declarations that are fully overridden by a child or a later rule.
+2. Merge repeated structural variants into one component with optional slots.
 3. Emit an optional stripped variant with absolute positioning removed.

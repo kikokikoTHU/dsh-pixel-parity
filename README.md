@@ -47,9 +47,9 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
   `.css`: readable classes, token variables, restored `::before`/`::after`, relative
   assets, and pruned defaults. Repeated subtrees are clustered into
   `components/*.html` partials with `{{text}}` slots plus `generated.components.json`
-  (prototype: 16-row table, 11 nav links, 6 info blocks, 4 nav buttons). Renders at 0.44%
-  pixels with 100 classes for 337 nodes and ~93 KB of CSS.
-  See [docs/COMPONENT.md](docs/COMPONENT.md).
+  (prototype: 16-row table, 11 nav links, 6 info blocks, 4 nav buttons). Renders at 0.43%
+  pixels with 100 classes for 337 nodes and ~59 KB of CSS (pruned and shorthand-merged
+  from 159 KB). See [docs/COMPONENT.md](docs/COMPONENT.md).
 - **`pixel-parity` skill** — the workflow: config → anchors → run → fix by layer → re-run.
 
 Statuses are explicit: `verified` (G/S/P pass), `image-verified` (pixels only, no DOM

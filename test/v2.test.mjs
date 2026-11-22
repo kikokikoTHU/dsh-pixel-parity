@@ -104,7 +104,17 @@ await test('component generator emits classes and token variables', async () => 
       children: [{
         id: 'n2', tag: 'div', role: 'container', layout: { kind: 'block' },
         box: { x: 10, y: 10, w: 80, h: 40 },
-        style: { backgroundColor: 'color.1', typography: 'type.1', borderRadius: 'radius.1' },
+        style: {
+          backgroundColor: 'color.1',
+          typography: 'type.1',
+          borderRadius: 'radius.1',
+          paddingTop: '4px', paddingRight: '4px', paddingBottom: '4px', paddingLeft: '4px',
+          borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'color.1',
+          borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'color.1',
+          borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'color.1',
+          borderLeftWidth: '1px', borderLeftStyle: 'solid', borderLeftColor: 'color.1',
+          gap: '8px', rowGap: '8px', columnGap: '8px',
+        },
         textRuns: [{ text: 'Hello', box: { x: 12, y: 14, w: 40, h: 18 } }],
       }],
     },
@@ -122,6 +132,11 @@ await test('component generator emits classes and token variables', async () => 
   assert.doesNotMatch(css, /padding-top: 0px/)
   assert.doesNotMatch(css, /border-top-width: 0px/)
   assert.doesNotMatch(css, /opacity: 1/)
+  assert.match(css, /padding: 4px;/)
+  assert.match(css, /border: 1px solid var\(--color-1\);/)
+  assert.doesNotMatch(css, /padding-top:/)
+  assert.doesNotMatch(css, /border-top-width:/)
+  assert.doesNotMatch(css, /row-gap:/)
   assert.match(css, /@font-face \{/)
   assert.match(css, /assets\/fonts\/x\.woff2/)
 })

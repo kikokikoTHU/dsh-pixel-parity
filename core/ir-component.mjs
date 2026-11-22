@@ -87,12 +87,13 @@ ${body}
 function renderNode(node, ir, classOf, pseudoRules, isRoot = false, options = {}) {
   if (SKIP_TAGS.has(node.tag)) return ''
   const style = expandStyle(node.style, ir.tokens)
-  const declarations = buildDeclarations(node, style, ir)
+  const inSvg = options.inSvg === true || node.tag === 'svg'
+  const declarations = buildDeclarations(node, style, ir, { inSvg })
   const classEntry = classOf(declarations, node)
 
   const children = (node.children ?? []).filter(child => child.pseudo === undefined)
   for (const pseudo of (node.children ?? []).filter(child => child.pseudo !== undefined)) {
-    pushPseudoRule(pseudo, classEntry, ir, pseudoRules)
+    pushPseudoRule(pseudo, classEntry, ir, pseudoRules, { inSvg })
   }
 
   const attributes = Object.entries(node.attributes ?? {})
@@ -102,7 +103,8 @@ function renderNode(node, ir, classOf, pseudoRules, isRoot = false, options = {}
   const classAttribute = ` class="${classEntry.name}"`
 
   const runs = node.textRuns ?? []
-  const childHtml = children.map(child => renderNode(child, ir, classOf, pseudoRules, false, options))
+  const childOptions = { ...options, inSvg }
+  const childHtml = children.map(child => renderNode(child, ir, classOf, pseudoRules, false, childOptions))
   const runAfter = run => Math.min(Number.isInteger(run.afterChild) ? run.afterChild : 0, childHtml.length)
   const textFor = (run, runIndex) => {
     const slot = options.slotName?.(node, runIndex)
@@ -240,9 +242,9 @@ function collectSlots(candidateNodes) {
   return { indexMap: indexMaps[0], slots, slotList }
 }
 
-function pushPseudoRule(pseudo, parentClass, ir, pseudoRules) {
+function pushPseudoRule(pseudo, parentClass, ir, pseudoRules, context = {}) {
   const style = expandStyle(pseudo.style, ir.tokens)
-  const declarations = buildDeclarations(pseudo, style, ir)
+  const declarations = buildDeclarations(pseudo, style, ir, context)
   const content = (pseudo.textRuns ?? [])[0]?.text ?? ''
   const header = [`content: "${escapeCssString(content)}"`]
   if (content === '' && !declarations.includes('display:inline-block') && !declarations.some(item => item.startsWith('display:'))) {
@@ -254,7 +256,7 @@ function pushPseudoRule(pseudo, parentClass, ir, pseudoRules) {
   })
 }
 
-function buildDeclarations(node, style, ir) {
+function buildDeclarations(node, style, ir, context = {}) {
   const declarations = []
   const zero = value => typeof value === 'string' && /^0(?:\.0+)?px$/.test(value)
   const DEFAULT_VALUES = new Map([
@@ -325,6 +327,10 @@ function buildDeclarations(node, style, ir) {
       if (zero(style[`border${side}Width`])) continue
     }
     if (key === 'fontFamily' || key === 'fontSize' || key === 'fontWeight' || key === 'lineHeight' || key === 'letterSpacing') continue
+    if (context.inSvg !== true && (key.startsWith('fill') || key.startsWith('stroke'))) continue
+    if ((key === 'borderCollapse' || key === 'borderSpacing' || key === 'tableLayout') && node.tag !== 'table') continue
+    if (key === 'gridAutoFlow' && !(style.display ?? '').includes('grid')) continue
+    if (key === 'verticalAlign' && value === 'baseline') continue
     if (key === 'borderRadius' && node.style?.borderRadius?.startsWith('radius.')) {
       declarations.push(`border-radius:var(--${String(node.style.borderRadius).replace('.', '-')})`)
       continue
@@ -333,13 +339,83 @@ function buildDeclarations(node, style, ir) {
       declarations.push(`${kebab(key)}:var(--${String(node.style[key]).replace('.', '-')})`)
       continue
     }
+    if (key === 'color' || key === 'backgroundColor' || /^border(Top|Right|Bottom|Left)Color$/.test(key)) {
+      const reference = colorReference(node.style?.[key], value, ir)
+      if (reference !== undefined) {
+        declarations.push(`${kebab(key)}:${reference}`)
+        continue
+      }
+    }
     if (key === 'transform' || key === 'transformOrigin') {
       declarations.push(`${kebab(key)}:${value}`)
       continue
     }
     declarations.push(`${kebab(key)}:${value}`)
   }
-  return [...new Set(declarations)]
+  return mergeDeclarations(declarations)
+}
+
+/** Collapse longhands into equivalent shorthands without changing the cascade. */
+function mergeDeclarations(declarations) {
+  const map = new Map()
+  for (const item of declarations) {
+    const index = item.indexOf(':')
+    if (index < 0) continue
+    map.set(item.slice(0, index).trim(), item.slice(index + 1).trim())
+  }
+
+  for (const base of ['padding', 'margin']) {
+    const sides = ['top', 'right', 'bottom', 'left'].map(side => map.get(`${base}-${side}`))
+    if (!sides.some(value => value !== undefined)) continue
+    const [top, right, bottom, left] = sides.map(value => value ?? '0')
+    for (const side of ['top', 'right', 'bottom', 'left']) map.delete(`${base}-${side}`)
+    map.set(base, boxShorthand(top, right, bottom, left))
+  }
+
+  const sideBorders = {}
+  for (const side of ['top', 'right', 'bottom', 'left']) {
+    const width = map.get(`border-${side}-width`)
+    if (width === undefined) continue
+    const style = map.get(`border-${side}-style`) ?? 'none'
+    const color = map.get(`border-${side}-color`)
+    sideBorders[side] = [width, style, color].filter(value => value !== undefined).join(' ')
+    for (const key of ['width', 'style', 'color']) map.delete(`border-${side}-${key}`)
+  }
+  const sides = Object.keys(sideBorders)
+  if (sides.length === 4 && new Set(Object.values(sideBorders)).size === 1) {
+    map.set('border', sideBorders.top)
+  } else {
+    for (const side of sides) map.set(`border-${side}`, sideBorders[side])
+  }
+
+  const gap = map.get('gap')
+  const rowGap = map.get('row-gap')
+  const columnGap = map.get('column-gap')
+  if (gap !== undefined) {
+    map.delete('row-gap')
+    map.delete('column-gap')
+  } else if (rowGap !== undefined && rowGap === columnGap) {
+    map.delete('row-gap')
+    map.delete('column-gap')
+    map.set('gap', rowGap)
+  }
+
+  if (map.has('flex-grow') && map.has('flex-shrink') && map.has('flex-basis')) {
+    const value = `${map.get('flex-grow')} ${map.get('flex-shrink')} ${map.get('flex-basis')}`
+    map.delete('flex-grow')
+    map.delete('flex-shrink')
+    map.delete('flex-basis')
+    map.set('flex', value)
+  }
+
+  return [...map.entries()].map(([property, value]) => `${property}:${value}`)
+}
+
+function boxShorthand(top, right, bottom, left) {
+  if (top === right && right === bottom && bottom === left) return top
+  if (top === bottom && left === right) return `${top} ${right}`
+  if (left === right) return `${top} ${right} ${bottom}`
+  return `${top} ${right} ${bottom} ${left}`
 }
 
 function buildStylesheet(ir, rules, pseudoRules) {
@@ -374,13 +450,13 @@ function buildStylesheet(ir, rules, pseudoRules) {
   lines.push('')
   for (const rule of rules) {
     lines.push(`.${rule.name} {`)
-    for (const declaration of rule.declarations) lines.push(`  ${declaration};`)
+    for (const declaration of rule.declarations) lines.push(`  ${declaration.replace(':', ': ')};`)
     lines.push('}')
     lines.push('')
   }
   for (const rule of pseudoRules) {
     lines.push(`${rule.selector} {`)
-    for (const declaration of rule.declarations) lines.push(`  ${declaration};`)
+    for (const declaration of rule.declarations) lines.push(`  ${declaration.replace(':', ': ')};`)
     lines.push('}')
     lines.push('')
   }
@@ -389,6 +465,16 @@ function buildStylesheet(ir, rules, pseudoRules) {
 
 function kebab(property) {
   return property.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)
+}
+
+function colorReference(raw, expanded, ir) {
+  if (typeof raw === 'string' && raw.startsWith('color.') && ir.tokens.colors?.[raw] !== undefined) {
+    return `var(--${raw.replace('.', '-')})`
+  }
+  for (const [name, value] of Object.entries(ir.tokens.colors ?? {})) {
+    if (value === expanded) return `var(--${name.replace('.', '-')})`
+  }
+  return undefined
 }
 
 function escapeHtml(value) {
