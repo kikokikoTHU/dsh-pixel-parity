@@ -147,6 +147,7 @@ function normalizeTarget(raw, directory, label) {
     waitFor: raw.waitFor ?? [],
     steps: normalizeSteps(raw.steps, `${label}.steps`),
     storageState: normalizeStorageState(raw.storageState, directory, `${label}.storageState`),
+    settle: normalizeSettle(raw.settle, `${label}.settle`),
     viewport: raw.viewport ?? null,
     fixtures: raw.fixtures === undefined ? undefined : resolve(directory, raw.fixtures),
   }
@@ -199,6 +200,21 @@ function normalizeStorageState(value, directory, label) {
   return value
 }
 
+function normalizeSettle(value, label) {
+  if (value === undefined) return undefined
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object`)
+  if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || !Number.isFinite(value.timeoutMs))) throw new Error(`${label}.timeoutMs must be a number`)
+  if (value.delayMs !== undefined && (typeof value.delayMs !== 'number' || !Number.isFinite(value.delayMs))) throw new Error(`${label}.delayMs must be a number`)
+  return {
+    fonts: value.fonts !== false,
+    images: value.images !== false,
+    networkIdle: value.networkIdle === true,
+    selector: typeof value.selector === 'string' && value.selector.length > 0 ? value.selector : undefined,
+    timeoutMs: value.timeoutMs ?? 15000,
+    delayMs: value.delayMs ?? 120,
+  }
+}
+
 function normalizeCase(entry, index, directory, defaults, targets) {
   if (entry === null || typeof entry !== 'object') throw new Error(`cases[${index}] must be an object`)
   const id = entry.id ?? `case-${index + 1}`
@@ -249,6 +265,7 @@ function normalizeCase(entry, index, directory, defaults, targets) {
     waitFor: { ref: entry.waitFor?.ref ?? reference.waitFor ?? targets.reference.waitFor, impl: entry.waitFor?.impl ?? implementation.waitFor ?? targets.implementation.waitFor },
     steps: { ref: entry.steps?.ref ?? reference.steps ?? [], impl: entry.steps?.impl ?? implementation.steps ?? [] },
     storageState: { ref: entry.storageState?.ref ?? reference.storageState, impl: entry.storageState?.impl ?? implementation.storageState },
+    settle: { ref: entry.settle?.ref ?? reference.settle, impl: entry.settle?.impl ?? implementation.settle },
   }
 }
 
@@ -267,6 +284,7 @@ function resolveTargetSpec(spec, target, directory, label) {
       readyUrl: spec.readyUrl ?? target.readyUrl,
       steps: normalizeSteps(spec.steps ?? target.steps, `${label}.steps`),
       storageState: normalizeStorageState(spec.storageState ?? target.storageState, directory, `${label}.storageState`),
+      settle: normalizeSettle(spec.settle ?? target.settle, `${label}.settle`),
     }
   }
   if (kind === 'figma') {

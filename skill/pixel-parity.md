@@ -137,6 +137,24 @@ anchors: { inner: { ref: "iframe#app >>> .row", impl: { selector: ".row", frame:
 Rects are translated to page coordinates; styles come from the frame. Screenshots
 already include iframe pixels, so this only adds DOM evidence.
 
+For a logged-in page, capture the state once:
+
+```
+parity_login({ repo: "/abs/path", url: "http://localhost:5173/login", waitForUrl: "/dashboard" })
+```
+
+It opens a real window; finish the login there. The saved
+`<repo>/.parity/state.json` goes into `implementation.storageState`.
+
+If the page settles late, add `settle`:
+
+```js
+settle: { networkIdle: true, selector: ".row", timeoutMs: 15000 }
+```
+
+Defaults: fonts ready, image decode, 120 ms delay. Cross-origin `@font-face` rules
+are read through CDP.
+
 ### 3. Run
 
 ```

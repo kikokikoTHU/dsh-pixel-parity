@@ -1478,6 +1478,7 @@ http.createServer((req, res) => {
           implementation: {
             steps: [{ action: 'click', selector: '#go' }],
             storageState: './state.json',
+            settle: { networkIdle: true, selector: '#ready', timeoutMs: 5000 },
           },
         },
         cases: [{
@@ -1496,8 +1497,43 @@ http.createServer((req, res) => {
     assert.equal(config.cases[0].steps.impl.length, 1)
     assert.equal(config.cases[0].steps.impl[0].action, 'click')
     assert.equal(config.cases[0].storageState.impl, join(directory, 'state.json'))
+    assert.equal(config.cases[0].settle.impl.networkIdle, true)
+    assert.equal(config.cases[0].settle.impl.selector, '#ready')
+    assert.equal(config.cases[0].settle.impl.timeoutMs, 5000)
     assert.deepEqual(config.cases[0].anchors.inner.ref, { selector: '.box', frame: 'iframe' })
     assert.deepEqual(config.cases[0].anchors.inner.impl, { selector: '.box', frame: 'iframe#f' })
+  })
+
+  await test('login capture saves storageState after a URL condition', async () => {
+    const { createServer } = await import('node:http')
+    const server = createServer((request, response) => {
+      if (request.url === '/done') {
+        response.writeHead(200, { 'content-type': 'text/html' })
+        response.end('<html><body>done</body></html>')
+        return
+      }
+      response.writeHead(200, { 'content-type': 'text/html', 'set-cookie': 'session=abc123; Path=/' })
+      response.end('<html><body><script>setTimeout(() => { location.href = "/done" }, 150)</script></body></html>')
+    })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    const port = server.address().port
+    const directory = mkdtempSync(join(tmpdir(), 'parity-login-'))
+    const statePath = join(directory, 'state.json')
+    try {
+      const { captureLoginState } = await import('../adapters/web.mjs')
+      const result = await captureLoginState({
+        repoRoot: repo,
+        url: `http://127.0.0.1:${port}/`,
+        waitForUrl: '/done',
+        headless: true,
+        storageState: statePath,
+      })
+      assert.equal(result.url.endsWith('/done'), true)
+      const state = JSON.parse(readFileSync(statePath, 'utf8'))
+      assert.ok(state.cookies.some(cookie => cookie.name === 'session' && cookie.value === 'abc123'))
+    } finally {
+      server.close()
+    }
   })
 
   await test('init detects the real repo workspace app and routes', () => {
@@ -1723,6 +1759,10 @@ http.createServer((req, res) => {
     assert.ok(diagnoseTool !== undefined)
     tools.assertSupportedJsonSchema(diagnoseTool.parameters)
     tools.assertSupportedJsonSchema(diagnoseTool.output.schema)
+    const loginTool = registered.get('parity_login')
+    assert.ok(loginTool !== undefined)
+    tools.assertSupportedJsonSchema(loginTool.parameters)
+    tools.assertSupportedJsonSchema(loginTool.output.schema)
     const diagnosisValue = await diagnoseTool.execute({ repo, runDir: value.runDir }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(diagnoseTool.output.schema, diagnosisValue, 'value'), [])
   })

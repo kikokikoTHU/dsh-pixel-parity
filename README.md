@@ -37,6 +37,8 @@ through HMR. Publishing is planned; see `docs/RELEASE.md`.
   recent runs, per-case statuses, deltas, and diff thumbnails, served by `/pixel-parity/*`.
   It refreshes while open, accepts a repo path, and can re-run the last arguments or approve
   the latest baseline. See [docs/PANEL.md](docs/PANEL.md).
+- **`parity_login`** — opens a headed browser for an interactive login, waits for a URL
+  fragment/regex or selector, then saves a Playwright storageState file for configs.
 - **`parity_check`** — single-shot image-vs-page comparison for repos without a config.
 - **Dev server start** — `targets.implementation.start` (plus `baseUrl`) launches the app
   when the URL is not already reachable, waits for readiness, and stops it after the run.
@@ -143,6 +145,36 @@ Supported actions: `click`, `fill`, `press`, `hover`, `scroll` (`x`/`y`), `wait`
 `storageState` loads cookies/localStorage for that target. Both require Playwright;
 the Chrome CLI fallback fails with an explicit message instead of capturing a
 different state.
+
+Capture the logged-in state once, then reference the file:
+
+```
+parity_login({
+  repo: "/abs/path/to/repo",
+  url: "http://localhost:5173/login",
+  waitForUrl: "/dashboard",          // or waitForSelector: "[data-testid=home]"
+})
+→ <repo>/.parity/state.json
+```
+
+`parity_login` opens a real window (headless only for automated tests), waits for the
+condition, and writes Playwright's `storageState`. CLI equivalent:
+
+```
+node <plugin>/cli.mjs login --repo . --url http://localhost:5173/login --wait-url /dashboard
+```
+
+Add `settle` when the page keeps changing after load:
+
+```js
+implementation: {
+  settle: { networkIdle: true, selector: ".row", timeoutMs: 15000 },
+},
+```
+
+Defaults wait for `document.fonts.ready`, decode pending images, then wait 120 ms.
+`networkIdle` and `selector` are opt-in. Cross-origin `@font-face` rules are read
+through CDP, so fonts from third-party stylesheets are materialized too.
 
 Anchors inside an iframe use `frame >>> selector` (or `{ selector, frame }`):
 

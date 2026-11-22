@@ -11,6 +11,7 @@ import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runParityCheck } from './lib/check.js'
 import { runConfig } from './core/runner.mjs'
+import { captureLoginState } from './adapters/web.mjs'
 import { approveRun } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
@@ -697,6 +698,34 @@ const DIAGNOSE_OUTPUT_SCHEMA = {
   },
 }
 
+const LOGIN_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['repo', 'url'],
+  properties: {
+    repo: { type: 'string', description: 'Absolute path to the repository root.' },
+    url: { type: 'string', description: 'Login page URL to open in a headed browser.' },
+    storageState: { type: 'string', description: 'Output path for the storageState JSON (default .parity/state.json).' },
+    waitForUrl: { type: 'string', description: 'Substring of the URL that marks login completion; prefix with re: for a regular expression.' },
+    waitForSelector: { type: 'string', description: 'Selector that appears after login completes.' },
+    timeoutMs: { type: 'number', description: 'How long to wait for the condition (default 300000).' },
+    dependencies: { type: 'string', description: 'Directory where Playwright resolves (defaults to repo).' },
+    headless: { type: 'boolean', description: 'Run without a window (default false; only for automated tests).' },
+  },
+}
+
+const LOGIN_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['path', 'url', 'cookies', 'origins'],
+  properties: {
+    path: { type: 'string' },
+    url: { type: 'string' },
+    cookies: { type: 'integer' },
+    origins: { type: 'integer' },
+  },
+}
+
 const BASELINE_OPTIONS = {
   pin: '对齐在线原型并固化基线',
   ephemeral: '仅本次比对，不保存基线',
@@ -909,6 +938,35 @@ export function apply(ctx, config) {
     const server = ctx.get('webServer')
     if (server !== undefined) registerPanelRoutes({ webServer: server, effect: callback => ctx.effect(callback) })
   }
+  ctx.effect(() => ctx.tools.register({
+    name: 'parity_login',
+    description: 'Open a headed browser for an interactive login, wait for a URL fragment or selector that marks completion, then save a Playwright storageState file. Reference it from a config target as `storageState` so later parity_run captures the logged-in page.',
+    parameters: LOGIN_PARAMETERS,
+    output: {
+      schema: LOGIN_OUTPUT_SCHEMA,
+      render(_args, value) {
+        return [{
+          type: 'text',
+          text: [`Saved ${value.path}`, `URL: ${value.url}`, `Cookies: ${value.cookies}, origins: ${value.origins}`].join('\n'),
+        }]
+      },
+    },
+    async execute(args) {
+      const repo = text(args.repo, 'repo')
+      const raw = args.storageState === undefined ? '.parity/state.json' : text(args.storageState, 'storageState')
+      return captureLoginState({
+        repoRoot: repo,
+        dependenciesRoot: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
+        url: text(args.url, 'url'),
+        storageState: isAbsolute(raw) ? raw : join(repo, raw),
+        waitForUrl: args.waitForUrl === undefined ? undefined : text(args.waitForUrl, 'waitForUrl'),
+        waitForSelector: args.waitForSelector === undefined ? undefined : text(args.waitForSelector, 'waitForSelector'),
+        timeoutMs: args.timeoutMs === undefined ? undefined : Number(args.timeoutMs),
+        headless: args.headless === true,
+      })
+    },
+  }))
+
   ctx.effect(() => ctx.tools.register({
     name: 'parity_check',
     description: DESCRIPTION,

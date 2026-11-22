@@ -18,6 +18,7 @@ import { approveRun, latestRunDir } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
+import { captureLoginState } from './adapters/web.mjs'
 
 const args = parseArgs(process.argv.slice(2))
 const command = args._[0] ?? 'run'
@@ -39,10 +40,42 @@ if (command === 'run') {
   report()
 } else if (command === 'diagnose') {
   diagnose()
+} else if (command === 'login') {
+  login()
 } else {
   console.error(`unknown command "${command}"`)
   printHelp()
   process.exit(2)
+}
+
+async function login() {
+  const url = args.url === undefined ? undefined : String(args.url)
+  if (url === undefined) {
+    console.error('login needs --url')
+    process.exit(2)
+  }
+  if (args.waitUrl === undefined && args.waitSelector === undefined) {
+    console.error('login needs --wait-url or --wait-selector so it knows when the login is done')
+    process.exit(2)
+  }
+  const out = args.out === undefined ? resolve(repoRoot, '.parity', 'state.json') : resolve(String(args.out))
+  try {
+    const result = await captureLoginState({
+      repoRoot,
+      dependenciesRoot: args.deps === undefined ? undefined : resolve(String(args.deps)),
+      url,
+      storageState: out,
+      waitForUrl: args.waitUrl === undefined ? undefined : String(args.waitUrl),
+      waitForSelector: args.waitSelector === undefined ? undefined : String(args.waitSelector),
+      timeoutMs: args.timeout === undefined ? undefined : Number(args.timeout),
+      headless: args.headless === true,
+    })
+    console.log(`Saved ${result.path}\nURL: ${result.url}\nCookies: ${result.cookies}, origins: ${result.origins}`)
+    process.exit(0)
+  } catch (error) {
+    console.error(`login failed: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(2)
+  }
 }
 
 async function run() {
@@ -248,7 +281,7 @@ function printSummary(result) {
 }
 
 function printHelp() {
-  console.log(`Usage: node cli.mjs <run|approve|init|report|diagnose> [options]
+  console.log(`Usage: node cli.mjs <run|approve|init|report|diagnose|login> [options]
 
 init:
   --repo <dir>           repository root (default: cwd)
@@ -290,5 +323,14 @@ diagnose:
   --run <dir>            run directory (default: newest)
   --case <id>            only these cases
   --viewport <id>        only these viewports
-  --json                 print the diagnosis as JSON`)
+  --json                 print the diagnosis as JSON
+
+login:
+  --url <url>            login page to open (headed)
+  --wait-url <text>      URL fragment/regex (re: prefix) that marks success
+  --wait-selector <sel>  selector that marks success
+  --out <file>           storageState path (default .parity/state.json)
+  --timeout <ms>         wait limit (default 300000)
+  --deps <dir>           directory with Playwright
+  --headless             no window (automation only)`)
 }

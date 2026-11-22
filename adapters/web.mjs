@@ -7,8 +7,8 @@
  */
 
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { decodePng } from '../lib/png.js'
 import { captureScreenshot, findBrowser } from '../lib/browser.js'
@@ -626,6 +626,133 @@ function translateIr(node, dx, dy) {
   for (const child of node.children ?? []) translateIr(child, dx, dy)
 }
 
+/**
+ * Wait for the page to become capture-ready. Defaults keep the old behaviour
+ * (fonts, image decode, 120 ms) and `networkIdle` / `selector` are opt-in.
+ */
+async function settlePage(page, settle = {}) {
+  const timeout = settle.timeoutMs ?? 15000
+  if (settle.networkIdle === true) {
+    await page.waitForLoadState('networkidle', { timeout }).catch(() => {})
+  }
+  if (settle.selector !== undefined) {
+    await page.waitForSelector(settle.selector, { timeout }).catch(() => {})
+  }
+  if (settle.fonts !== false) {
+    await page.evaluate(() => document.fonts?.ready ?? Promise.resolve()).catch(() => {})
+  }
+  if (settle.images !== false) {
+    await page.evaluate(async () => {
+      const pending = [...document.images].filter(image => !image.complete)
+      await Promise.all(pending.map(image => image.decode().catch(() => {})))
+    }).catch(() => {})
+  }
+  await page.waitForTimeout(settle.delayMs ?? 120)
+}
+
+/**
+ * Read `@font-face` rules through CDP so cross-origin stylesheets (whose
+ * `cssRules` the page cannot read) still materialize their fonts.
+ */
+async function collectCrossOriginFonts(page, fonts) {
+  const seen = new Set(fonts.map(font => `${font.family}|${font.weight}|${font.style}|${font.src}`))
+  let client
+  try {
+    client = await page.context().newCDPSession(page)
+  } catch {
+    return
+  }
+  const sheets = []
+  client.on('CSS.styleSheetAdded', event => {
+    if (event?.header !== undefined) sheets.push(event.header)
+  })
+  try {
+    await client.send('DOM.enable')
+    await client.send('CSS.enable')
+    await page.waitForTimeout(250)
+    for (const header of sheets) {
+      if (typeof header.sourceURL !== 'string' || header.sourceURL.length === 0) continue
+      let text
+      try {
+        ({ text } = await client.send('CSS.getStyleSheetText', { styleSheetId: header.styleSheetId }))
+      } catch {
+        continue
+      }
+      for (const match of text.matchAll(/@font-face\s*\{([^}]*)\}/g)) {
+        const body = match[1]
+        const family = /font-family\s*:\s*['"]?([^'";]+)/.exec(body)?.[1]?.trim()
+        const source = /src\s*:\s*([^;]+)/.exec(body)?.[1]
+        if (family === undefined || source === undefined) continue
+        const url = /url\((['"]?)([^'")]+)\1\)/.exec(source)?.[2]
+        if (url === undefined) continue
+        let absolute
+        try {
+          absolute = new URL(url, header.sourceURL).href
+        } catch {
+          continue
+        }
+        const weight = /font-weight\s*:\s*([^;]+)/.exec(body)?.[1]?.trim() || '400'
+        const style = /font-style\s*:\s*([^;]+)/.exec(body)?.[1]?.trim() || 'normal'
+        const format = /format\((['"]?)([^'")]+)\1\)/.exec(source)?.[2] ?? ''
+        const key = `${family}|${weight}|${style}|${absolute}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        fonts.push({ family, weight, style, src: absolute, format })
+      }
+    }
+  } finally {
+    await client.detach().catch(() => {})
+  }
+}
+
+/**
+ * Open a headed browser so the user can log in, wait for a URL or selector
+ * condition, then write a Playwright storageState file.
+ * @returns {Promise<{path: string, url: string, cookies: number, origins: number}>}
+ */
+export async function captureLoginState(options) {
+  const playwright = await resolvePlaywright(options.dependenciesRoot ?? options.repoRoot)
+  if (playwright === undefined) {
+    throw new Error('login capture needs Playwright: install it in the repository (npm i -D playwright)')
+  }
+  if (options.waitForUrl === undefined && options.waitForSelector === undefined) {
+    throw new Error('login capture needs waitForUrl or waitForSelector so it knows when the login is done')
+  }
+  const timeoutMs = options.timeoutMs ?? 300000
+  const browser = await playwright.chromium.launch({ headless: options.headless === true })
+  try {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 820 } })
+    const page = await context.newPage()
+    await page.goto(toTargetUrl(options.url), { waitUntil: 'load', timeout: 60000 })
+    const deadline = Date.now() + timeoutMs
+    const done = async () => {
+      if (options.waitForUrl !== undefined) {
+        const current = page.url()
+        const matched = options.waitForUrl.startsWith('re:')
+          ? new RegExp(options.waitForUrl.slice(3)).test(current)
+          : current.includes(options.waitForUrl)
+        if (matched) return true
+      }
+      if (options.waitForSelector !== undefined && await page.$(options.waitForSelector) !== null) return true
+      return false
+    }
+    while (Date.now() < deadline) {
+      if (await done()) break
+      await page.waitForTimeout(500)
+    }
+    if (!(await done())) {
+      throw new Error(`login did not reach the wait condition within ${Math.round(timeoutMs / 1000)}s`)
+    }
+    const state = await context.storageState()
+    const target = options.storageState ?? join(options.repoRoot, '.parity', 'state.json')
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, JSON.stringify(state, null, 2))
+    return { path: target, url: page.url(), cookies: state.cookies.length, origins: state.origins.length }
+  } finally {
+    await browser.close()
+  }
+}
+
 function createPlaywrightDriver(playwright, options) {
   let browser
 
@@ -675,8 +802,7 @@ function createPlaywrightDriver(playwright, options) {
       for (const selector of input.waitFor ?? []) {
         await page.waitForSelector(selector, { state: 'visible', timeout: 15000 }).catch(() => {})
       }
-      await page.evaluate(() => document.fonts?.ready ?? Promise.resolve())
-      await page.waitForTimeout(120)
+      await settlePage(page, input.settle)
 
       const screenshot = await page.screenshot({ type: 'png' })
       const image = decodePng(screenshot)
@@ -703,6 +829,7 @@ function createPlaywrightDriver(playwright, options) {
       if (input.exportDom === true) {
         dom = await page.evaluate(captureDocumentFrame, CAPTURE_ARGS)
         await attachIframeContent(page, dom)
+        if (input.settle?.fonts !== false) await collectCrossOriginFonts(page, dom.fonts)
       }
 
       return {
