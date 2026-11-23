@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -1085,11 +1085,20 @@ window.__ModuleLoader__.load({
               }),
             ))
           })(),
-          taskCount === 0 ? h('div', { style: { ...styles.taskCard, textAlign: 'center', padding: 18 } },
-            h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐 Task'),
-            h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, (store.projects ?? []).length > 0 ? '项目在下方；Task 是一次对齐测量，可继续用 Projects 创建。' : '用 Projects 创建项目，或让模型在对话里直接建。'),
-            h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
-          ) : null,
+          taskCount === 0 ? ((store.projects ?? []).length === 0
+            ? h('div', { style: { ...styles.taskCard, textAlign: 'center', padding: 18 } },
+                h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐 Task'),
+                h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, '用 Projects 创建项目，或让模型在对话里直接建。'),
+                h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
+              )
+            : h('div', {
+                style: { ...styles.taskCard, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, cursor: 'pointer' },
+                title: '新建 Project',
+                onClick: () => { state.projectsOpen = true; state.creating = true; state.project = null; notify() },
+              },
+                h('span', { style: { width: 24, height: 24, borderRadius: 6, background: '#111827', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 16, lineHeight: 1 } }, '+'),
+                h('span', { style: { fontSize: 11, color: '#334155', fontWeight: 600 } }, '新建 Project'),
+              )) : null,
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
               h('strong', null, 'diagnose'),
@@ -1128,6 +1137,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
