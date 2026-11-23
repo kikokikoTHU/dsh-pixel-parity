@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v2 core tests: config normalization, G/S comparisons, masking, and one
  * end-to-end run over the web fixtures.
  *
@@ -1600,6 +1600,8 @@ http.createServer((req, res) => {
     const task = createTask({ repo: repoRoot, config: fixtureConfig, cases: ['exact'] })
     assert.equal(task.status, 'draft')
     const result = await stepTask({ id: task.id, dependenciesRoot: repo })
+    const manifest = JSON.parse(readFileSync(join(result.runDir, 'manifest.json'), 'utf8'))
+    assert.equal(manifest.task.iteration, 1)
     assert.equal(result.task.iteration, 1)
     assert.equal(result.task.status, 'converged')
     const reportPath = reportTask(task.id)
@@ -1862,6 +1864,7 @@ http.createServer((req, res) => {
 console.log(results.join('\n'))
 console.log(`\n${results.filter(line => line.startsWith('ok')).length}/${results.length} passed`)
 process.exitCode = failed > 0 ? 1 : 0
+
 
 
 

@@ -144,6 +144,12 @@ export async function stepTask(input) {
 
   const manifest = result.manifest
   const iteration = task.iteration + 1
+  try {
+    const manifestPath = join(result.runDir, 'manifest.json')
+    const stored = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    stored.task = { id: task.id, iteration, maxIterations: task.maxIterations }
+    writeFileSync(manifestPath, `${JSON.stringify(stored, null, 2)}\n`)
+  } catch {}
   const cases = (manifest.cases ?? []).map(entry => ({
     id: entry.id,
     status: entry.status,
@@ -302,6 +308,7 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+
 
 
 

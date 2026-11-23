@@ -405,7 +405,14 @@ window.__ModuleLoader__.load({
       return h('div', { style: styles.card },
         h('div', { style: { ...styles.row, cursor: 'pointer' }, onClick: () => setExpanded(!expanded) },
           h('strong', null, shortId(run.runId)),
-          h('span', { style: styles.pill }, `iter ${run.iteration}`),
+          h('span', {
+            style: styles.pill,
+            title: run.taskIteration === null || run.taskIteration === undefined
+              ? `run iteration ${run.iteration}`
+              : `task iteration ${run.taskIteration}/${run.taskMaxIterations ?? '?'} · run #${run.iteration}`,
+          }, run.taskIteration === null || run.taskIteration === undefined
+            ? `iter ${run.iteration}`
+            : `task ${run.taskIteration}/${run.taskMaxIterations ?? '?'}`),
           h('span', { style: muted }, summaryLabel(summary)),
           run.delta === null || run.delta === undefined
             ? null
