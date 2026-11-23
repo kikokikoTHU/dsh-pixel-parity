@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, logs: [], projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, pendingDeleteProject: null, logs: [], projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -575,6 +575,25 @@ window.__ModuleLoader__.load({
       notify()
     }
 
+    async function deleteProjectRow(projectId) {
+      if (state.pendingDeleteProject !== projectId) {
+        state.pendingDeleteProject = projectId
+        state.message = '再次点击 × 确认删除项目'
+        notify()
+        return
+      }
+      state.pendingDeleteProject = null
+      try {
+        await projectPost('/pixel-parity/project/delete', { projectId })
+        if (state.project?.id === projectId) { state.project = null; state.projectsOpen = false }
+        state.message = null
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
     async function deleteCurrentProject() {
       if (state.project === null) return
       if (state.pendingDelete !== state.project.id) {
@@ -733,6 +752,11 @@ window.__ModuleLoader__.load({
               ),
               pill(item.status),
               h('span', { className: 'ppj-kv' }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+              h('button', {
+                className: 'ppj-btn danger',
+                title: '删除项目',
+                onClick: event => { event.stopPropagation(); deleteProjectRow(item.id) },
+              }, state.pendingDeleteProject === item.id ? 'Confirm' : 'Delete'),
             ))
         return h('div', { className: 'ppj-backdrop', onClick: close },
           h('div', { className: 'ppj-panel', onClick: event => event.stopPropagation() },
@@ -1000,6 +1024,8 @@ window.__ModuleLoader__.load({
       .ppd-icon:hover { border-color: #111827; }
       .ppd-project { width: 100%; text-align: left; background: #fff; border: 1px solid #e5eaf1; border-radius: 8px; padding: 10px 11px; margin-bottom: 7px; cursor: pointer; display: block; }
       .ppd-project:hover { border-color: #111827; background: #fbfcfe; }
+      .ppd-project-del { border: 1px solid transparent; background: transparent; color: #94a3b8; border-radius: 5px; font-size: 11px; padding: 1px 5px; cursor: pointer; }
+      .ppd-project-del:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
       .ppd-project-main { display: flex; align-items: center; gap: 7px; }
       .ppd-project-main b { font-size: 12px; font-weight: 600; color: #0f172a; }
       .ppd-repo { margin-top: 3px; font-size: 9.5px; color: #94a3b8; font-family: "Cascadia Code", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1087,10 +1113,16 @@ window.__ModuleLoader__.load({
                     h('div', null, '还没有 Project'),
                     h('button', { className: 'ppd-btn primary', onClick: openCreate }, '新建 Project'),
                   )
-                : projects.map(item => h('button', { key: item.id, className: 'ppd-project', onClick: () => openProject(item) },
+                : projects.map(item => h('div', { key: item.id, className: 'ppd-project', onClick: () => openProject(item) },
                     h('div', { className: 'ppd-project-main' },
                       h('b', null, item.name),
                       h('span', { className: `ppd-pill ${pillClass(item.status)}` }, item.status),
+                      h('span', { style: { flex: 1 } }),
+                      h('button', {
+                        className: 'ppd-project-del',
+                        title: '删除项目',
+                        onClick: event => { event.stopPropagation(); deleteProjectRow(item.id) },
+                      }, state.pendingDeleteProject === item.id ? '确认' : '×'),
                     ),
                     h('div', { className: 'ppd-repo', title: item.repo }, item.repo),
                     h('div', { className: 'ppd-meta' }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
@@ -1137,6 +1169,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
