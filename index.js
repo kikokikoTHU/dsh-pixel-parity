@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -1735,7 +1735,8 @@ export function apply(ctx, config) {
     output: {
       schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => {
-        const lines = [`Project ${value.project?.id ?? value.projectId ?? ''} · ${value.project?.status ?? value.deleted === true ? 'deleted' : ''}`]
+        const projectLabel = value.deleted === true ? 'deleted' : (value.project?.status ?? '')
+        const lines = [`Project ${value.project?.id ?? value.projectId ?? ''} · ${projectLabel}`]
         if (value.project !== undefined) {
           lines.push(`sources: ${value.project.sources?.length ?? 0} · subtasks: ${value.project.subtasks?.length ?? 0} · rounds: ${value.project.rounds?.length ?? 0}`)
           for (const source of value.project.sources ?? []) lines.push(`  ${source.status.padEnd(13)} ${source.location}`)
@@ -1950,6 +1951,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
