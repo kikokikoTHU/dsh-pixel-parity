@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PixelParity 对齐报告 · anubis 4363d816 /projects</title>
+<style>
+  :root { --ink:#1c2430; --muted:#5c6878; --line:#dfe4ec; --bg:#f5f7fa; --accent:#2f6fed; --bad:#c0392b; --good:#16794b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Microsoft YaHei", "Segoe UI", system-ui, sans-serif; font-size: 13px; line-height: 1.7; }
+  .page { width: 1180px; margin: 24px auto 60px; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  header { padding: 28px 36px 22px; background: linear-gradient(135deg, #1b2a41, #28405f); color: #fff; }
+  header h1 { margin: 0 0 6px; font-size: 24px; }
+  header p { margin: 0; color: #c9d6e6; font-size: 12px; }
+  header code { background: rgba(255, 255, 255, 0.16); color: #eef4fb; }
+  section { padding: 22px 36px; border-top: 1px solid var(--line); }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  h3 { font-size: 13px; margin: 16px 0 8px; }
+  p { margin: 6px 0; color: #33404f; }
+  .muted { color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 4px; font-size: 12px; }
+  th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: #f3f6fa; font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ok { color: var(--good); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 10px; background: #eef1f6; color: #4b5a6c; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  figure { margin: 8px 0 4px; }
+  figure img { width: 100%; display: block; border: 1px solid var(--line); border-radius: 6px; }
+  figcaption { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .full img { width: 100%; }
+  .callout { border-left: 3px solid var(--accent); background: #f4f8ff; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; }
+  .warn { border-left-color: #d68910; background: #fff9ec; }
+  ul { margin: 6px 0 6px 18px; padding: 0; }
+  li { margin: 3px 0; }
+  code { background: #f2f4f8; padding: 0 4px; border-radius: 3px; font-family: Consolas, monospace; font-size: 11px; }
+  .kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 4px; }
+  .kpi div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fbfcfe; }
+  .kpi strong { display: block; font-size: 20px; line-height: 1.25; }
+  .kpi span { font-size: 10px; color: var(--muted); }
+  footer { padding: 14px 36px 20px; color: var(--muted); font-size: 10px; border-top: 1px solid var(--line); }
+  @media print {
+    body { background: #fff; }
+    .page { width: auto; margin: 0; border: 0; border-radius: 0; }
+    section { break-inside: avoid; }
+    figure { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>PixelParity 对齐报告</h1>
+    <p>anubis hub <code>4363d816</code> · <code>/projects</code> · 对照 SPC 原型 <code>01-项目统计首页</code> · 视口 1600×900</p>
+  </header>
+
+  <section>
+    <h2>1. 摘要</h2>
+    <div class="kpi">
+      <div><strong class="bad">10.59% → 8.39%</strong><span>整页像素差</span></div>
+      <div><strong class="bad">3.69% → 1.32%</strong><span>外壳像素差（遮罩 main）</span></div>
+      <div><strong class="ok">3 → 0</strong><span>几何失败锚点数</span></div>
+      <div><strong class="ok">13 → 0</strong><span>样式差异</span></div>
+    </div>
+    <p>本轮只改 UI 外壳（布局 / 排版 / 颜色 / 导航信息架构），没有改业务数据。几何锚点从全部偏移变为 delta=0，样式差异清零；像素差显著下降，但外壳仍差 0.32 个百分点未达 1% 阈值，整页仍受“无真实后端、数据区为空”影响。</p>
+    <table>
+      <tr><th>阶段</th><th>case</th><th>几何</th><th>样式差异</th><th>像素差</th><th>mean delta</th><th>run</th></tr>
+      <tr><td>对齐前</td><td>projects（整页）</td><td class="bad">fail（3/3 偏移）</td><td class="num">13</td><td class="num bad">10.59%</td><td class="num">18.50</td><td><code>run1</code></td></tr>
+      <tr><td>对齐前</td><td>shell（遮罩 main）</td><td class="bad">fail（3/3 偏移）</td><td class="num">13</td><td class="num bad">3.69%</td><td class="num">6.36</td><td><code>run2</code></td></tr>
+      <tr><td>对齐后</td><td>shell（遮罩 main）</td><td class="ok">pass</td><td class="num ok">0</td><td class="num">1.32%</td><td class="num">1.63</td><td><code>run7</code></td></tr>
+      <tr><td>对齐后</td><td>projects（整页）</td><td class="ok">pass</td><td class="num ok">0</td><td class="num">8.39%</td><td class="num">13.89</td><td><code>run8</code></td></tr>
+    </table>
+    <p class="muted">阈值：maxMismatch 1%，maxRegionMismatch 40%，geometryTolerance 1px。shell case 用 <code>masks: ['main']</code> 遮住数据区，只比较侧栏与顶栏。</p>
+  </section>
+
+  <section>
+    <h2>2. 对齐前：设计原型 vs 实际实现</h2>
+    <div class="grid2">
+      <figure><img src="assets/prototype.png" alt="prototype"><figcaption>设计原型（参考）</figcaption></figure>
+      <figure><img src="assets/implementation-before.png" alt="implementation before"><figcaption>实际实现 <code>4363d816</code>（对齐前）</figcaption></figure>
+    </div>
+    <figure class="full"><img src="assets/diff-before.png" alt="diff before"><figcaption>差异图：红色为不一致像素（整页 10.59%）</figcaption></figure>
+    <h3>几何锚点（对齐前）</h3>
+    <table>
+      <tr><th>锚点</th><th>原型 rect</th><th>实现 rect</th><th>delta</th></tr>
+      <tr><td>sidebar</td><td class="num">0,0 232×900</td><td class="num">0,0 260×900</td><td class="num bad">w +28</td></tr>
+      <tr><td>header</td><td class="num">232,0 1368×64</td><td class="num">260,0 1340×74</td><td class="num bad">x +28 / w −28 / h +10</td></tr>
+      <tr><td>title</td><td class="num">256,17.2 88×28.6</td><td class="num">286,18 104×37</td><td class="num bad">x +30 / w +16 / h +8.4</td></tr>
+    </table>
+    <h3>样式差异（13 项，节选）</h3>
+    <table>
+      <tr><th>元素</th><th>属性</th><th>原型</th><th>实现</th></tr>
+      <tr><td>title</td><td>fontSize / color</td><td class="num">22px / #102A4C</td><td class="num">26px / #24374C</td></tr>
+      <tr><td>header</td><td>padding / gap / color</td><td class="num">24px / normal / #334155</td><td class="num">26px / 14px / #24374C</td></tr>
+      <tr><td>sidebar</td><td>background / color / position</td><td class="num">#1E2C42 / #B8C4D5 / static</td><td class="num">#1D2D42 / #BFCBDB / fixed</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. 对齐后：设计原型 vs 实际实现</h2>
+    <div class="grid2">
+      <figure><img src="assets/prototype.png" alt="prototype"><figcaption>设计原型（参考，同前）</figcaption></figure>
+      <figure><img src="assets/implementation-after.png" alt="implementation after"><figcaption>实际实现（对齐后）</figcaption></figure>
+    </div>
+    <figure class="full"><img src="assets/diff-after.png" alt="diff after"><figcaption>差异图：整页 8.39%，几何与样式已全部通过</figcaption></figure>
+    <h3>外壳（遮罩数据区）对比</h3>
+    <div class="grid2">
+      <figure><img src="assets/diff-shell-before.png" alt="shell diff before"><figcaption>对齐前 shell：3.69%</figcaption></figure>
+      <figure><img src="assets/diff-shell-after.png" alt="shell diff after"><figcaption>对齐后 shell：1.32%</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 本轮改动</h2>
+    <table>
+      <tr><th>类别</th><th>位置</th><th>改动</th></tr>
+      <tr><td>布局</td><td>侧栏</td><td><code>260px → 232px</code>，workspace margin 同步；≥761px 改为 flex + <code>position: static</code></td></tr>
+      <tr><td>布局</td><td>顶栏</td><td><code>74px → 64px</code>，padding <code>26 → 24px</code>，<code>gap: normal</code></td></tr>
+      <tr><td>排版</td><td>标题</td><td><code>26px → 22px</code>，<code>line-height 28.6px</code>，颜色 <code>#102A4C</code></td></tr>
+      <tr><td>颜色</td><td>侧栏 / 顶栏</td><td>侧栏 <code>#1E2C42 / #B8C4D5</code>；顶栏文字 <code>#334155</code></td></tr>
+      <tr><td>导航</td><td>品牌区</td><td><code>84px → 72px</code>，padding <code>20px → 0 20px</code>，gap <code>13 → 12</code></td></tr>
+      <tr><td>导航</td><td>导航项</td><td><code>46px/15px/500/gap15 → 42px/14px/550/gap11</code></td></tr>
+      <tr><td>信息架构</td><td>分组</td><td>4 组对齐原型：检测分析 / 监控告警 / 数据管理 / 系统管理；误报、不良、质量配置移出主导航（路由保留）</td></tr>
+    </table>
+    <p class="muted">改动位于临时 worktree <code>C:\Users\shiyuan\AppData\Local\Temp\anubis-4363d816</code>，未提交、未触碰 anubis 主仓库。</p>
+  </section>
+
+  <section>
+    <h2>5. 剩余差异与原因</h2>
+    <table>
+      <tr><th>范围</th><th>数值</th><th>原因</th></tr>
+      <tr><td>外壳</td><td class="num">1.32%（距阈值 0.32pp）</td><td>图标字形（PrimeIcons vs 原型符号）、品牌 mark、底部用户块、分组标题间距</td></tr>
+      <tr><td>整页</td><td class="num">8.39%</td><td>没有真实 Hub 后端：实现页停在“尚未查询 / 等待质量 Session”，原型是完整图表与表格；该差异不是 CSS 对齐能补齐的</td></tr>
+      <tr><td>数据区</td><td class="num">—</td><td>测试用 fixtures 只覆盖连接态，未模拟真实统计 Session 数据</td></tr>
+    </table>
+    <div class="callout warn">
+      <strong>结论：</strong>本轮完成的是“外壳对齐”：几何 3/3 通过、样式 13→0、外壳像素 3.69%→1.32%。若要 shell 达到 verified（&lt;1%），下一步需替换图标/品牌资产；若要整页 verified，需要接入真实 Hub 后端。
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 工件与复现</h2>
+    <ul>
+      <li>运行目录：<code>C:\Users\shiyuan\AppData\Local\Temp\pp-anubis-4363\run1</code>（前）、<code>run7</code>（外壳后）、<code>run8</code>（整页后）</li>
+      <li>配置：<code>C:\Users\shiyuan\AppData\Local\Temp\pp-anubis-4363\parity.config.mjs</code></li>
+      <li>实现 worktree：<code>C:\Users\shiyuan\AppData\Local\Temp\anubis-4363d816</code>（detached <code>4363d81</code>）</li>
+      <li>复现：<code>node cli.mjs run --config parity.config.mjs --repo &lt;dir&gt; --deps &lt;anubis&gt; --baseline-mode ephemeral --case shell</code></li>
+      <li>原始 metrics/manifest 见 <code>assets/</code>。</li>
+    </ul>
+  </section>
+
+  <footer>由 PixelParity 生成 · 截图/几何/样式/像素判定均来自插件 · 报告为测试样例结果，不代表 anubis 主仓库状态</footer>
+</div>
+</body>
+</html>
