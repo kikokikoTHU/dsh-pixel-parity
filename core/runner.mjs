@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Case orchestration: capture both sides, judge G/S/P, write evidence.
  *
  * The runner is surface-agnostic. For v2 only `web` (Playwright/Chrome) and
@@ -160,8 +160,22 @@ async function ensureDevServer(config, repoRoot, options) {
 
 async function isReachable(url) {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(2000), redirect: 'manual' })
-    return response.status < 500
+    const target = new URL(url)
+    const port = Number(target.port || (target.protocol === 'https:' ? 443 : 80))
+    return await new Promise(resolve => {
+      let settled = false
+      const socket = connect({ host: target.hostname, port })
+      const finish = value => {
+        if (settled) return
+        settled = true
+        socket.destroy()
+        resolve(value)
+      }
+      socket.setTimeout(1500)
+      socket.once('connect', () => finish(true))
+      socket.once('timeout', () => finish(false))
+      socket.once('error', () => finish(false))
+    })
   } catch {
     return false
   }
@@ -884,3 +898,4 @@ function repoInfo(repoRoot) {  const info = { root: repoRoot, commit: null, dirt
   }
   return info
 }
+
