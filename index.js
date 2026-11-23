@@ -17,7 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
-import { createTask, deleteTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary } from './core/task.mjs'
+import { createTask, deleteTask, listTasks, readTask, reportTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -32,6 +32,8 @@ let lastRunRequest
 let activeJob
 /** The panel-launched task-step job, if any. */
 let taskJob
+/** Abort controller for the active task step. */
+let taskJobController
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -775,7 +777,7 @@ const TASK_PARAMETERS = {
   properties: {
     action: {
       type: 'string',
-      enum: ['create', 'step', 'status', 'list', 'pause', 'resume', 'report', 'delete'],
+      enum: ['create', 'step', 'status', 'list', 'report', 'delete'],
       description: 'create: start a task; step: run one measurement iteration; status; list; pause; resume; report.',
     },
     repo: { type: 'string', description: 'Absolute path to the repository root.' },
@@ -1059,10 +1061,14 @@ export function apply(ctx, config) {
             const id = String(body.taskId ?? '')
             const job = { id: `taskjob-${Date.now()}`, taskId: id, status: 'running', startedAt: new Date().toISOString() }
             taskJob = job
+            const controller = new AbortController()
+            taskJobController = controller
             stepTask({
               id,
               dependenciesRoot: typeof body.dependencies === 'string' ? body.dependencies : undefined,
+              signal: controller.signal,
             }).then((result) => {
+              taskJobController = null
               taskJob = {
                 ...job,
                 status: 'done',
@@ -1071,6 +1077,7 @@ export function apply(ctx, config) {
                 finishedAt: new Date().toISOString(),
               }
             }).catch((error) => {
+              taskJobController = null
               taskJob = { ...job, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
             })
             respondJson(response, 202, { jobId: job.id })
@@ -1119,24 +1126,16 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
-          path: '/pixel-parity/task/pause',
-          handler: async (request, response) => {
-            try {
-              const body = await readJson(request)
-              const task = body.resume === true ? resumeTask(String(body.taskId ?? '')) : pauseTask(String(body.taskId ?? ''))
-              respondJson(response, 200, { task: taskSummary(task) })
-            } catch (error) {
-              respondJson(response, 400, { error: String(error?.message ?? error) })
-            }
-          },
-        }),
-        server.register({
-          kind: 'exact',
           path: '/pixel-parity/task/delete',
           handler: async (request, response) => {
             try {
               const body = await readJson(request)
-              const removed = deleteTask(String(body.taskId ?? ''))
+              const taskId = String(body.taskId ?? '')
+              if (taskJob?.status === 'running' && taskJob.taskId === taskId) {
+                taskJobController?.abort()
+                taskJob = { ...taskJob, status: 'error', error: 'cancelled by delete' }
+              }
+              const removed = deleteTask(taskId)
               respondJson(response, 200, { deleted: true, taskId: removed.id })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1438,12 +1437,6 @@ export function apply(ctx, config) {
       if (action === 'status') {
         return { action, task: clean(taskSummary(readTask(taskId))) }
       }
-      if (action === 'pause') {
-        return { action, task: clean(taskSummary(pauseTask(taskId))) }
-      }
-      if (action === 'resume') {
-        return { action, task: clean(taskSummary(resumeTask(taskId))) }
-      }
       if (action === 'report') {
         const reportPath = reportTask(taskId)
         return { action, task: clean(taskSummary(readTask(taskId))), reportPath }
@@ -1631,6 +1624,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

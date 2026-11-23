@@ -100,7 +100,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false, viewer: null, pendingDelete: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -218,61 +218,6 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function pollTaskJob() {
-      const timer = setInterval(async () => {
-        try {
-          const response = await fetch('/pixel-parity/task/job', { cache: 'no-store' })
-          const job = await response.json()
-          if (job === null) return
-          if (job.status === 'done') {
-            clearInterval(timer)
-            state.taskRunning = false
-            state.message = `step done: ${job.task?.status ?? ''}`
-            notify()
-            loadTasks()
-            loadOverview()
-          } else if (job.status === 'error') {
-            clearInterval(timer)
-            state.taskRunning = false
-            state.message = `step failed: ${job.error}`
-            notify()
-          }
-        } catch {}
-      }, 1000)
-    }
-
-    async function taskAction(action, target) {
-      const task = target ?? state.tasks?.[0]
-      if (task === undefined) return
-      state.message = action === 'step' ? (zh ? '正在执行 step…' : 'Running task step…') : action
-      if (action === 'step') state.taskRunning = true
-      notify()
-      try {
-        const response = await fetch(`/pixel-parity/task/${action}`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ repo: task.repo, taskId: task.id, ...(action === 'resume' ? { resume: true } : {}) }),
-        })
-        const body = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
-        if (action === 'step' && body.jobId !== undefined) {
-          state.message = zh ? 'step 已在后台运行…' : 'step running in background…'
-          notify()
-          pollTaskJob()
-          return
-        }
-        state.message = action === 'report'
-          ? `report: ${body.reportPath}`
-          : `${action} ${body.task?.status ?? 'done'}`
-        notify()
-        loadTasks()
-        loadOverview()
-      } catch (failure) {
-        state.taskRunning = false
-        state.message = String(failure?.message ?? failure)
-        notify()
-      }
-    }
     async function showReport(target) {
       const task = target ?? state.tasks?.[0]
       if (task === undefined) return
@@ -571,10 +516,13 @@ window.__ModuleLoader__.load({
                 average === null ? (zh ? '尚无 run' : 'no run yet') : `${(average * 100).toFixed(2)}% pixels`,
                 task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
               ),
+              h('div', { style: { ...muted, fontSize: 10, paddingTop: 3 } },
+                h('span', { style: { display: 'inline-block', width: 80, height: 6, borderRadius: 3, background: '#e6ebf2', marginRight: 6, verticalAlign: 'middle' } },
+                  h('span', { style: { display: 'block', height: '100%', width: `${Math.min(100, (task.iteration / Math.max(1, task.maxIterations)) * 100)}%`, borderRadius: 3, background: '#2f6fed' } }),
+                ),
+                `${task.iteration}/${task.maxIterations}`,
+              ),
               h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
-                task.status === 'paused'
-                  ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume', task) }, 'Resume')
-                  : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step', task) }, state.taskRunning ? '…' : 'Step'),
                 h('button', { style: styles.taskBtn, onClick: () => showReport(task) }, 'Report'),
                 task.reportPath === undefined
                   ? null
@@ -585,7 +533,6 @@ window.__ModuleLoader__.load({
                       rel: 'noopener',
                       download: `${task.id}-report.html`,
                     }, 'Download'),
-                task.status === 'paused' ? null : h('button', { style: styles.taskBtn, onClick: () => taskAction('pause', task) }, 'Pause'),
                 h('button', {
                   style: { ...styles.taskBtn, color: '#c0392b', borderColor: '#e3b4ae' },
                   onClick: () => deleteTaskAction(task),
@@ -646,6 +593,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 

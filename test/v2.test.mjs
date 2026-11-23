@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v2 core tests: config normalization, G/S comparisons, masking, and one
  * end-to-end run over the web fixtures.
  *
@@ -243,7 +243,6 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/run',
     '/pixel-parity/task/delete',
     '/pixel-parity/task/job',
-    '/pixel-parity/task/pause',
     '/pixel-parity/task/report',
     '/pixel-parity/task/report-file',
     '/pixel-parity/task/step',
@@ -1861,4 +1860,5 @@ http.createServer((req, res) => {
 console.log(results.join('\n'))
 console.log(`\n${results.filter(line => line.startsWith('ok')).length}/${results.length} passed`)
 process.exitCode = failed > 0 ? 1 : 0
+
 

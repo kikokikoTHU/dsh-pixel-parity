@@ -95,7 +95,7 @@ For work that spans more than one iteration, use `parity_task`:
 parity_task({ action: "create", repo, config: "parity.config.mjs", cases: ["projects"] })
 parity_task({ action: "step", repo, taskId })      // one measurement + plan
 parity_task({ action: "report", repo, taskId })    // task report (iteration history + images)
-parity_task({ action: "status" | "list" | "pause" | "resume" | "delete", repo, taskId })
+parity_task({ action: "status" | "list" | "delete", repo, taskId })
 ```
 
 A task persists under the plugin installation directory at
@@ -319,6 +319,7 @@ exists, but a run over them fails explicitly rather than pretending to verify.
 ELECTRON_RUN_AS_NODE=1 <electron> test/run-tests.js
 PARITY_REPO=<repo-with-playwright> ELECTRON_RUN_AS_NODE=1 <electron> test/v2.test.mjs
 ```
+
 
 
 

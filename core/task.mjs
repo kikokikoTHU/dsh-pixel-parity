@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Persisted alignment task. Task metadata and reports live under the plugin's
  * own `data/tasks/` directory, so they survive sessions and do not depend on a
  * repository being scanned. `repo` stays in the metadata for the actual runs.
@@ -56,7 +56,7 @@ export function createTask(input) {
       requireGeometry: input.goal?.requireGeometry !== false,
       requireStyles: input.goal?.requireStyles !== false,
     },
-    maxIterations: Number.isInteger(input.maxIterations) && input.maxIterations > 0 ? input.maxIterations : 8,
+    maxIterations: Number.isInteger(input.maxIterations) && input.maxIterations > 0 ? input.maxIterations : 4,
     status: 'draft',
     iteration: 0,
     createdAt: now,
@@ -102,25 +102,6 @@ export function listTasks(repo) {
   return tasks.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
 }
 
-export function pauseTask(id, reason = 'paused by user') {
-  const task = readTask(id)
-  if (task.status === 'converged') return task
-  task.status = 'paused'
-  task.blockedReason = reason
-  saveTask(task)
-  return task
-}
-
-export function resumeTask(id) {
-  const task = readTask(id)
-  if (task.status === 'paused') {
-    task.status = task.runs.length > 0 ? 'needs-edit' : 'draft'
-    task.blockedReason = null
-    saveTask(task)
-  }
-  return task
-}
-
 /**
  * Run one measurement iteration and update the task.
  * @param {{id: string, dependenciesRoot?: string, headless?: boolean}} input
@@ -131,7 +112,7 @@ export async function stepTask(input) {
   if (task.status === 'converged') return { task, plan: null, runDir: task.currentRunDir }
   if (task.status === 'paused') throw new Error(`task ${task.id} is paused; resume it first`)
   if (task.iteration >= task.maxIterations) {
-    task.status = 'paused'
+    task.status = 'exhausted'
     task.blockedReason = `reached maxIterations (${task.maxIterations})`
     saveTask(task)
     return { task, plan: null, runDir: task.currentRunDir }
@@ -150,6 +131,7 @@ export async function stepTask(input) {
       viewportIds: task.viewports.length > 0 ? task.viewports : undefined,
       baselineMode: 'ephemeral',
       headless: input.headless !== false,
+      signal: input.signal,
     })
   } catch (error) {
     task.status = 'blocked'
@@ -192,7 +174,7 @@ export async function stepTask(input) {
   } else {
     const diagnosis = diagnoseRun(result.runDir)
     task.plan = buildAlignmentPlan(diagnosis, manifest)
-    task.status = task.iteration >= task.maxIterations ? 'paused' : 'needs-edit'
+    task.status = task.iteration >= task.maxIterations ? 'exhausted' : 'needs-edit'
     task.blockedReason = task.iteration >= task.maxIterations ? `reached maxIterations (${task.maxIterations})` : null
   }
   saveTask(task)
@@ -248,5 +230,6 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+
 
 
