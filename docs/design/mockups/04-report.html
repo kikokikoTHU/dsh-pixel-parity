@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
 * { box-sizing: border-box; }
 body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; }
-.shell { width: 1200px; min-height: 800px; background: #fff; display: flex; flex-direction: column; }
+.shell { width: 1200px; min-height: 900px; background: #fff; display: flex; flex-direction: column; }
 .topbar { height: 54px; border-bottom: 1px solid #e5eaf1; display: flex; align-items: center; gap: 10px; padding: 0 22px; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; }
 .mark { width: 24px; height: 24px; border-radius: 7px; background: #2f6fed; color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
@@ -82,40 +82,38 @@ td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; vertical-align: middle;
 </style></head><body>
 <div class="shell">
   <div class="topbar">
-    <div class="brand"><span class="mark">PP</span> Pixel parity</div>
-    <span class="crumb">/ <b>新建对齐项目</b> / 生成子任务</span>
-    <span class="spacer"></span>
-    <button class="ghost">关闭</button>
+    <div class="brand"><span class="mark">PP</span> Report · Round 1</div>
+    <span class="crumb">/ anubis / 2026-11-23T12:54</span>
+    <span class="spacer"></span><button class="ghost">Download</button><button class="ghost">关闭</button>
   </div>
-  <div class="body">
-    <aside class="rail">
-      <h4>步骤</h4>
-      <div class="step done"><span class="dot">✓</span><div><p>仓库与设计源</p><small>repo + base commit + designs</small></div></div>
-      <div class="step done"><span class="dot">✓</span><div><p>自动分析并匹配</p><small>创建后自动执行，无需确认</small></div></div>
-      <div class="step active"><span class="dot">3</span><div><p>生成子任务</p><small>自动生成，勾选下一轮范围</small></div></div>
-      <div class="hr"></div>
-      <div class="kv">本轮不会自动执行。<br>第 3 步完成后进入项目页，<br>由 <b>Run next round</b> 手动触发。</div>
-    </aside>
-    <main class="main">
-<h1 class="h1">生成对齐子任务</h1>
-<p class="sub">每个匹配生成一个子任务；勾选决定“下一轮”实际执行哪些。未勾选的不会运行。</p>
-<div class="card" style="margin-top:14px">
-  <div class="card-h"><b style="font-size:12px">Round 1 · 计划子任务</b><span class="spacer"></span><span class="mut" style="font-size:10px">已选 3 / 3</span></div>
-  <div class="card-b" style="padding:6px 14px 10px">
-    <table>
-      <tr><th style="width:6%"></th><th style="width:34%">子任务</th><th>设计源 → 页面</th><th style="width:14%">检查范围</th><th style="width:12%">预计</th></tr>
-      <tr><td><span class="chk"></span></td><td><b>项目统计首页 · 视觉对齐</b><div class="mut">projects</div></td><td><span class="route">01-项目统计首页.html</span><div class="mut">→ /projects</div></td><td class="mut">1600×900 · 1 viewport</td><td class="mut">~40s</td></tr>
-      <tr><td><span class="chk"></span></td><td><b>项目明细页 · 视觉对齐</b><div class="mut">projects-detail</div></td><td><span class="route">02-项目明细.html</span><div class="mut">→ /projects/:id</div></td><td class="mut">1600×900 · 1 viewport</td><td class="mut">~40s</td></tr>
-      <tr><td><span class="chk"></span></td><td><b>项目统计首页 · 空态对齐</b><div class="mut">projects-empty</div></td><td><span class="route">projects-empty.png</span><div class="mut">→ /projects?state=empty</div></td><td class="mut">1600×900 · 1 viewport</td><td class="mut">~40s</td></tr>
-    </table>
+  <div class="main" style="padding:22px 30px;background:#f8fafc">
+    <div style="display:flex;gap:24px;align-items:flex-start">
+      <div style="flex:1">
+        <h2 style="margin:0;font-size:16px">Round 1 对齐报告</h2>
+        <div class="kv" style="margin-top:4px">3 子任务 · 2 failed · 1 passed · 基于 commit 4363d81</div>
+      </div>
+      <div class="stat">
+        <div><b>9.26%</b><span>pixels</span></div><div><b>1/3</b><span>passed</span></div><div><b>−0.02%</b><span>vs previous</span></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="card-b" style="display:flex;gap:16px">
+      <div class="thumb" style="width:160px;height:92px"></div>
+      <div style="flex:1">
+        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:12px">项目统计首页 · /projects</b><span class="pill bad">failed</span><span class="pill">9.26% pixels</span></div>
+        <div class="kv" style="margin-top:5px">几何 pass · 样式 pass · 像素差异集中在“良率对比”条形图区域；表格列宽与原型存在偏差。</div>
+        <div style="margin-top:8px;display:flex;gap:8px"><span class="chip">[structure] 良率对比条形图</span><span class="chip">[mock] 数据条数差异</span></div>
+      </div>
+      <button class="ghost" style="align-self:center">查看 diff</button>
+    </div></div>
+    <div class="card" style="margin-top:10px"><div class="card-b" style="display:flex;gap:16px">
+      <div class="thumb" style="width:160px;height:92px;background:linear-gradient(135deg,#eef4ff,#dbeafe)"></div>
+      <div style="flex:1">
+        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:12px">项目明细页 · /projects/:id</b><span class="pill ok">passed</span><span class="pill">0.00% pixels</span></div>
+        <div class="kv" style="margin-top:5px">几何/样式/像素均通过，已可作为 baseline。</div>
+      </div>
+    </div></div>
+    <div class="card" style="margin-top:10px"><div class="card-h"><b style="font-size:12px">下一步</b></div><div class="card-b">
+      <div class="kv">1. 修复良率对比条形图的布局与数据条数；2. 重新勾选 Round 2 子任务；3. 手动触发 Run next round。</div>
+    </div></div>
   </div>
-</div>
-<div class="card" style="margin-top:12px">
-  <div class="card-b" style="display:flex;gap:12px;align-items:center">
-    <span class="chk"></span><div style="flex:1"><b style="font-size:11px">勾选状态会保存为“本轮计划”</b><div class="kv">每轮开始前都可以重新勾选；一旦触发 Run next round，本轮选择就固定下来，报告按本轮实际执行结果生成。</div></div>
-    <button class="ghost">全选</button><button class="ghost">全不选</button>
-  </div>
-</div></main>
-  </div>
-  <div class="footer"><span class="note">子任务已自动生成；勾选只决定下一轮执行范围。</span><span class="spacer"></span><button class="ghost">上一步</button><button class="primary">进入项目页</button></div>
 </div></body></html>

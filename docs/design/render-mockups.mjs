@@ -16,7 +16,7 @@ mkdirSync(assets, { recursive: true })
 const css = `
 * { box-sizing: border-box; }
 body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; }
-.shell { width: 1200px; min-height: 800px; background: #fff; display: flex; flex-direction: column; }
+.shell { width: 1200px; min-height: 900px; background: #fff; display: flex; flex-direction: column; }
 .topbar { height: 54px; border-bottom: 1px solid #e5eaf1; display: flex; align-items: center; gap: 10px; padding: 0 22px; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; }
 .mark { width: 24px; height: 24px; border-radius: 7px; background: #2f6fed; color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
@@ -107,11 +107,10 @@ const shell = (step, crumb, content, footerNote = '') => `
   <div class="body">
     <aside class="rail">
       <h4>步骤</h4>
-      ${stepItem(1, '仓库与设计源', 'repo + base commit + designs', step)}
-      ${stepItem(2, '自动分析并匹配', '创建后自动执行，无需确认', step)}
-      ${stepItem(3, '生成子任务', '自动生成，勾选下一轮范围', step)}
+      ${stepItem(1, '仓库、设计源与自动匹配', 'repo + commit + designs + LLM 匹配', step)}
+      ${stepItem(2, '生成子任务', '自动生成，勾选下一轮范围', step)}
       <div class="hr"></div>
-      <div class="kv">本轮不会自动执行。<br>第 3 步完成后进入项目页，<br>由 <b>Run next round</b> 手动触发。</div>
+      <div class="kv">分析与匹配是第 1 步的子步骤，自动执行。<br>第 2 步完成后进入项目页，<br>由 <b>Run next round</b> 手动触发。</div>
     </aside>
     <main class="main">${content}</main>
   </div>
@@ -124,8 +123,7 @@ const stepItem = (num, title, sub, current) => {
 }
 
 const footer = step => {
-  if (step === 1) return '<button class="ghost">取消</button><button class="primary">创建项目并自动分析 →</button>'
-  if (step === 2) return '<button class="ghost">重新分析</button><button class="primary">查看生成的子任务 →</button>'
+  if (step === 1) return '<button class="ghost">取消</button><button class="primary">生成子任务 →</button>'
   return '<button class="ghost">上一步</button><button class="primary">进入项目页</button>'
 }
 
@@ -149,6 +147,18 @@ const setup = `
     <div class="src"><span class="kind url">URL</span><div><p>https://liumeitong66.github.io/SPC/02-项目明细.html</p><small>原型 · 1600×900</small></div><span class="x">×</span></div>
     <div class="src"><span class="kind file">FILE</span><div><p>D:\\designs\\projects-empty.png</p><small>Figma 导出 · 1440×900 · 2x</small></div><span class="x">×</span></div>
     <div class="add"><button class="addbtn">+ 添加 URL</button><button class="addbtn">+ 本地图片 / HTML</button><span class="mut" style="font-size:10px;align-self:center">共 3 个设计源</span></div>
+  </div>
+</div>
+<div class="card" style="margin-top:12px">
+  <div class="card-h"><b style="font-size:12px">3 · 自动分析与匹配</b><span class="pill ok">已完成</span><span class="spacer"></span><span class="mut" style="font-size:10px">无需确认，自动生成子任务</span></div>
+  <div class="card-b" style="padding:4px 14px 10px">
+    <table>
+      <tr><th style="width:34%">设计源</th><th>候选页面</th><th style="width:14%">置信度</th><th style="width:16%">状态</th></tr>
+      <tr><td><b>01-项目统计首页.html</b></td><td><span class="route">/projects</span></td><td><span class="pill ok">96%</span></td><td><span class="pill ok">已匹配</span></td></tr>
+      <tr><td><b>02-项目明细.html</b></td><td><span class="route">/projects/:id</span></td><td><span class="pill ok">88%</span></td><td><span class="pill ok">已匹配</span></td></tr>
+      <tr><td><b>projects-empty.png</b></td><td><span class="route">/projects?state=empty</span></td><td><span class="pill warn">64%</span></td><td><span class="pill warn">待复核 · 默认不勾选</span></td></tr>
+    </table>
+    <div class="kv" style="margin-top:7px">分析在项目创建后自动运行；低置信度不阻塞流程，可在子任务页改选。</div>
   </div>
 </div>`
 
@@ -290,17 +300,16 @@ const report = `
 </div>`
 
 const cards = [
-  ['01-setup.png', shell(1, '仓库与设计源', setup, '创建项目后自动进入分析；不会修改你的工作区。')],
-  ['02-match.png', shell(2, '自动分析并匹配', match, '匹配自动完成；待复核条目不影响后续步骤，可随时改选。')],
-  ['03-subtasks.png', shell(3, '生成子任务', subtasks, '子任务已自动生成；勾选只决定下一轮执行范围。')],
-  ['04-dashboard.png', dashboard],
-  ['05-report.png', report],
+  ['01-setup.png', shell(1, '仓库、设计源与自动匹配', setup, '分析与匹配自动完成；不会修改你的工作区。')],
+  ['02-subtasks.png', shell(2, '生成子任务', subtasks, '子任务已自动生成；勾选只决定下一轮执行范围。')],
+  ['03-dashboard.png', dashboard],
+  ['04-report.png', report],
 ]
 
 const requireFromAnubis = createRequire('C:/Users/shiyuan/go/src/web/anubis/package.json')
 const { chromium } = requireFromAnubis('playwright')
 const browser = await chromium.launch({ headless: true })
-const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: 2 })
 for (const [name, html] of cards) {
   const file = join(mockups, name.replace('.png', '.html'))
   writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`)
