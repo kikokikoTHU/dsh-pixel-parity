@@ -266,7 +266,7 @@ parity_task({ action: "step", repo, taskId })   // runs, updates status, returns
 parity_task({ action: "report", repo, taskId }) // writes the task report
 ```
 
-A task records its metadata, iterations, and plan under the plugin data directory (`<plugin>/data/tasks/<id>/`), so the PP panel can list it without scanning a repository. Use
+For multi-page alignment, use `parity_project`: create with repo/baseCommit/config, add design sources (each is analyzed automatically), then `run-round` only when the user asks. A task records its metadata, iterations, and plan under the plugin data directory (`<plugin>/data/tasks/<id>/`), so the PP panel can list it without scanning a repository. Use
 `action: "status" | "list" | "delete"` to manage it; there is no pause/resume. Each completed
 iteration writes `checkpoint.json`, and on startup the plugin recovers interrupted tasks and
 auto-resumes unfinished ones. Prefer this over ad-hoc `parity_run` when optimizing a page

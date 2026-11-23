@@ -307,6 +307,7 @@ cases/<case>/<viewport>/
 | M52 ✅ | Task 专属测量链：run 的 `iteration` 与 `parentRun` 只跟随本 Task 上一轮（不再扫描仓库历史）；manifest 记录 `task{id,iteration,maxIterations}`；面板移除全局 runs 列表与仓库扫描输入，只展示 Task 卡 | 每个 Task 只记录自己的测量 |
 | M53 ✅ | 取消 iter：每个 Task 只跑一次对齐测量，状态 `converged`/`failed`；去掉轮次预算、进度条、自动续跑与 Resume；Report 在该次测量后解锁；旧任务收敛为最新一次测量 | Task 简化为一次性对齐 |
 | M54 ✅ | Repo 分组 + 批量执行：面板按 `task.repo` 分组，显示 `✓/✗/–` 聚合与 Run all；Host `/repo/run`、`/repo/job` 顺序跑该 repo 下所有未运行 Task；Task 仍是执行/状态/报告单元 | 一键跑整个仓库，同时保留单页结论 |
+| M55 ✅ | Project 流程实现：`core/project.mjs` 持久化 repo/base commit/config/设计源/匹配/子任务/轮次；添加设计源即自动匹配生成子任务；面板 Projects 覆盖层支持创建、源分析、勾选、手动 Run next round 与内嵌轮次报告 | 落地项目式对齐 MVP |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

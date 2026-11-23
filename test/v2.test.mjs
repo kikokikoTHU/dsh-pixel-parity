@@ -22,6 +22,7 @@ import { generateHtml } from '../core/ir-web.mjs'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 process.env.PIXEL_PARITY_TASK_DIR = join(tmpdir(), 'parity-task-store')
+process.env.PIXEL_PARITY_PROJECT_DIR = join(tmpdir(), 'parity-project-store')
 const fixtureConfig = join(here, 'fixtures', 'web', 'parity.config.mjs')
 const interactionConfig = join(here, 'fixtures', 'interactions', 'parity.config.mjs')
 const results = []
@@ -240,6 +241,17 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/diagnose',
     '/pixel-parity/job',
     '/pixel-parity/overview',
+    '/pixel-parity/project/analyze',
+    '/pixel-parity/project/asset',
+    '/pixel-parity/project/create',
+    '/pixel-parity/project/delete',
+    '/pixel-parity/project/job',
+    '/pixel-parity/project/report',
+    '/pixel-parity/project/round',
+    '/pixel-parity/project/selection',
+    '/pixel-parity/project/source',
+    '/pixel-parity/project/source/delete',
+    '/pixel-parity/projects',
     '/pixel-parity/repo/job',
     '/pixel-parity/repo/run',
     '/pixel-parity/run',
@@ -1613,6 +1625,20 @@ http.createServer((req, res) => {
     assert.equal(listTasks(repoRoot).length, 1)
     deleteTask(task.id)
     assert.equal(listTasks(repoRoot).length, 0)
+  })
+
+  await test('project creates, auto-matches, and generates subtasks', async () => {
+    const { createProject, addSource, readProject, deleteProject } = await import('../core/project.mjs')
+    const project = await createProject({ repo, baseCommit: 'HEAD', config: fixtureConfig, name: 'test project' })
+    assert.equal(project.status, 'draft')
+    const updated = await addSource(project.id, { kind: 'url', location: 'https://example.test/project-one' })
+    assert.equal(updated.sources.length, 1)
+    assert.equal(updated.status, 'ready')
+    assert.ok(updated.subtasks.length > 0)
+    assert.ok(updated.subtasks.some(task => task.caseId !== undefined))
+    const stored = readProject(project.id)
+    assert.equal(stored.subtasks.length, updated.subtasks.length)
+    deleteProject(project.id)
   })
 
   await test('init detects the real repo workspace app and routes', () => {

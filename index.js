@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -18,6 +18,7 @@ import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
+import { addSource, analyzeProject, createProject, deleteProject, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runRound, setSelection } from './core/project.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -36,6 +37,8 @@ let taskJob
 let taskJobController
 /** The panel-launched repo batch job, if any. */
 let repoJob
+/** Project round job. */
+let projectJob
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -1139,6 +1142,156 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
+          path: '/pixel-parity/projects',
+          resource: async () => asJson({ projects: listProjects().map(projectSummary) }),
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/create',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = await createProject({
+                repo: String(body.repo ?? ''),
+                baseCommit: body.baseCommit ?? 'HEAD',
+                config: body.config ?? 'parity.config.mjs',
+                name: body.name,
+              })
+              respondJson(response, 200, { project: projectSummary(project) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/source',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = await addSource(String(body.projectId ?? ''), {
+                kind: body.kind ?? 'url',
+                location: String(body.location ?? ''),
+              })
+              respondJson(response, 200, { project: projectSummary(project) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/source/delete',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = await removeSource(String(body.projectId ?? ''), String(body.sourceId ?? ''))
+              respondJson(response, 200, { project: projectSummary(project) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/analyze',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = readProject(String(body.projectId ?? ''))
+              await analyzeProject(project)
+              respondJson(response, 200, { project: projectSummary(readProject(project.id)) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/selection',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = setSelection(String(body.projectId ?? ''), Array.isArray(body.selection) ? body.selection : [])
+              respondJson(response, 200, { project: projectSummary(project) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/round',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              if (projectJob?.status === 'running') {
+                respondJson(response, 200, { jobId: projectJob.id, running: true })
+                return
+              }
+              const projectId = String(body.projectId ?? '')
+              const job = { id: `projround-${Date.now()}`, projectId, status: 'running', startedAt: new Date().toISOString() }
+              projectJob = job
+              void runRound(projectId).then(({ project, round }) => {
+                projectJob = { ...job, status: 'done', round, project: projectSummary(project), finishedAt: new Date().toISOString() }
+              }).catch((error) => {
+                projectJob = { ...job, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
+              })
+              respondJson(response, 202, { jobId: job.id })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/job',
+          resource: async () => asJson(projectJob ?? null),
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/report',
+          resource: async (request) => {
+            const url = new URL(request.url)
+            const project = readProject(url.searchParams.get('projectId') ?? '')
+            const number = Number(url.searchParams.get('round'))
+            const round = project.rounds.find(item => item.number === number)
+            if (round?.reportPath === undefined || !existsSync(round.reportPath)) {
+              return new Response('report not found', { status: 404 })
+            }
+            return new Response(readFileSync(round.reportPath), { headers: { 'content-type': 'text/html; charset=utf-8' } })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/asset',
+          resource: async (request) => {
+            const url = new URL(request.url)
+            const project = readProject(url.searchParams.get('projectId') ?? '')
+            const round = Number(url.searchParams.get('round'))
+            const name = url.searchParams.get('name') ?? ''
+            if (name.length === 0 || /[\\/]/.test(name)) return new Response('bad asset', { status: 400 })
+            const path = join(projectsDirectory(), project.id, 'rounds', `round-${round}`, 'assets', name)
+            if (!existsSync(path)) return new Response('asset not found', { status: 404 })
+            const type = name.endsWith('.png') ? 'image/png' : 'application/octet-stream'
+            return new Response(readFileSync(path), { headers: { 'content-type': type } })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/project/delete',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = deleteProject(String(body.projectId ?? ''))
+              respondJson(response, 200, { deleted: true, projectId: project.id })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
           path: '/pixel-parity/task/report-file',
           resource: async (request) => {
             const id = new URL(request.url).searchParams.get('taskId') ?? ''
@@ -1523,6 +1676,73 @@ export function apply(ctx, config) {
   }))
 
   ctx.effect(() => ctx.tools.register({
+    name: 'parity_project',
+    description: 'Manage a project: repo + base commit + design sources, automatic source-to-case matching, subtasks, and manually triggered alignment rounds. Actions: create, add-source, analyze, selection, list, status, run-round, delete.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['action'],
+      properties: {
+        action: { type: 'string', enum: ['create', 'add-source', 'analyze', 'selection', 'list', 'status', 'run-round', 'delete'] },
+        repo: { type: 'string' },
+        baseCommit: { type: 'string' },
+        config: { type: 'string' },
+        name: { type: 'string' },
+        projectId: { type: 'string' },
+        kind: { type: 'string', enum: ['url', 'file'] },
+        location: { type: 'string' },
+        selection: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => {
+        const lines = [`Project ${value.project?.id ?? value.projectId ?? ''} · ${value.project?.status ?? value.deleted === true ? 'deleted' : ''}`]
+        if (value.project !== undefined) {
+          lines.push(`sources: ${value.project.sources?.length ?? 0} · subtasks: ${value.project.subtasks?.length ?? 0} · rounds: ${value.project.rounds?.length ?? 0}`)
+          for (const source of value.project.sources ?? []) lines.push(`  ${source.status.padEnd(13)} ${source.location}`)
+        }
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args) {
+      const action = text(args.action, 'action')
+      if (action === 'create') {
+        const project = await createProject({ repo: text(args.repo, 'repo'), baseCommit: args.baseCommit ?? 'HEAD', config: args.config ?? 'parity.config.mjs', name: args.name })
+        return { action, project: projectSummary(project) }
+      }
+      if (action === 'list') {
+        return { action, projects: listProjects().map(projectSummary) }
+      }
+      const projectId = text(args.projectId, 'projectId')
+      if (action === 'add-source') {
+        const project = await addSource(projectId, { kind: args.kind ?? 'url', location: text(args.location, 'location') })
+        return { action, project: projectSummary(project) }
+      }
+      if (action === 'analyze') {
+        const project = readProject(projectId)
+        await analyzeProject(project)
+        return { action, project: projectSummary(readProject(projectId)) }
+      }
+      if (action === 'selection') {
+        return { action, project: projectSummary(setSelection(projectId, args.selection ?? [])) }
+      }
+      if (action === 'status') {
+        return { action, project: projectSummary(readProject(projectId)) }
+      }
+      if (action === 'run-round') {
+        const { project, round } = await runRound(projectId)
+        return { action, project: projectSummary(project), round }
+      }
+      if (action === 'delete') {
+        const project = deleteProject(projectId)
+        return { action, deleted: true, projectId: project.id }
+      }
+      throw new Error(`unknown parity_project action: ${action}`)
+    },
+  }))
+
+  ctx.effect(() => ctx.tools.register({
     name: 'parity_init',
     description: 'Scan a repository and write a parity config draft. Detects the framework, package manager, dev command and port, the route table, and Playwright availability. Never overwrites an existing config unless `force` is true. The draft still needs the reference URL filled in.',
     parameters: INIT_PARAMETERS,
@@ -1686,6 +1906,10 @@ function buildRunValue(result) {
     })),
   }
 }
+
+
+
+
 
 
 

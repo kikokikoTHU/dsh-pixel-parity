@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -55,6 +55,12 @@ window.__ModuleLoader__.load({
       diagnosis: { padding: '6px 12px', fontSize: 10, borderBottom: border, maxHeight: 140, overflow: 'auto' },
       viewerBackdrop: { position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(15, 23, 42, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
       viewerPanel: { width: '92vw', height: '88vh', background: '#fff', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--dsw-alias-border, #d7dee8)' },
+      projectBackdrop: { position: 'fixed', inset: 0, zIndex: 5500, background: 'rgba(15, 23, 42, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      projectPanel: { width: '92vw', height: '88vh', background: '#fff', borderRadius: 10, border: '1px solid #e5eaf1', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+      projectHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid #eef2f7' },
+      projectBody: { flex: 1, overflow: 'auto', padding: 16, background: '#fbfcfe' },
+      projectCard: { background: '#fff', border: '1px solid #e5eaf1', borderRadius: 8, padding: 12, marginBottom: 10 },
+      projectRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid #f4f7fb' },
       viewerHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: border, fontSize: 12 },      repoSection: { marginTop: 10, paddingTop: 8, borderTop: border },
       repoHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, paddingBottom: 4, overflow: 'hidden' },
       taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
@@ -102,7 +108,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -397,6 +403,362 @@ window.__ModuleLoader__.load({
       }
     }
 
+
+    async function loadProjects() {
+      try {
+        const response = await fetch('/pixel-parity/projects')
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.projects = body.projects ?? []
+        notify()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    function openProjects() {
+      state.projectsOpen = true
+      state.project = null
+      state.creating = false
+      state.projectStep = 1
+      loadProjects()
+      notify()
+    }
+
+    function projectGate(project) {
+      const terminal = ['matched', 'needs-review', 'unmatched']
+      const pending = project.sources.filter(source => !terminal.includes(source.status) && source.status !== 'failed').length
+      const failed = project.sources.filter(source => source.status === 'failed').length
+      if (project.sources.length === 0) return { ready: false, reason: '先添加一个设计图/原型' }
+      if (pending > 0) return { ready: false, reason: `${pending} 个设计源正在分析` }
+      if (failed > 0) return { ready: false, reason: '有设计源分析失败，请重试或删除' }
+      if (project.subtasks.length === 0) return { ready: false, reason: '没有可对齐的子任务' }
+      return { ready: true, reason: '' }
+    }
+
+    async function projectPost(url, body) {
+      state.projectBusy = true
+      state.message = null
+      notify()
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`)
+        return payload
+      } finally {
+        state.projectBusy = false
+        notify()
+      }
+    }
+
+    async function createProjectFromDraft() {
+      try {
+        const payload = await projectPost('/pixel-parity/project/create', {
+          repo: state.projectDraft.repo,
+          baseCommit: state.projectDraft.baseCommit || 'HEAD',
+          config: state.projectDraft.config || 'parity.config.mjs',
+          name: state.projectDraft.name || undefined,
+        })
+        state.project = payload.project
+        state.creating = false
+        state.projectStep = 1
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    async function addProjectSource(kind) {
+      if (state.project === null || state.sourceDraft.trim().length === 0) return
+      try {
+        const payload = await projectPost('/pixel-parity/project/source', {
+          projectId: state.project.id,
+          kind,
+          location: state.sourceDraft.trim(),
+        })
+        state.project = payload.project
+        state.sourceDraft = ''
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    async function removeProjectSource(sourceId) {
+      if (state.project === null) return
+      try {
+        const payload = await projectPost('/pixel-parity/project/source/delete', { projectId: state.project.id, sourceId })
+        state.project = payload.project
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    async function projectToggleSubtask(id) {
+      if (state.project === null) return
+      const selected = new Set(state.project.nextSelection ?? [])
+      if (selected.has(id)) selected.delete(id)
+      else selected.add(id)
+      state.project.nextSelection = [...selected]
+      notify()
+      try {
+        const payload = await projectPost('/pixel-parity/project/selection', {
+          projectId: state.project.id,
+          selection: state.project.nextSelection,
+        })
+        state.project = payload.project
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    async function startProjectRound() {
+      if (state.project === null) return
+      try {
+        const payload = await projectPost('/pixel-parity/project/round', { projectId: state.project.id })
+        state.message = `Round 执行中… (${payload.jobId ?? ''})`
+        const timer = setInterval(async () => {
+          try {
+            const response = await fetch('/pixel-parity/project/job')
+            const job = await response.json().catch(() => null)
+            if (job === null) return
+            if (job.status === 'running') {
+              state.message = 'Round 执行中…'
+              notify()
+              return
+            }
+            clearInterval(timer)
+            if (job.status === 'error') {
+              state.message = job.error
+              notify()
+              return
+            }
+            state.message = null
+            const projectResponse = await fetch('/pixel-parity/projects')
+            const projectsBody = await projectResponse.json().catch(() => ({}))
+            const fresh = (projectsBody.projects ?? []).find(item => item.id === state.project.id)
+            if (fresh !== undefined) state.project = fresh
+            notify()
+          } catch {}
+        }, 1000)
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    function openRoundReport(projectId, round) {
+      state.roundViewer = { projectId, round }
+      notify()
+    }
+
+    async function deleteCurrentProject() {
+      if (state.project === null) return
+      if (state.pendingDelete !== state.project.id) {
+        state.pendingDelete = state.project.id
+        state.message = '再次点击 Delete 确认删除项目'
+        notify()
+        return
+      }
+      state.pendingDelete = null
+      try {
+        await projectPost('/pixel-parity/project/delete', { projectId: state.project.id })
+        state.project = null
+        state.projectsOpen = false
+        state.message = null
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
+    function ProjectOverlay() {
+      const store = useStore()
+      if (!store.projectsOpen) return null
+      const project = store.project
+      const gate = project === null ? null : projectGate(project)
+      const close = () => { state.projectsOpen = false; state.project = null; notify() }
+      const header = (title, subtitle) => h('div', { style: styles.projectHeader },
+        h('div', null,
+          h('strong', { style: { fontSize: 13 } }, title),
+          subtitle === undefined ? null : h('div', { style: { ...muted, fontSize: 10 } }, subtitle),
+        ),
+        h('span', { style: { flex: 1 } }),
+        h('button', { style: styles.iconButton, onClick: close }, '×'),
+      )
+      if (project === null) {
+        return h('div', { style: styles.projectBackdrop, onClick: close },
+          h('div', { style: styles.projectPanel, onClick: event => event.stopPropagation() },
+            header('Projects', 'repo + base commit + 设计源，分析与匹配自动执行'),
+            h('div', { style: styles.projectBody },
+              store.creating
+                ? h('div', { style: styles.projectCard },
+                    h('strong', null, '新建对齐项目'),
+                    h('div', { style: { display: 'grid', gap: 8, marginTop: 10 } },
+                      h('input', { style: styles.input, placeholder: '仓库路径，例如 D:\\work\\anubis', value: state.projectDraft.repo, onChange: event => { state.projectDraft.repo = event.target.value; notify() } }),
+                      h('input', { style: styles.input, placeholder: '基准 commit（默认 HEAD）', value: state.projectDraft.baseCommit, onChange: event => { state.projectDraft.baseCommit = event.target.value; notify() } }),
+                      h('input', { style: styles.input, placeholder: 'parity.config.mjs 路径（相对仓库或绝对）', value: state.projectDraft.config, onChange: event => { state.projectDraft.config = event.target.value; notify() } }),
+                      h('input', { style: styles.input, placeholder: '项目名称（可选）', value: state.projectDraft.name, onChange: event => { state.projectDraft.name = event.target.value; notify() } }),
+                    ),
+                    h('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
+                      h('button', { style: styles.taskBtn, onClick: () => { state.creating = false; notify() } }, '取消'),
+                      h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, disabled: state.projectBusy || state.projectDraft.repo.trim() === '', onClick: createProjectFromDraft }, state.projectBusy ? '…' : '创建项目'),
+                    ),
+                  )
+                : h('div', null,
+                    h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                      h('strong', null, '对齐项目'),
+                      h('span', { style: { flex: 1 } }),
+                      h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, onClick: () => { state.creating = true; notify() } }, '+ 新建项目'),
+                    ),
+                    h('div', { style: { marginTop: 8 } },
+                      (store.projects ?? []).length === 0
+                        ? h('div', { style: { ...muted, fontSize: 11 } }, '还没有项目')
+                        : (store.projects ?? []).map(item => h('div', {
+                            key: item.id,
+                            style: styles.projectRow,
+                            onClick: () => { state.project = item; state.projectStep = item.subtasks.length === 0 ? 1 : 3; notify() },
+                          },
+                            h('strong', null, item.name),
+                            h('span', { style: styles.pill }, item.status),
+                            h('span', { style: { ...muted, marginLeft: 'auto', fontSize: 10 } }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+                          )),
+                    ),
+                  ),
+            ),
+          ),
+        )
+      }
+      const stepOne = h('div', null,
+        h('div', { style: styles.projectCard },
+          h('strong', null, '1 · 仓库与设计源'),
+          h('div', { style: { ...muted, fontSize: 10, marginTop: 2 } }, project.repo),
+          h('div', { style: { ...muted, fontSize: 10 } }, `base ${project.baseCommit.slice(0, 7)} · ${project.config}`),
+        ),
+        h('div', { style: styles.projectCard },
+          h('strong', null, '设计源'),
+          h('div', { style: { display: 'flex', gap: 6, marginTop: 8 } },
+            h('input', { style: { ...styles.input, flex: 1 }, placeholder: 'https://… 或本地绝对路径', value: state.sourceDraft, onChange: event => { state.sourceDraft = event.target.value; notify() } }),
+            h('button', { style: styles.taskBtn, disabled: state.projectBusy, onClick: () => addProjectSource(state.sourceDraft.startsWith('http') ? 'url' : 'file') }, '添加'),
+          ),
+          h('div', { style: { marginTop: 8 } },
+            project.sources.map(source => h('div', { key: source.id, style: styles.projectRow },
+              h('span', { style: styles.pill }, source.status),
+              h('span', { style: { fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, source.location),
+              h('button', { style: styles.iconButton, title: '删除设计源', onClick: () => removeProjectSource(source.id) }, '×'),
+            )),
+          ),
+        ),
+        h('div', { style: styles.projectCard },
+          h('strong', null, '2 · 自动分析与匹配'),
+          h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, gate.reason || '全部分析完成'),
+          project.matches.length === 0 ? null : h('div', { style: { marginTop: 6 } },
+            project.matches.map(match => h('div', { key: match.sourceId, style: { ...muted, fontSize: 10 } },
+              `${match.sourceId} → ${match.caseId} · ${Math.round(match.confidence * 100)}% · ${match.status}`,
+            )),
+          ),
+        ),
+      )
+      const stepTwo = h('div', null,
+        h('div', { style: styles.projectCard },
+          h('strong', null, '生成子任务'),
+          h('div', { style: { ...muted, fontSize: 10, marginTop: 2 } }, '勾选决定下一轮执行范围'),
+          project.subtasks.map(task => h('label', { key: task.id, style: { ...styles.projectRow, cursor: 'pointer' } },
+            h('input', { type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
+            h('span', { style: { fontSize: 11 } }, task.title),
+            h('span', { style: styles.pill }, task.needsReview ? '待复核' : `${Math.round(task.confidence * 100)}%`),
+          )),
+        ),
+      )
+      const detail = h('div', null,
+        h('div', { style: styles.projectCard },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h('strong', null, project.name),
+            h('span', { style: styles.pill }, project.status),
+            h('span', { style: { flex: 1 } }),
+            h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, disabled: state.projectBusy || (project.nextSelection ?? []).length === 0, onClick: startProjectRound }, 'Run next round'),
+            h('button', { style: { ...styles.taskBtn, color: '#c0392b' }, onClick: deleteCurrentProject }, state.pendingDelete === project.id ? 'Confirm' : 'Delete'),
+          ),
+          h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, `${project.repo} · base ${project.baseCommit.slice(0, 7)}`),
+        ),
+        h('div', { style: styles.projectCard },
+          h('strong', null, '本轮子任务'),
+          project.subtasks.map(task => h('label', { key: task.id, style: { ...styles.projectRow, cursor: 'pointer' } },
+            h('input', { type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
+            h('span', { style: { fontSize: 11 } }, task.title),
+            task.needsReview ? h('span', { style: styles.pill }, '待复核') : null,
+          )),
+        ),
+        h('div', { style: styles.projectCard },
+          h('strong', null, '轮次'),
+          project.rounds.length === 0 ? h('div', { style: { ...muted, fontSize: 11, marginTop: 4 } }, '还没有执行过轮次') : null,
+          [...project.rounds].reverse().map(round => h('div', { key: round.id, style: styles.projectRow },
+            h('strong', null, `Round ${round.number}`),
+            h('span', { style: styles.pill }, round.status),
+            h('span', { style: { ...muted, fontSize: 10 } }, `${round.selection.length} selected`),
+            h('span', { style: { flex: 1 } }),
+            round.status === 'completed' ? h('button', { style: styles.taskBtn, onClick: () => openRoundReport(project.id, round.number) }, 'Report') : null,
+          )),
+        ),
+      )
+      return h('div', { style: styles.projectBackdrop, onClick: close },
+        h('div', { style: styles.projectPanel, onClick: event => event.stopPropagation() },
+          header(project.name, `base ${project.baseCommit.slice(0, 7)} · ${project.sources.length} sources`),
+          h('div', { style: styles.projectBody },
+            h('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
+              h('button', { style: { ...styles.taskBtn, borderColor: state.projectStep === 1 ? '#111827' : undefined }, onClick: () => { state.projectStep = 1; notify() } }, '1 · 仓库与设计源'),
+              h('button', { style: { ...styles.taskBtn, borderColor: state.projectStep === 2 ? '#111827' : undefined, opacity: gate.ready ? 1 : 0.5 }, onClick: () => { if (gate.ready) { state.projectStep = 2; notify() } } }, '2 · 生成子任务'),
+              h('button', { style: { ...styles.taskBtn, opacity: project.subtasks.length > 0 ? 1 : 0.5 }, onClick: () => { if (project.subtasks.length > 0) { state.projectStep = 3; notify() } } }, '项目页'),
+            ),
+            state.projectStep === 1 ? stepOne : state.projectStep === 2 ? stepTwo : detail,
+            state.projectStep === 1
+              ? h('div', { style: { marginTop: 10, display: 'flex', justifyContent: 'flex-end' } },
+                  h('button', {
+                    style: { ...styles.taskBtn, background: gate.ready ? '#111827' : '#e2e8f0', color: gate.ready ? '#fff' : '#94a3b8', borderColor: gate.ready ? '#111827' : '#e2e8f0' },
+                    disabled: !gate.ready,
+                    title: gate.reason,
+                    onClick: () => { state.projectStep = 2; notify() },
+                  }, gate.ready ? '生成子任务 →' : gate.reason),
+                )
+              : null,
+          ),
+          h('div', { style: { padding: '8px 16px', borderTop: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 8 } },
+            h('button', { style: styles.taskBtn, onClick: () => { state.project = null; loadProjects(); notify() } }, '← Projects'),
+            store.message === null ? null : h('span', { style: { ...muted, fontSize: 10 } }, store.message),
+          ),
+        ),
+      )
+    }
+
+    function RoundReportViewer() {
+      const store = useStore()
+      if (store.roundViewer === null) return null
+      const { projectId, round } = store.roundViewer
+      const source = `/pixel-parity/project/report?projectId=${encodeURIComponent(projectId)}&round=${round}`
+      return h('div', { style: styles.viewerBackdrop, onClick: () => { state.roundViewer = null; notify() } },
+        h('div', { style: styles.viewerPanel, onClick: event => event.stopPropagation() },
+          h('div', { style: styles.viewerHeader },
+            h('strong', null, `Round ${round} report`),
+            h('span', { style: { flex: 1 } }),
+            h('a', { style: { ...styles.taskBtn, textDecoration: 'none' }, href: source, target: '_blank', rel: 'noopener' }, 'Open'),
+            h('button', { style: styles.iconButton, onClick: () => { state.roundViewer = null; notify() } }, '×'),
+          ),
+          h('iframe', { src: source, style: { width: '100%', flex: 1, border: 'none', background: '#fff' } }),
+        ),
+      )
+    }
+
     function Launcher() {
       const store = useStore()
       useEffect(() => {
@@ -419,7 +781,7 @@ window.__ModuleLoader__.load({
         'PP',
         active > 0 ? h('span', { style: styles.badge }, String(active)) : null,
       )
-      return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)), h(ReportViewer))
+      return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)), h(ProjectOverlay), h(ReportViewer), h(RoundReportViewer))
     }
 
     function ViewportRow({ viewport }) {
@@ -506,6 +868,10 @@ window.__ModuleLoader__.load({
             h('span', { style: styles.pill }, `${taskCount} task${taskCount === 1 ? '' : 's'}`),
             h('span', { style: { flex: 1 } }),
             h('button', {
+              style: styles.taskBtn,
+              onClick: openProjects,
+            }, 'Projects'),
+            h('button', {
               style: styles.iconButton,
               title: t.refresh,
               onClick: () => loadTasks(),
@@ -571,6 +937,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
