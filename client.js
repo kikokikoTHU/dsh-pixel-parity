@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, pendingDeleteProject: null, logs: [], projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, pendingDeleteProject: null, logs: [], projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null, cleanRoundsOpen: false }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -535,6 +535,22 @@ window.__ModuleLoader__.load({
       }
     }
 
+    async function cleanProjectRounds(mode) {
+      if (state.project === null) return
+      try {
+        const payload = await projectPost('/pixel-parity/project/rounds/clean', {
+          projectId: state.project.id,
+          mode,
+        })
+        state.project = payload.project
+        state.cleanRoundsOpen = false
+        notify()
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
     async function startProjectRound() {
       if (state.project === null) return
       try {
@@ -676,6 +692,7 @@ window.__ModuleLoader__.load({
       .ppj-table td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; color: #334155; }
       .ppj-table tr:last-child td { border-bottom: none; }
       .ppj-check { width: 15px; height: 15px; accent-color: #111827; }
+      .ppj-clean { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-bottom: 8px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 7px; font-size: 11px; color: #b91c1c; }
       .ppj-round { border: 1px solid #e5eaf1; border-radius: 8px; padding: 11px 13px; margin-bottom: 8px; }
       .ppj-round.now { border-color: #111827; }
       .ppj-round-h { display: flex; align-items: center; gap: 8px; }
@@ -873,9 +890,23 @@ window.__ModuleLoader__.load({
           ),
         ),
         h('div', { className: 'ppj-card' },
-          h('div', { className: 'ppj-card-h' }, h('b', null, '轮次'), h('span', { className: 'ppj-hint' }, '每次点击只执行一轮')),
+          h('div', { className: 'ppj-card-h' },
+            h('b', null, '轮次'),
+            h('span', { className: 'ppj-hint' }, '每次点击只执行一轮'),
+            h('span', { style: { flex: 1 } }),
+            project.rounds.length === 0 ? null : h('button', {
+              className: 'ppj-btn',
+              onClick: () => { state.cleanRoundsOpen = !state.cleanRoundsOpen; notify() },
+            }, '清理历史'),
+          ),
           h('div', { className: 'ppj-card-b' },
             project.rounds.length === 0 ? h('div', { className: 'ppj-empty' }, '还没有执行过轮次') : null,
+            state.cleanRoundsOpen ? h('div', { className: 'ppj-clean' },
+              h('span', null, '清理历史 Round：'),
+              h('button', { className: 'ppj-btn', onClick: () => cleanProjectRounds('failed') }, '删除失败/中断'),
+              h('button', { className: 'ppj-btn danger', onClick: () => cleanProjectRounds('all') }, '删除全部（含报告）'),
+              h('button', { className: 'ppj-btn ghost', onClick: () => { state.cleanRoundsOpen = false; notify() } }, '取消'),
+            ) : null,
             [...project.rounds].reverse().map(round => h('div', { key: round.id, className: `ppj-round ${round.status === 'running' ? 'now' : ''}` },
               h('div', { className: 'ppj-round-h' },
                 h('b', null, `Round ${round.number}`),
@@ -1183,6 +1214,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 

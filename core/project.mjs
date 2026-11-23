@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -396,6 +396,22 @@ export function deleteProject(projectId) {
   return project
 }
 
+/** Remove failed/interrupted rounds, or all rounds when mode is "all". */
+export function cleanRounds(projectId, mode = 'failed') {
+  const project = readProject(projectId)
+  if (project.rounds.some(round => round.status === 'running')) {
+    throw new Error('cannot clean rounds while a round is running')
+  }
+  const keep = mode === 'all' ? [] : project.rounds.filter(round => round.status === 'completed')
+  const remove = project.rounds.filter(round => !keep.includes(round))
+  for (const round of remove) {
+    rmSync(join(projectsDirectory(), project.id, 'rounds', round.id), { recursive: true, force: true })
+  }
+  project.rounds = keep
+  writeProject(project)
+  logEvent('project.rounds.clean', { projectId, mode, removed: remove.map(round => round.number) })
+  return project
+}
 export function projectSummary(project) {
   return {
     ...project,
@@ -414,6 +430,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
