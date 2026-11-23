@@ -1830,7 +1830,10 @@ export function apply(ctx, config) {
         timeoutMs: { type: 'number' },
       },
     },
-    output: { schema: { type: 'object', additionalProperties: true } },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
     async execute(args) {
       const subagents = typeof ctx.get === 'function' ? ctx.get('subagents') : undefined
       const agents = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
