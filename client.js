@@ -265,7 +265,7 @@ window.__ModuleLoader__.load({
         const body = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
         if (state.viewer === task.id) state.viewer = null
-        state.message = zh ? `已删除 ${task.id}` : `Deleted ${task.id}`
+        state.message = null
         notify()
         loadTasks()
       } catch (failure) {
@@ -587,19 +587,14 @@ window.__ModuleLoader__.load({
                 : h('div', { style: { ...muted, paddingTop: 3 } }, `next: ${viewport.next[0]}`),
             )),
           ),
-          h('div', { style: styles.root }, roots.length === 0 ? 'no repository scanned yet' : roots.map(root => root.root).join(' · ')),
           h('div', { style: styles.list },
             store.error !== null
               ? h('div', { style: { color: statusColor('failed'), fontSize: 11 } }, `${t.failed}: ${store.error}`)
               : store.data === null
                 ? h('div', { style: { ...muted, fontSize: 11 } }, t.loading)
-                : roots.length === 0
-                  ? h('div', { style: { ...muted, fontSize: 11 } }, t.empty)
-                  : roots.map(root => h('div', { key: root.root },
-                      root.runs.length === 0
-                        ? h('div', { style: { ...muted, fontSize: 11 } }, 'No runs')
-                        : root.runs.map(run => h(RunCard, { key: run.runId, run })),
-                    )),
+                : roots.map(root => h('div', { key: root.root },
+                    (root.runs ?? []).map(run => h(RunCard, { key: run.runId, run })),
+                  )),
           ),
         ),
       )
