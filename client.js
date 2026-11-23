@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -379,6 +379,9 @@ window.__ModuleLoader__.load({
       if (!store.open) return null
       const roots = store.data?.roots ?? []
       const latest = latestRun(store.data)
+      const task = store.tasks?.[0]
+      const taskPixels = task?.latest?.pixels ?? []
+      const taskAvg = taskPixels.length === 0 ? null : taskPixels.reduce((sum, value) => sum + value, 0) / taskPixels.length
       return h('div', {
         style: styles.backdrop,
         onClick: () => { state.open = false; notify() },
