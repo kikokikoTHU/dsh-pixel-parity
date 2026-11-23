@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -388,6 +388,7 @@ function escapeHtml(value) {
 
 export function deleteProject(projectId) {
   const project = readProject(projectId)
+  deleteGitRefs(project, project.rounds)
   if (typeof project.worktree === 'string' && resolve(project.worktree) !== resolve(project.repo)) {
     try { unlinkSync(join(project.worktree, 'node_modules')) } catch {}
     try { git(project.repo, ['worktree', 'remove', '--force', project.worktree]) } catch {}
@@ -397,6 +398,23 @@ export function deleteProject(projectId) {
 }
 
 /** Remove failed/interrupted rounds, or all rounds when mode is "all". */
+function deleteGitRefs(project, rounds) {
+  const branches = [...new Set([project.branch, ...rounds.map(round => round.branch)].filter(branch => typeof branch === 'string' && branch.length > 0))]
+  const tags = [...new Set(rounds.map(round => round.tag ?? (Number.isInteger(round.number) ? `pp-r${String(round.number).padStart(2, '0')}` : null)).filter(tag => typeof tag === 'string'))]
+  if (branches.length === 0 && tags.length === 0) return
+  const worktree = project.worktree
+  if (typeof worktree === 'string' && existsSync(worktree)) {
+    try { git(worktree, ['switch', '--detach', project.baseCommit]) } catch {}
+  }
+  for (const branch of branches) {
+    if (!branch.startsWith('pp/')) continue
+    try { git(project.repo, ['branch', '-D', branch]) } catch {}
+  }
+  for (const tag of tags) {
+    if (!tag.startsWith('pp-r')) continue
+    try { git(project.repo, ['tag', '-d', tag]) } catch {}
+  }
+}
 export function cleanRounds(projectId, mode = 'failed') {
   const project = readProject(projectId)
   if (project.rounds.some(round => round.status === 'running')) {
@@ -404,6 +422,7 @@ export function cleanRounds(projectId, mode = 'failed') {
   }
   const keep = mode === 'all' ? [] : project.rounds.filter(round => round.status === 'completed')
   const remove = project.rounds.filter(round => !keep.includes(round))
+  deleteGitRefs(project, remove)
   for (const round of remove) {
     rmSync(join(projectsDirectory(), project.id, 'rounds', round.id), { recursive: true, force: true })
   }
@@ -430,6 +449,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
