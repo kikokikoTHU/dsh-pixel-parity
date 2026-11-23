@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
         borderRadius: 999, background: 'var(--dsw-alias-status-danger, #c0392b)', color: '#fff',
         fontSize: 9, lineHeight: '14px', textAlign: 'center',
       },
-      backdrop: { position: 'fixed', inset: 0, zIndex: 1000 },
+      backdrop: { position: 'fixed', inset: 0, zIndex: 5000 },
       drawer: {
         position: 'absolute', top: 54, right: 14, bottom: 96, width: 384, maxWidth: '92vw',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -287,28 +287,61 @@ window.__ModuleLoader__.load({
       }
     }
 
+    const ComponentBase = React.Component ?? class {
+      constructor(props) { this.props = props; this.state = {} }
+    }
+
+    class PanelBoundary extends ComponentBase {
+      constructor(props) {
+        super(props)
+        this.state = { error: null }
+      }
+
+      static getDerivedStateFromError(error) {
+        return { error: String(error?.message ?? error) }
+      }
+
+      render() {
+        if (this.state.error !== null) {
+          return h('div', {
+            style: {
+              position: 'fixed', top: 52, right: 12, zIndex: 2001, maxWidth: 420,
+              padding: '8px 10px', background: '#fff', border: '1px solid #c0392b',
+              borderRadius: 6, fontSize: 10, color: '#c0392b',
+            },
+          }, `Pixel parity panel error: ${this.state.error}`)
+        }
+        return this.props.children
+      }
+    }
+
     function Launcher() {
       const store = useStore()
       useEffect(() => {
         if (store.data === null && !store.loading) loadOverview()
-        const timer = setInterval(() => { loadOverview() }, 20000)
+        loadTasks()
+        const timer = setInterval(() => { loadOverview(); loadTasks() }, 20000)
         return () => clearInterval(timer)
       }, [])
       const latest = latestRun(store.data)
       const failed = latest?.summary?.failed ?? 0
-      return h('button', {
+      const button = h('button', {
         style: styles.button,
         title: latest === undefined ? 'Pixel parity' : `Pixel parity — ${summaryLabel(latest.summary)}`,
         'aria-label': 'Pixel parity',
         onClick: () => {
           state.open = !state.open
           notify()
-          if (state.open) loadOverview()
+          if (state.open) {
+            loadOverview()
+            loadTasks()
+          }
         },
       },
         'PP',
         failed > 0 ? h('span', { style: styles.badge }, String(failed)) : null,
       )
+      return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)))
     }
 
     function ViewportRow({ viewport }) {
@@ -444,10 +477,21 @@ window.__ModuleLoader__.load({
               taskAvg === null ? (zh ? '尚无 run' : 'no run yet') : `${(taskAvg * 100).toFixed(2)}% pixels`,
               task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
             ),
-            h('div', { style: { display: 'flex', gap: 6, paddingTop: 4 } },
-              h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step') }, state.taskRunning ? '…' : 'Step'),
+            h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
+              task.status === 'paused'
+                ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume') }, 'Resume')
+                : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step') }, state.taskRunning ? '…' : 'Step'),
               h('button', { style: styles.taskBtn, onClick: () => taskAction('report') }, 'Report'),
-              h('button', { style: styles.taskBtn, onClick: () => taskAction('pause') }, 'Pause'),
+              task.reportPath === undefined
+                ? null
+                : h('a', {
+                    style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
+                    href: `/pixel-parity/task/report-file?repo=${encodeURIComponent(task.repo)}&taskId=${encodeURIComponent(task.id)}`,
+                    target: '_blank',
+                    rel: 'noopener',
+                    download: `${task.id}-report.html`,
+                  }, 'Download'),
+              task.status === 'paused' ? null : h('button', { style: styles.taskBtn, onClick: () => taskAction('pause') }, 'Pause'),
             ),
           ),          store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
@@ -498,15 +542,11 @@ window.__ModuleLoader__.load({
           id: 'pixel-parity-launcher',
           order: 40,
         }, Launcher))
-        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-          name: 'shell.overlay',
-          id: 'pixel-parity-drawer',
-          order: 40,
-        }, Drawer))
       },
     }
   },
 })
+
 
 
 

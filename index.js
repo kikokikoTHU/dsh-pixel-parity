@@ -1087,6 +1087,24 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
+          path: '/pixel-parity/task/report-file',
+          resource: async (request) => {
+            const url = new URL(request.url)
+            const repo = resolve(url.searchParams.get('repo') ?? '')
+            const id = url.searchParams.get('taskId') ?? ''
+            if (id.length === 0 || /[\\/]/.test(id)) return new Response('bad task', { status: 400 })
+            const path = join(repo, '.parity', 'tasks', id, 'report.html')
+            if (!existsSync(path)) return new Response('report not found; generate it first', { status: 404 })
+            return new Response(readFileSync(path), {
+              headers: {
+                'content-type': 'text/html; charset=utf-8',
+                'content-disposition': `inline; filename="${id}-report.html"`,
+              },
+            })
+          },
+        }),
+        server.register({
+          kind: 'exact',
           path: '/pixel-parity/task/report',
           handler: async (request, response) => {
             try {
