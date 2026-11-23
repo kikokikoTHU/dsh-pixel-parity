@@ -395,7 +395,7 @@ export function projectSummary(project) {
       kind: source.kind,
       location: source.location,
       status: source.status,
-      error: source.error,
+      error: source.error ?? null,
     })),
     stats: {
       matched: project.sources.filter(source => source.status === 'matched').length,
@@ -405,6 +405,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
