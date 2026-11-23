@@ -361,28 +361,24 @@ window.__ModuleLoader__.load({
     function Launcher() {
       const store = useStore()
       useEffect(() => {
-        if (store.data === null && !store.loading) loadOverview()
         loadTasks()
-        const timer = setInterval(() => { loadOverview(); loadTasks() }, 20000)
+        const timer = setInterval(() => { loadTasks() }, 10000)
         return () => clearInterval(timer)
       }, [])
-      const latest = latestRun(store.data)
-      const failed = latest?.summary?.failed ?? 0
+      const tasks = store.tasks ?? []
+      const active = tasks.filter(task => task.status !== 'converged' && task.status !== 'exhausted').length
       const button = h('button', {
         style: styles.button,
-        title: latest === undefined ? 'Pixel parity' : `Pixel parity — ${summaryLabel(latest.summary)}`,
+        title: `Pixel parity — ${tasks.length} task${tasks.length === 1 ? '' : 's'}`,
         'aria-label': 'Pixel parity',
         onClick: () => {
           state.open = !state.open
           notify()
-          if (state.open) {
-            loadOverview()
-            loadTasks()
-          }
+          if (state.open) loadTasks()
         },
       },
         'PP',
-        failed > 0 ? h('span', { style: styles.badge }, String(failed)) : null,
+        active > 0 ? h('span', { style: styles.badge }, String(active)) : null,
       )
       return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)), h(ReportViewer))
     }
@@ -445,8 +441,8 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = useState(store.repo)
       useEffect(() => {
         if (!state.open) return undefined
-        loadOverview()
-        const timer = setInterval(() => { loadOverview() }, 4000)
+        loadTasks()
+        const timer = setInterval(() => { loadTasks() }, 4000)
         return () => clearInterval(timer)
       }, [store.open])
       useEffect(() => {
@@ -460,11 +456,7 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey)
       }, [])
       if (!store.open) return null
-      const roots = store.data?.roots ?? []
-      const latest = latestRun(store.data)
-      const task = store.tasks?.[0]
-      const taskPixels = task?.latest?.pixels ?? []
-      const taskAvg = taskPixels.length === 0 ? null : taskPixels.reduce((sum, value) => sum + value, 0) / taskPixels.length
+      const taskCount = (store.tasks ?? []).length
       return h('div', {
         style: styles.backdrop,
         onClick: () => { state.open = false; notify() },
@@ -472,50 +464,18 @@ window.__ModuleLoader__.load({
         h('div', { style: styles.drawer, onClick: event => event.stopPropagation() },
           h('div', { style: styles.header },
             h('strong', null, 'Pixel parity'),
-            latest === undefined ? null : h('span', { style: styles.pill }, summaryLabel(latest.summary)),
+            h('span', { style: styles.pill }, `${taskCount} task${taskCount === 1 ? '' : 's'}`),
             h('span', { style: { flex: 1 } }),
             h('button', {
               style: styles.iconButton,
-              title: t.run,
-              onClick: startPanelRun,
-            }, '▶'),
-            h('button', {
-              style: styles.iconButton,
-              title: t.approve,
-              onClick: approveLatest,
-            }, '✓'),
-            h('button', {
-              style: styles.iconButton,
-              title: t.diagnose,
-              onClick: diagnoseLatest,
-            }, '⌕'),
-            h('button', {
-              style: styles.iconButton,
               title: t.refresh,
-              onClick: () => { loadOverview(); loadTasks() },
+              onClick: () => loadTasks(),
             }, '⟳'),
             h('button', {
               style: styles.iconButton,
               title: t.close,
               onClick: () => { state.open = false; notify() },
             }, '×'),
-          ),
-          h('div', { style: styles.repoRow },
-            h('input', {
-              style: styles.input,
-              value: draft,
-              placeholder: t.repo,
-              spellCheck: false,
-              onChange: event => setDraft(event.target.value),
-              onKeyDown: event => {
-                if (event.key === 'Enter') setRepo(draft)
-              },
-            }),
-            h('button', {
-              style: styles.iconButton,
-              title: t.latest,
-              onClick: () => { setDraft(''); setRepo('') },
-            }, '↺'),
           ),
           (store.tasks ?? []).slice(0, 5).map(task => {
             const pixels = task.latest?.pixels ?? []
@@ -593,15 +553,6 @@ window.__ModuleLoader__.load({
                 ? null
                 : h('div', { style: { ...muted, paddingTop: 3 } }, `next: ${viewport.next[0]}`),
             )),
-          ),
-          h('div', { style: styles.list },
-            store.error !== null
-              ? h('div', { style: { color: statusColor('failed'), fontSize: 11 } }, `${t.failed}: ${store.error}`)
-              : store.data === null
-                ? h('div', { style: { ...muted, fontSize: 11 } }, t.loading)
-                : roots.map(root => h('div', { key: root.root },
-                    (root.runs ?? []).map(run => h(RunCard, { key: run.runId, run })),
-                  )),
           ),
         ),
       )

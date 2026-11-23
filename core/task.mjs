@@ -134,6 +134,12 @@ export async function stepTask(input) {
       baselineMode: 'ephemeral',
       headless: input.headless !== false,
       signal: input.signal,
+      task: {
+        id: task.id,
+        iteration: task.iteration + 1,
+        maxIterations: task.maxIterations,
+        parentRunDir: task.currentRunDir ?? undefined,
+      },
     })
   } catch (error) {
     task.status = 'blocked'

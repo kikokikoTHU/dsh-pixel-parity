@@ -304,6 +304,7 @@ cases/<case>/<viewport>/
 | M49 ✅ | Task 删除：工具 `action=delete`、面板 Delete（二次确认）、`/pixel-parity/task/delete`；删除 task.json、report.html、report-assets；报告改为内嵌查看器（iframe），不再调用系统浏览器 | 任务生命周期完整 |
 | M50 ✅ | Task 迭代模型调整：默认 4 轮、面板去掉 Step/Pause/Resume，进度条显示 iter N/M；停止 pause 能力；Delete 先 abort 正在跑的 run 再删除；迭代由模型按 autopilot 持续调用 step 完成 | 任务自助迭代，用户不再手动点 Step |
 | M51 ✅ | 迭代 checkpoint：每轮结束写 `checkpoint.json`；插件启动时恢复 `measuring` 中断状态并从 checkpoint 续跑，未完成 Task 自动跑完剩余轮数；`config.autoResume: false` 可关闭 | 重启后从断点恢复并自完成 |
+| M52 ✅ | Task 专属测量链：run 的 `iteration` 与 `parentRun` 只跟随本 Task 上一轮（不再扫描仓库历史）；manifest 记录 `task{id,iteration,maxIterations}`；面板移除全局 runs 列表与仓库扫描输入，只展示 Task 卡 | 每个 Task 只记录自己的测量 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

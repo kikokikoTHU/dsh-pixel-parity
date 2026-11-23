@@ -88,13 +88,31 @@ export async function runConfig(options) {
     await stopDevServer(devServer)
   }
 
-  const parent = findParentRun(repoRoot, runDir, startedAt)
+  let parent
+  if (options.task !== undefined) {
+    if (typeof options.task.parentRunDir === 'string' && existsSync(join(options.task.parentRunDir, 'manifest.json'))) {
+      try {
+        parent = {
+          dir: options.task.parentRunDir,
+          manifest: JSON.parse(readFileSync(join(options.task.parentRunDir, 'manifest.json'), 'utf8')),
+        }
+      } catch {
+        parent = undefined
+      }
+    }
+  } else {
+    parent = findParentRun(repoRoot, runDir, startedAt)
+  }
+  const iteration = options.task?.iteration ?? (parent === undefined ? 1 : (parent.manifest.iteration ?? 1) + 1)
   const manifest = {
     version: 2,
     runId,
-    iteration: parent === undefined ? 1 : (parent.manifest.iteration ?? 1) + 1,
+    iteration,
     parentRun: parent === undefined ? null : { runId: parent.manifest.runId, runDir: parent.dir },
     delta: computeDelta(caseResults, parent?.manifest),
+    ...(options.task === undefined
+      ? {}
+      : { task: { id: options.task.id, iteration, maxIterations: options.task.maxIterations } }),
     startedAt,
     finishedAt: new Date().toISOString(),
     config: { path: config.path, sha256: config.sha256 },
