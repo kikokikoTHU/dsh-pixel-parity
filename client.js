@@ -221,10 +221,10 @@ window.__ModuleLoader__.load({
     async function showReport(target) {
       const task = target ?? state.tasks?.[0]
       if (task === undefined) return
-      if (task.status !== 'converged' && task.status !== 'exhausted') {
+      if (task.status !== 'converged' && task.status !== 'failed') {
         state.message = zh
-          ? `所有 ${task.maxIterations} 轮迭代完成后才能生成报告（当前 ${task.iteration}/${task.maxIterations}）`
-          : `Report unlocks after all ${task.maxIterations} iterations (${task.iteration}/${task.maxIterations} done)`
+          ? '先运行一次任务，再生成报告'
+          : 'Run the task once before generating a report'
         notify()
         return
       }
@@ -366,7 +366,7 @@ window.__ModuleLoader__.load({
         return () => clearInterval(timer)
       }, [])
       const tasks = store.tasks ?? []
-      const active = tasks.filter(task => task.status !== 'converged' && task.status !== 'exhausted').length
+      const active = tasks.filter(task => task.status !== 'converged' && task.status !== 'failed').length
       const button = h('button', {
         style: styles.button,
         title: `Pixel parity — ${tasks.length} task${tasks.length === 1 ? '' : 's'}`,
@@ -480,30 +480,22 @@ window.__ModuleLoader__.load({
           (store.tasks ?? []).slice(0, 5).map(task => {
             const pixels = task.latest?.pixels ?? []
             const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
-            const reportReady = task.status === 'converged' || task.status === 'exhausted'
+            const reportReady = task.status === 'converged' || task.status === 'failed'
             return h('div', { key: task.id, style: styles.taskCard },
               h('div', { style: styles.taskRow },
                 h('strong', null, task.id),
                 h('span', { style: styles.pill }, task.status),
-                h('span', { style: { ...muted, marginLeft: 'auto' } }, `iter ${task.iteration}/${task.maxIterations}`),
+                h('span', { style: { ...muted, marginLeft: 'auto' } }, 'single run'),
               ),
               h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
                 average === null ? (zh ? '尚无 run' : 'no run yet') : `${(average * 100).toFixed(2)}% pixels`,
                 task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
               ),
-              h('div', { style: { ...muted, fontSize: 10, paddingTop: 3 } },
-                h('span', { style: { display: 'inline-block', width: 80, height: 6, borderRadius: 3, background: '#e6ebf2', marginRight: 6, verticalAlign: 'middle' } },
-                  h('span', { style: { display: 'block', height: '100%', width: `${Math.min(100, (task.iteration / Math.max(1, task.maxIterations)) * 100)}%`, borderRadius: 3, background: '#2f6fed' } }),
-                ),
-                `${task.iteration}/${task.maxIterations}`,
-              ),
               h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
                 h('span', {
                   title: reportReady
                     ? (zh ? '打开报告' : 'Open the report')
-                    : (zh
-                        ? `所有 ${task.maxIterations} 轮迭代完成后才能生成报告（当前 ${task.iteration}/${task.maxIterations}）`
-                        : `Report unlocks after all ${task.maxIterations} iterations (${task.iteration}/${task.maxIterations} done)`),
+                    : (zh ? '先运行一次任务，再生成报告' : 'Run the task once before generating a report'),
                   style: { display: 'inline-block' },
                 },
                   h('button', {

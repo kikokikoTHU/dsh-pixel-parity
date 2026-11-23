@@ -101,13 +101,12 @@ parity_task({ action: "status" | "list" | "delete", repo, taskId })
 A task persists under the plugin installation directory at
 `<plugin>/data/tasks/<taskId>/task.json` (reports and assets live beside it), records
 `repo`, `config`, `cases`, `viewports`, `goal`, `dependenciesRoot`, and every iteration
-(`runDir`, pixels, delta, plan). It ends as `converged`, `exhausted`, or `blocked`. The PP
-panel lists tasks from that store without needing a repository path, with Report /
-Download / Delete actions and a progress bar (`iter N/M`, default 4).
-
-Each completed iteration also writes `<task>/checkpoint.json`. On startup the plugin
-recovers tasks interrupted mid-measurement from that checkpoint and, unless the plugin row
-sets `autoResume: false`, resumes unfinished tasks to their iteration budget automatically.
+(`runDir`, pixels, delta, plan) and its single alignment measurement. It ends as
+`converged` (passes) or `failed` (differences remain), with the plan kept for the report.
+The PP panel lists tasks from that store without a repository path, with Report /
+Download / Delete actions. Report unlocks after that one run; there is no iteration
+budget and no automatic resume. A `<task>/checkpoint.json` is still written for crash
+recovery and inspection.
 
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.

@@ -56,8 +56,7 @@ export function createTask(input) {
       requireGeometry: input.goal?.requireGeometry !== false,
       requireStyles: input.goal?.requireStyles !== false,
     },
-    maxIterations: Number.isInteger(input.maxIterations) && input.maxIterations > 0 ? input.maxIterations : 4,
-    autoResume: input.autoResume !== false,
+    maxIterations: 1,
     status: 'draft',
     iteration: 0,
     createdAt: now,
@@ -105,20 +104,14 @@ export function listTasks(repo) {
 }
 
 /**
- * Run one measurement iteration and update the task.
+ * Run the single alignment measurement for a task. A task runs once; calling
+ * step again just returns the existing result.
  * @param {{id: string, dependenciesRoot?: string, headless?: boolean}} input
  * @returns {Promise<{task: object, plan: object|null, runDir: string}>}
  */
 export async function stepTask(input) {
   const task = readTask(input.id)
-  if (task.status === 'converged') return { task, plan: null, runDir: task.currentRunDir }
-  if (task.status === 'paused') throw new Error(`task ${task.id} is paused; resume it first`)
-  if (task.iteration >= task.maxIterations) {
-    task.status = 'exhausted'
-    task.blockedReason = `reached maxIterations (${task.maxIterations})`
-    saveTask(task)
-    return { task, plan: null, runDir: task.currentRunDir }
-  }
+  if (task.runs.length > 0) return { task, plan: task.plan, runDir: task.currentRunDir }
 
   task.status = 'measuring'
   saveTask(task)
@@ -134,28 +127,16 @@ export async function stepTask(input) {
       baselineMode: 'ephemeral',
       headless: input.headless !== false,
       signal: input.signal,
-      task: {
-        id: task.id,
-        iteration: task.iteration + 1,
-        maxIterations: task.maxIterations,
-        parentRunDir: task.currentRunDir ?? undefined,
-      },
+      task: { id: task.id, iteration: 1, maxIterations: 1 },
     })
   } catch (error) {
-    task.status = 'blocked'
+    task.status = 'failed'
     task.blockedReason = String(error?.message ?? error)
     saveTask(task)
     return { task, plan: null, runDir: task.currentRunDir }
   }
 
   const manifest = result.manifest
-  const iteration = task.iteration + 1
-  try {
-    const manifestPath = join(result.runDir, 'manifest.json')
-    const stored = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    stored.task = { id: task.id, iteration, maxIterations: task.maxIterations }
-    writeFileSync(manifestPath, `${JSON.stringify(stored, null, 2)}\n`)
-  } catch {}
   const cases = (manifest.cases ?? []).map(entry => ({
     id: entry.id,
     status: entry.status,
@@ -167,12 +148,12 @@ export async function stepTask(input) {
       styles: viewport.styles?.available === true ? (viewport.styles.pass === true ? 'pass' : 'fail') : 'unavailable',
     })),
   }))
-  task.iteration = iteration
+  task.iteration = 1
   task.currentRunDir = result.runDir
   const summary = manifest.summary ?? {}
   const runStatus = (summary.failed ?? 0) > 0 ? 'failed' : (summary.incomplete ?? 0) > 0 ? 'incomplete' : 'verified'
   task.runs.push({
-    iteration,
+    iteration: 1,
     runDir: result.runDir,
     status: runStatus,
     summary: manifest.summary ?? null,
@@ -188,8 +169,8 @@ export async function stepTask(input) {
   } else {
     const diagnosis = diagnoseRun(result.runDir)
     task.plan = buildAlignmentPlan(diagnosis, manifest)
-    task.status = task.iteration >= task.maxIterations ? 'exhausted' : 'needs-edit'
-    task.blockedReason = task.iteration >= task.maxIterations ? `reached maxIterations (${task.maxIterations})` : null
+    task.status = 'failed'
+    task.blockedReason = null
   }
   saveTask(task)
   writeCheckpoint(task)
@@ -236,55 +217,17 @@ export function writeCheckpoint(task) {
   writeFileSync(checkpointPath(task.id), `${JSON.stringify(checkpoint, null, 2)}\n`)
 }
 
-/** Tasks that still have iterations left and are safe to resume. */
-export function resumableTasks() {
-  return listTasks().filter(task => {
-    if (task.autoResume === false) return false
-    if (task.iteration >= task.maxIterations) return false
-    return ['draft', 'needs-edit', 'measuring'].includes(task.status)
-  })
-}
-
 /** Restore tasks interrupted mid-measurement from their checkpoint. */
 export function recoverInterruptedTasks() {
   for (const task of listTasks()) {
     if (task.status !== 'measuring') continue
-    let checkpoint
-    try {
-      checkpoint = JSON.parse(readFileSync(checkpointPath(task.id), 'utf8'))
-    } catch {
-      checkpoint = null
-    }
-    task.status = 'needs-edit'
+    task.status = 'draft'
     task.blockedReason = 'interrupted: DSH closed during measurement'
-    if (checkpoint !== null && Number.isInteger(checkpoint.iteration)) {
-      task.iteration = checkpoint.iteration
-      task.currentRunDir = checkpoint.lastRunDir ?? task.currentRunDir
-    }
     saveTask(task)
     writeCheckpoint(task)
   }
 }
 
-/** Run all resumable tasks to their iteration budget. */
-export async function autoResumeTasks(options = {}) {
-  const intervalMs = options.intervalMs ?? 1000
-  for (const task of resumableTasks()) {
-    let current = task
-    while (current !== null && current.iteration < current.maxIterations && ['draft', 'needs-edit', 'measuring'].includes(current.status)) {
-      if (options.signal?.aborted === true) return
-      try {
-        const result = await stepTask({ id: current.id, dependenciesRoot: current.dependenciesRoot, headless: true })
-        current = result.task
-        writeCheckpoint(current)
-      } catch {
-        break
-      }
-      if (current.status === 'converged' || current.status === 'exhausted' || current.status === 'blocked') break
-      await new Promise(resolve => setTimeout(resolve, intervalMs))
-    }
-  }
-}
 /** Compact task view for tools and the panel. */
 export function taskSummary(task) {
   const latest = task.runs.at(-1)
@@ -314,6 +257,7 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+
 
 
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -17,7 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
-import { autoResumeTasks, createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
+import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -1156,9 +1156,6 @@ export function apply(ctx, config) {
           try {
             recoverInterruptedTasks()
           } catch {}
-          if (config?.autoResume !== false) {
-            autoResumeTasks({ intervalMs: 1000 }).catch(() => {})
-          }
         }, 5000)
         return () => clearTimeout(timer)
       })
@@ -1640,6 +1637,8 @@ function buildRunValue(result) {
     })),
   }
 }
+
+
 
 
 
