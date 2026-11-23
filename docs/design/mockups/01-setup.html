@@ -91,8 +91,8 @@ td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; vertical-align: middle;
     <aside class="rail">
       <h4>步骤</h4>
       <div class="step active"><span class="dot">1</span><div><p>仓库与设计源</p><small>repo + base commit + designs</small></div></div>
-      <div class="step "><span class="dot">2</span><div><p>分析并匹配</p><small>LLM 分析设计对应页面</small></div></div>
-      <div class="step "><span class="dot">3</span><div><p>生成子任务</p><small>选择每轮要跑的子任务</small></div></div>
+      <div class="step "><span class="dot">2</span><div><p>自动分析并匹配</p><small>创建后自动执行，无需确认</small></div></div>
+      <div class="step "><span class="dot">3</span><div><p>生成子任务</p><small>自动生成，勾选下一轮范围</small></div></div>
       <div class="hr"></div>
       <div class="kv">本轮不会自动执行。<br>第 3 步完成后进入项目页，<br>由 <b>Run next round</b> 手动触发。</div>
     </aside>
@@ -119,5 +119,5 @@ td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; vertical-align: middle;
   </div>
 </div></main>
   </div>
-  <div class="footer"><span class="note">下一步会解析仓库路由与页面组件；不会修改仓库。</span><span class="spacer"></span><button class="ghost">取消</button><button class="primary">分析并匹配 →</button></div>
+  <div class="footer"><span class="note">创建项目后自动进入分析；不会修改你的工作区。</span><span class="spacer"></span><button class="ghost">取消</button><button class="primary">创建项目并自动分析 →</button></div>
 </div></body></html>

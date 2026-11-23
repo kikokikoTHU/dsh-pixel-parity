@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Render the PixelParity project-flow design mockups to PNG.
  * Run: node docs/design/render-mockups.mjs
  */
@@ -108,8 +108,8 @@ const shell = (step, crumb, content, footerNote = '') => `
     <aside class="rail">
       <h4>步骤</h4>
       ${stepItem(1, '仓库与设计源', 'repo + base commit + designs', step)}
-      ${stepItem(2, '分析并匹配', 'LLM 分析设计对应页面', step)}
-      ${stepItem(3, '生成子任务', '选择每轮要跑的子任务', step)}
+      ${stepItem(2, '自动分析并匹配', '创建后自动执行，无需确认', step)}
+      ${stepItem(3, '生成子任务', '自动生成，勾选下一轮范围', step)}
       <div class="hr"></div>
       <div class="kv">本轮不会自动执行。<br>第 3 步完成后进入项目页，<br>由 <b>Run next round</b> 手动触发。</div>
     </aside>
@@ -124,9 +124,9 @@ const stepItem = (num, title, sub, current) => {
 }
 
 const footer = step => {
-  if (step === 1) return '<button class="ghost">取消</button><button class="primary">分析并匹配 →</button>'
-  if (step === 2) return '<button class="ghost">重新分析</button><button class="primary">确认匹配 →</button>'
-  return '<button class="ghost">上一步</button><button class="primary">创建项目并生成计划</button>'
+  if (step === 1) return '<button class="ghost">取消</button><button class="primary">创建项目并自动分析 →</button>'
+  if (step === 2) return '<button class="ghost">重新分析</button><button class="primary">查看生成的子任务 →</button>'
+  return '<button class="ghost">上一步</button><button class="primary">进入项目页</button>'
 }
 
 const setup = `
@@ -153,10 +153,10 @@ const setup = `
 </div>`
 
 const match = `
-<h1 class="h1">分析并匹配</h1>
-<p class="sub">LLM 读取仓库路由、页面组件与设计源结构，给出候选页面；置信度低的需要人工确认。</p>
+<h1 class="h1">自动分析并匹配</h1>
+<p class="sub">创建项目后自动执行。LLM 给出候选页面并直接生成子任务；低置信度只标记“待复核”，不阻塞流程。</p>
 <div class="meta" style="margin-top:12px">
-  <span class="chip blue">已分析 3 个设计源</span><span class="chip">候选页面 6 个</span><span class="chip">待确认 1 个</span>
+  <span class="chip blue">已分析 3 个设计源</span><span class="chip">候选页面 6 个</span><span class="chip">自动接受 2 个</span><span class="chip">待复核 1 个</span>
 </div>
 <div class="card" style="margin-top:12px">
   <div class="card-h"><b style="font-size:12px">设计源 → 前端页面</b><span class="spacer"></span><span class="mut" style="font-size:10px">可下拉修改</span></div>
@@ -165,15 +165,15 @@ const match = `
       <tr><th style="width:34%">设计源</th><th>候选页面</th><th style="width:20%">组件 / 入口</th><th style="width:12%">置信度</th><th style="width:10%">状态</th></tr>
       <tr><td><b>01-项目统计首页.html</b><div class="mut">原型 URL</div></td><td><span class="route">/projects</span><div class="mut">ProjectStatsDesign.vue</div></td><td class="mut">apps/hub/src/views</td><td><span class="pill ok">96%</span></td><td><span class="pill ok">已匹配</span></td></tr>
       <tr><td><b>02-项目明细.html</b><div class="mut">原型 URL</div></td><td><span class="route">/projects/:id</span><div class="mut">ProjectDetail.vue</div></td><td class="mut">apps/hub/src/views</td><td><span class="pill ok">88%</span></td><td><span class="pill ok">已匹配</span></td></tr>
-      <tr><td><b>projects-empty.png</b><div class="mut">Figma 导出</div></td><td><span class="route">/projects?state=empty</span><div class="mut">ProjectStatsDesign.vue · 空态</div></td><td class="mut">同页状态</td><td><span class="pill warn">64%</span></td><td><span class="pill warn">待确认</span></td></tr>
+      <tr><td><b>projects-empty.png</b><div class="mut">Figma 导出</div></td><td><span class="route">/projects?state=empty</span><div class="mut">ProjectStatsDesign.vue · 空态</div></td><td class="mut">同页状态</td><td><span class="pill warn">64%</span></td><td><span class="pill warn">待复核</span></td></tr>
     </table>
   </div>
 </div>
 <div class="card" style="margin-top:12px">
   <div class="card-b" style="display:flex;gap:16px;align-items:center">
     <div class="thumb"></div>
-    <div style="flex:1"><b style="font-size:12px">projects-empty.png → /projects?state=empty</b><div class="kv">LLM 依据：路由表存在 /projects；页面组件包含 empty 分支；设计图尺寸与 1600×900 viewport 匹配。可改为其他页面或标记为“不匹配”。</div></div>
-    <button class="ghost">改选页面</button><button class="ghost">忽略</button>
+    <div style="flex:1"><b style="font-size:12px">projects-empty.png → /projects?state=empty</b><div class="kv">LLM 依据：路由表存在 /projects；页面组件包含 empty 分支；设计图尺寸与 1600×900 viewport 匹配。已自动生成子任务，默认不勾选；可在后续子任务页调整，不需要在这里确认。</div></div>
+    <button class="ghost">可选：改选页面</button>
   </div>
 </div>`
 
@@ -290,9 +290,9 @@ const report = `
 </div>`
 
 const cards = [
-  ['01-setup.png', shell(1, '仓库与设计源', setup, '下一步会解析仓库路由与页面组件；不会修改仓库。')],
-  ['02-match.png', shell(2, '分析并匹配', match, 'LLM 只做建议；低置信度匹配必须人工确认后才能继续。')],
-  ['03-subtasks.png', shell(3, '生成子任务', subtasks, '创建后进入项目页；默认不执行任何对齐。')],
+  ['01-setup.png', shell(1, '仓库与设计源', setup, '创建项目后自动进入分析；不会修改你的工作区。')],
+  ['02-match.png', shell(2, '自动分析并匹配', match, '匹配自动完成；待复核条目不影响后续步骤，可随时改选。')],
+  ['03-subtasks.png', shell(3, '生成子任务', subtasks, '子任务已自动生成；勾选只决定下一轮执行范围。')],
   ['04-dashboard.png', dashboard],
   ['05-report.png', report],
 ]

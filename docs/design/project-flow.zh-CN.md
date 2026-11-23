@@ -16,7 +16,7 @@
 
 1. 一个项目可以同时管理多个设计图/原型，不需要为每个页面手工建 Task；
 2. repo 有明确的 **base commit**，后续所有轮次都可追溯到同一基线；
-3. 设计源 → 前端页面的映射由 LLM 给出候选，**人可确认/改选**；
+3. 设计源 → 前端页面的映射由 LLM **自动分析并生成**，人可改选（可选，不阻塞流程）；
 4. 子任务是稳定实体，每轮通过勾选决定执行范围；
 5. 对齐**不自动跑**：必须点 `Run next round` 才执行一轮；
 6. 每轮结束生成报告，在 DSH 内置页面查看，也可下载；
@@ -27,7 +27,7 @@
 - 不做定时/后台自动对齐；
 - 不做“一个 repo 一个大 Task”的混合状态；
 - 不在本轮设计里做多人协作/权限；
-- 不保证 LLM 首次匹配一定正确，必须保留人工改选。
+- 不保证 LLM 首次匹配一定正确，因此保留“改选页面”作为可选修正入口。
 
 ## 2. 核心概念
 
@@ -35,7 +35,7 @@
 | --- | --- |
 | **Project** | 一个 repo + 一个 base commit + 一组设计源 + 匹配关系 + 子任务 + 轮次历史 |
 | **DesignSource** | 设计图/原型，支持 URL、本地图片、本地 HTML；创建时缓存快照与尺寸 |
-| **Match** | 设计源 → 前端页面（route + component）的对应关系，含置信度与人工确认状态 |
+| **Match** | 设计源 → 前端页面（route + component）的对应关系，含置信度与自动接受状态 |
 | **Subtask** | 由 Match 生成的稳定对齐单元（一个设计源对应一个页面/状态）；带默认勾选 |
 | **Round** | 一次手动触发的执行；包含本轮勾选的 Subtask 快照、执行结果、报告 |
 | **Report** | 每轮结束生成的 HTML；内嵌查看 + 下载；按轮次归档 |
@@ -58,7 +58,7 @@
   - `+ 添加 URL`：支持 `http(s)` 原型页；
   - `+ 本地图片 / HTML`：支持 png/jpg/webp/html，路径必须在允许的本地根内；
   - 每行可删除；重复地址会提示去重。
-- 底部 **分析并匹配**：进入第 2 步；此步不修改仓库。
+- 底部 **创建项目并自动分析**：创建 Project 后立即自动执行分析，不需要再点“确认匹配”；此步不修改仓库。
 
 交互细节：
 
@@ -66,20 +66,35 @@
 - 本地图片记录尺寸与 `@2x` 倍率，作为默认 viewport 依据。
 - 所有设计源在项目目录下缓存快照（`sources/<id>.png`），避免原型后续变化影响历史轮次。
 
-### 3.2 第 2 步：LLM 分析与页面匹配
+### 3.2 第 2 步：自动分析与页面匹配
 
-![分析与匹配](./assets/02-match.png)
+![自动分析与匹配](./assets/02-match.png)
+
+这一步**不需要手动操作**：第 1 步点击“创建项目并自动分析”后，插件立刻开始分析，完成后自动生成匹配与子任务，并进入第 3 步。页面只用于展示进度和结果。
 
 界面说明：
 
-- 顶部统计：已分析设计源数、候选页面数、待确认数。
+- 顶部统计：已分析设计源数、候选页面数、自动接受数、待复核数。
 - 表格每行：设计源 → 候选页面（route + 组件）→ 组件/入口目录 → 置信度 → 状态。
-- 置信度分级：
-  - `≥ 80%`：已匹配（可直接进入下一步）；
-  - `50%–80%`：待确认（必须人工改选或标记忽略）；
-  - `< 50%`：不匹配（默认不生成子任务）。
-- 待确认行提供 **改选页面 / 忽略**；展开区显示 LLM 依据（路由、组件、空态分支、尺寸匹配）。
-- **重新分析** 会重新跑匹配，但不会覆盖人工已确认的映射（除非用户选择“全部重算”）。
+- 自动接受规则：
+  - `≥ 50%`：自动接受最佳候选，生成子任务并默认勾选；
+  - `< 50%`：仍生成最佳候选子任务，但标记 **待复核**，默认**不勾选**；
+  - 完全没有候选：标记 `unmatched`，不生成子任务。
+- “待复核”只是提示，不阻塞流程；后续可在子任务页或项目设置里改选/删除。
+- 展开区显示 LLM 依据（路由、组件、空态分支、尺寸匹配）；`重新分析` 是可选操作，不会覆盖用户已改选的映射。
+
+自动执行时序：
+
+```
+创建项目
+  → 解析 repo 路由/组件（git worktree 只读）
+  → 抓取/读取设计源快照
+  → LLM 匹配（结构化输出）
+  → 校验 route/component 是否存在
+  → 自动接受最佳候选 + 标记待复核
+  → 自动生成 Subtasks（低置信度默认不勾选）
+  → 进入第 3 步
+```
 
 LLM 输入：
 
@@ -106,7 +121,8 @@ LLM 输出（结构化）：
 
 - LLM 只能从仓库真实存在的 route/component 中选择，插件做二次校验；
 - 一个设计源可匹配多个页面（例如同一页面的 default/empty 状态），生成多个候选；
-- 人工确认结果持久化，后续重分析不覆盖。
+- 自动接受结果持久化；人工改选是可选修正，不需要在流程里确认。
+- 分析失败（网络/解析/LLM 错误）时项目进入 `analysis-failed`，显示重试按钮；重试成功后自动继续，不需要重建项目。
 
 ### 3.3 第 3 步：生成子任务与勾选计划
 
@@ -114,10 +130,10 @@ LLM 输出（结构化）：
 
 界面说明：
 
-- 每个确认的 Match 生成一个 **Subtask**：名称、slug、设计源 → 页面、检查范围（viewport）、预计耗时。
-- 每行前的 checkbox 决定 **本轮** 是否执行；默认全选。
+- 每个自动接受的 Match 生成一个 **Subtask**：名称、slug、设计源 → 页面、检查范围（viewport）、预计耗时。
+- 每行前的 checkbox 决定 **本轮** 是否执行；自动接受且置信度 ≥50% 的默认全选，待复核的默认不勾选。
 - `已选 3 / 3` 实时更新；`全选 / 全不选` 快捷操作。
-- **创建项目并生成计划**：写入 Project，进入项目页；此刻仍**不执行**任何对齐。
+- **进入项目页**：Project 已在第 1 步创建；此步只确认本轮范围，仍**不执行**任何对齐。
 
 勾选语义：
 
@@ -233,11 +249,11 @@ Report:  pending → generated
 ### 工具（给 Agent）
 
 ```ts
-parity_project({ action: "create", repo, baseCommit, name })
+parity_project({ action: "create", repo, baseCommit, name })   // 创建后自动分析
 parity_project({ action: "add-source", projectId, kind: "url"|"file", location })
-parity_project({ action: "analyze", projectId })            // 返回候选匹配
-parity_project({ action: "confirm", projectId, matches })   // 人工确认/改选
-parity_project({ action: "plan", projectId })               // 生成子任务与 nextSelection
+parity_project({ action: "analyze", projectId })            // 手动重试/重算（可选）
+parity_project({ action: "confirm", projectId, matches })   // 可选：人工改选
+parity_project({ action: "plan", projectId })               // 自动生成；可重新生成
 parity_project({ action: "status", projectId })
 parity_project({ action: "run-round", projectId })          // 手动触发一轮
 parity_project({ action: "report", projectId, round })
@@ -252,7 +268,7 @@ parity_project({ action: "delete", projectId })             // 停止当前轮�
 | POST | `/pixel-parity/project/create` | 创建项目 |
 | POST | `/pixel-parity/project/source` | 添加设计源 |
 | POST | `/pixel-parity/project/analyze` | 触发分析 |
-| POST | `/pixel-parity/project/confirm` | 保存匹配 |
+| POST | `/pixel-parity/project/confirm` | 可选：人工改选匹配 |
 | POST | `/pixel-parity/project/plan` | 生成子任务 |
 | POST | `/pixel-parity/project/round` | 手动发起一轮 |
 | GET | `/pixel-parity/project/round/job` | 轮次执行状态 |
@@ -263,7 +279,7 @@ parity_project({ action: "delete", projectId })             // 停止当前轮�
 1. **base commit 锁定**：项目创建后 baseCommit 不可改；要换基线必须新建项目（避免历史报告失真）。
 2. **worktree 隔离**：所有轮次写入项目 worktree；报告记录 `git diff --stat baseCommit`，用户仓库保持原状。
 3. **设计源快照**：创建/重新抓取时保存图片与 metadata；报告使用快照，不重新访问 URL。
-4. **匹配置信度**：低置信度必须人工操作；不允许“自动忽略所有低置信度”后直接运行。
+4. **匹配置信度**：分析自动完成；低置信度条目标记“待复核”并默认不勾选，不阻塞后续步骤，也允许随时改选。
 5. **勾选快照**：点击 Run next round 的瞬间冻结选择；执行中不可改本轮选择，只能改下一轮。
 6. **手动唯一入口**：取消自动轮询/自动续跑；`Run next round` 是唯一触发点。
 7. **报告时序**：轮次完成后才允许生成报告；running 时按钮禁用并给出 hover 原因。
@@ -283,7 +299,8 @@ parity_project({ action: "delete", projectId })             // 停止当前轮�
 ## 8. 验收标准
 
 - [ ] 可以创建项目：repo 校验、base commit 校验、添加 URL/本地设计源；
-- [ ] 分析后得到候选页面表，低置信度需人工确认，确认结果持久化；
+- [ ] 创建项目后自动完成分析、匹配与子任务生成，无需再点“确认匹配”；
+- [ ] 低置信度条目标记待复核且默认不勾选，不阻塞流程，可随时改选；
 - [ ] 生成子任务列表，勾选状态可保存并影响下一轮；
 - [ ] 项目页展示历史轮次；未点 `Run next round` 不会执行任何对齐；
 - [ ] 每点一次只执行一轮，且本轮只跑勾选的子任务，报告记录 skipped；
@@ -295,7 +312,7 @@ parity_project({ action: "delete", projectId })             // 停止当前轮�
 
 | 风险 | 处理 |
 | --- | --- |
-| LLM 页面匹配错误 | 置信度阈值 + 人工确认 + 可改选 |
+| LLM 页面匹配错误 | 自动接受最佳候选 + 待复核标记 + 可改选 |
 | 原型是动态数据/需登录 | 设计源抓取支持 storageState；报告记录抓取条件 |
 | 本地路径越权 | 限定允许根目录，拒绝任意系统路径 |
 | worktree 磁盘占用 | 项目删除时清理；可配置保留轮次数 |
