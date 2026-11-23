@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PixelParity 自动驾驶验证报告 · anubis 4363d816</title>
+<style>
+  :root { --ink:#1c2430; --muted:#5c6878; --line:#dfe4ec; --bg:#f5f7fa; --accent:#2f6fed; --bad:#c0392b; --good:#16794b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Microsoft YaHei","Segoe UI",system-ui,sans-serif; font-size:13px; line-height:1.7; }
+  .page { width:1180px; margin:24px auto 60px; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  header { padding:26px 36px 20px; background:linear-gradient(135deg,#1b2a41,#28405f); color:#fff; }
+  header h1 { margin:0 0 6px; font-size:23px; }
+  header p { margin:0; color:#c9d6e6; font-size:12px; }
+  section { padding:20px 36px; border-top:1px solid var(--line); }
+  h2 { font-size:16px; margin:0 0 10px; }
+  h3 { font-size:13px; margin:14px 0 6px; }
+  p { margin:6px 0; color:#33404f; }
+  .muted { color:var(--muted); }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:12px; }
+  th,td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:#f3f6fa; font-weight:600; }
+  .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .bad { color:var(--bad); font-weight:600; }
+  .ok { color:var(--good); font-weight:600; }
+  .kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:10px 0; }
+  .kpi div { border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:#fbfcfe; }
+  .kpi strong { display:block; font-size:19px; line-height:1.3; }
+  .kpi span { font-size:10px; color:var(--muted); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  figure { margin:6px 0; }
+  figure img { width:100%; display:block; border:1px solid var(--line); border-radius:6px; }
+  figcaption { font-size:11px; color:var(--muted); margin-top:3px; }
+  code { background:#f2f4f8; padding:0 4px; border-radius:3px; font-family:Consolas,monospace; font-size:11px; }
+  pre { background:#0f1b2b; color:#d8e2ef; padding:12px 14px; border-radius:8px; font-size:11px; line-height:1.6; overflow:auto; }
+  .callout { border-left:3px solid var(--accent); background:#f4f8ff; padding:9px 13px; border-radius:0 6px 6px 0; margin:10px 0; }
+  .warn { border-left-color:#d68910; background:#fff9ec; }
+  footer { padding:12px 36px 18px; color:var(--muted); font-size:10px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>PixelParity 自动驾驶验证报告</h1>
+    <p>anubis hub <code>4363d816</code> · /projects · 对照 SPC 原型 · 1600×900 · 通过 DSH 工具完成</p>
+  </header>
+
+  <section>
+    <h2>1. 本轮验证方式</h2>
+    <p>重启 DSH 后，全部步骤通过插件工具完成，不再是 CLI 脚本：</p>
+    <table>
+      <tr><th>步骤</th><th>工具</th><th>结果</th></tr>
+      <tr><td>基线测量</td><td><code>parity_run</code></td><td>projects 9.49%、shell 1.52%，几何/样式均 pass</td></tr>
+      <tr><td>自动驾驶计划</td><td><code>parity_align</code></td><td>4 步：structure ×2、mock ×2（几何/样式已通过）</td></tr>
+      <tr><td>执行计划后复测</td><td><code>parity_run</code></td><td>projects 9.35%，delta mean −0.14%</td></tr>
+      <tr><td>复诊</td><td><code>parity_diagnose</code></td><td>最差区域 (1200,399) 82.1%</td></tr>
+    </table>
+    <p class="muted">run：<code>2026-11-23T07-25-11-203Z-j40f</code>（基线）、<code>2026-11-23T07-25-33-058Z-x19w</code>（执行后）。</p>
+  </section>
+
+  <section>
+    <h2>2. 结果</h2>
+    <div class="kpi">
+      <div><strong class="bad">9.35%</strong><span>projects 像素差（阈值 1%）</span></div>
+      <div><strong class="bad">1.52%</strong><span>shell 像素差（遮罩 main）</span></div>
+      <div><strong class="ok">0</strong><span>几何失败锚点</span></div>
+      <div><strong class="ok">0</strong><span>样式差异</span></div>
+    </div>
+    <table>
+      <tr><th>阶段</th><th>projects</th><th>shell</th><th>几何</th><th>样式</th></tr>
+      <tr><td>本轮基线（j40f）</td><td class="num bad">9.49%</td><td class="num bad">1.52%</td><td class="ok">pass</td><td class="ok">0</td></tr>
+      <tr><td>执行计划后（x19w）</td><td class="num bad">9.35%</td><td class="num">—</td><td class="ok">pass</td><td class="ok">0</td></tr>
+    </table>
+    <div class="grid2">
+      <figure><img src="assets/prototype.png" alt="prototype"><figcaption>设计原型</figcaption></figure>
+      <figure><img src="assets/implementation.png" alt="implementation"><figcaption>anubis 4363d816 + 对齐改动</figcaption></figure>
+    </div>
+    <figure><img src="assets/diff.png" alt="diff"><figcaption>差异图（整页 9.35%）</figcaption></figure>
+  </section>
+
+  <section>
+    <h2>3. parity_align 给出的计划</h2>
+    <pre>AUTOPILOT: Execute these steps immediately in the target repository.
+Do not ask the user for permission, structure work, or mock data.
+1. [structure] projects @ desktop — page composition
+   action: Geometry and styles pass but 9.49% of pixels differ. Compare section
+           by section (cards, charts, table, empty states) and implement the
+           missing or misplaced blocks.
+2. [structure] shell @ desktop — page composition
+3. [mock] projects @ desktop — data layer
+   action: If the difference comes from missing data or a backend dependency,
+           add fixtures or local mock data in the target repo.
+4. [mock] shell @ desktop — data layer</pre>
+    <p>本轮执行了第 1 步的一部分：把内容区左右内缩 14px、图表卡片改为原型的 776/500 固定宽度与 14px 间距，使图表卡片的 x 与宽度与原型一致；复测得到 −0.14% 的 delta。</p>
+  </section>
+
+  <section>
+    <h2>4. 为什么还没有到 1%</h2>
+    <table>
+      <tr><th>区域</th><th>差异</th><th>原因</th></tr>
+      <tr><td>(1200,399) / (1300,399)</td><td class="num">82.1% / 68.1%</td><td>“良率对比”原型是 <b>SVG 条形图</b>（百分比在条内），实现是 CSS 条形 + 右侧数值，几何与文字位置都不同</td></tr>
+      <tr><td>(600,228) / (300,228)</td><td class="num">42.6% / 40.3%</td><td>指标卡第二行的文字基线/字号仍有 1–2px 偏移</td></tr>
+      <tr><td>shell</td><td class="num">1.52%</td><td>图标字形（PrimeIcons vs 原型符号）、品牌 mark、底部用户块</td></tr>
+      <tr><td>其余</td><td class="num">—</td><td>表格列宽已对齐，但行高与整体 y 仍差约 10–20px；mock 数值与原型不完全一致</td></tr>
+    </table>
+    <div class="callout warn">
+      结论：插件端到端可用（DSH 工具 + autopilot 计划 + 迭代 delta 均正常），但这次对齐尚未收敛。剩余差异是<b>逐元素的几何/字体/图表实现差异</b>，需要继续按 plan 执行，而不是缺能力。
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 复现与工件</h2>
+    <ul>
+      <li>实现：<code>C:\Users\shiyuan\AppData\Local\Temp\anubis-4363d816</code>（detached <code>4363d81</code> + 未提交对齐改动）</li>
+      <li>配置：<code>C:\Users\shiyuan\AppData\Local\Temp\pp-anubis-4363\parity.config.mjs</code></li>
+      <li>运行：<code>…\.parity\runs\2026-11-23T07-25-11-203Z-j40f</code>、<code>…\2026-11-23T07-25-33-058Z-x19w</code></li>
+      <li>工具链：<code>parity_run</code> → <code>parity_align</code> → <code>parity_run</code> → <code>parity_diagnose</code></li>
+    </ul>
+  </section>
+
+  <footer>由 PixelParity 生成 · 几何/样式/像素数据来自插件 · 本轮为 4363d816 基线 + 未提交对齐改动的验证结果</footer>
+</div>
+</body>
+</html>

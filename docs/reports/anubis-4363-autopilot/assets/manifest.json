@@ -1,0 +1,427 @@
+{
+  "version": 2,
+  "runId": "2026-11-23T07-25-33-058Z-x19w",
+  "iteration": 2,
+  "parentRun": {
+    "runId": "2026-11-23T07-25-11-203Z-j40f",
+    "runDir": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363\\.parity\\runs\\2026-11-23T07-25-11-203Z-j40f"
+  },
+  "delta": {
+    "meanChange": -0.001431,
+    "improved": true,
+    "viewports": [
+      {
+        "case": "projects",
+        "viewport": "desktop",
+        "pixels": 0.093478,
+        "previous": 0.094909,
+        "change": -0.001431,
+        "improved": true
+      }
+    ]
+  },
+  "startedAt": "2026-11-23T07:25:33.059Z",
+  "finishedAt": "2026-11-23T07:25:36.141Z",
+  "config": {
+    "path": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363\\parity.config.mjs",
+    "sha256": "15be6549894f91f1c631443e8d0a6598f0143d507a3e628ef8d7d3d9638f8506"
+  },
+  "repo": {
+    "root": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363",
+    "commit": null,
+    "dirty": null
+  },
+  "driver": "playwright",
+  "decision": {
+    "mode": "ephemeral",
+    "source": "explicit"
+  },
+  "cases": [
+    {
+      "id": "projects",
+      "status": "failed",
+      "viewports": [
+        {
+          "caseId": "projects",
+          "viewportId": "desktop",
+          "status": "failed",
+          "driver": {
+            "reference": "playwright unknown",
+            "implementation": "playwright unknown"
+          },
+          "baseline": {
+            "used": false,
+            "written": false
+          },
+          "maskRects": [],
+          "thresholds": {
+            "tolerance": 24,
+            "maxMismatch": 0.01,
+            "maxRegionMismatch": 0.4,
+            "geometryTolerance": 1
+          },
+          "anchors": {
+            "reference": {
+              "sidebar": {
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 232,
+                  "h": 900
+                },
+                "styles": {
+                  "color": "rgb(184, 196, 213)",
+                  "backgroundColor": "rgb(30, 44, 66)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "14px",
+                  "fontWeight": "400",
+                  "lineHeight": "normal",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "0px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "0px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(184, 196, 213)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "flex",
+                  "position": "static"
+                }
+              },
+              "header": {
+                "rect": {
+                  "x": 232,
+                  "y": 0,
+                  "w": 1368,
+                  "h": 64
+                },
+                "styles": {
+                  "color": "rgb(51, 65, 85)",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "14px",
+                  "fontWeight": "400",
+                  "lineHeight": "normal",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "24px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "24px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(51, 65, 85)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "flex",
+                  "position": "static"
+                }
+              },
+              "title": {
+                "rect": {
+                  "x": 256,
+                  "y": 17.203125,
+                  "w": 88,
+                  "h": 28.59375
+                },
+                "styles": {
+                  "color": "rgb(16, 42, 76)",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "22px",
+                  "fontWeight": "700",
+                  "lineHeight": "28.6px",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "0px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "0px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(16, 42, 76)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "block",
+                  "position": "static"
+                }
+              }
+            },
+            "implementation": {
+              "sidebar": {
+                "rect": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 232,
+                  "h": 900
+                },
+                "styles": {
+                  "color": "rgb(184, 196, 213)",
+                  "backgroundColor": "rgb(30, 44, 66)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "14px",
+                  "fontWeight": "400",
+                  "lineHeight": "normal",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "0px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "0px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(184, 196, 213)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "flex",
+                  "position": "static"
+                }
+              },
+              "header": {
+                "rect": {
+                  "x": 232,
+                  "y": 0,
+                  "w": 1368,
+                  "h": 64
+                },
+                "styles": {
+                  "color": "rgb(51, 65, 85)",
+                  "backgroundColor": "rgb(255, 255, 255)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "14px",
+                  "fontWeight": "400",
+                  "lineHeight": "normal",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "24px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "24px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(51, 65, 85)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "flex",
+                  "position": "static"
+                }
+              },
+              "title": {
+                "rect": {
+                  "x": 256,
+                  "y": 17.203125,
+                  "w": 88,
+                  "h": 28.59375
+                },
+                "styles": {
+                  "color": "rgb(16, 42, 76)",
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontFamily": "Inter, \"Microsoft YaHei\", \"PingFang SC\", system-ui, sans-serif",
+                  "fontSize": "22px",
+                  "fontWeight": "700",
+                  "lineHeight": "28.6px",
+                  "letterSpacing": "normal",
+                  "paddingTop": "0px",
+                  "paddingRight": "0px",
+                  "paddingBottom": "0px",
+                  "paddingLeft": "0px",
+                  "marginTop": "0px",
+                  "marginRight": "0px",
+                  "marginBottom": "0px",
+                  "marginLeft": "0px",
+                  "borderTopWidth": "0px",
+                  "borderTopColor": "rgb(16, 42, 76)",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "gap": "normal",
+                  "display": "block",
+                  "position": "static"
+                }
+              }
+            }
+          },
+          "geometry": {
+            "available": true,
+            "pass": true,
+            "tolerance": 1,
+            "anchors": [
+              {
+                "id": "sidebar",
+                "pass": true,
+                "expected": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 232,
+                  "h": 900
+                },
+                "actual": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 232,
+                  "h": 900
+                },
+                "delta": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": 0
+                }
+              },
+              {
+                "id": "header",
+                "pass": true,
+                "expected": {
+                  "x": 232,
+                  "y": 0,
+                  "w": 1368,
+                  "h": 64
+                },
+                "actual": {
+                  "x": 232,
+                  "y": 0,
+                  "w": 1368,
+                  "h": 64
+                },
+                "delta": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": 0
+                }
+              },
+              {
+                "id": "title",
+                "pass": true,
+                "expected": {
+                  "x": 256,
+                  "y": 17.203125,
+                  "w": 88,
+                  "h": 28.59375
+                },
+                "actual": {
+                  "x": 256,
+                  "y": 17.203125,
+                  "w": 88,
+                  "h": 28.59375
+                },
+                "delta": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": 0
+                }
+              }
+            ]
+          },
+          "styles": {
+            "available": true,
+            "pass": true,
+            "diffs": [],
+            "warnings": []
+          },
+          "pixels": {
+            "pass": false,
+            "metrics": {
+              "width": 1600,
+              "height": 900,
+              "tolerance": 24,
+              "totalPixels": 1440000,
+              "mismatchPixels": 134609,
+              "mismatchRatio": 0.093478,
+              "meanDelta": 13.152,
+              "maxDelta": 239,
+              "diffBounds": {
+                "x": 17,
+                "y": 14,
+                "w": 1580,
+                "h": 886
+              }
+            },
+            "regions": [
+              {
+                "x": 1200,
+                "y": 399,
+                "w": 100,
+                "h": 57,
+                "mismatchRatio": 0.820702,
+                "meanDelta": 164.836,
+                "mismatchPixels": 4678
+              },
+              {
+                "x": 1300,
+                "y": 399,
+                "w": 100,
+                "h": 57,
+                "mismatchRatio": 0.681404,
+                "meanDelta": 135.935,
+                "mismatchPixels": 3884
+              },
+              {
+                "x": 1300,
+                "y": 456,
+                "w": 100,
+                "h": 57,
+                "mismatchRatio": 0.577368,
+                "meanDelta": 110.844,
+                "mismatchPixels": 3291
+              },
+              {
+                "x": 600,
+                "y": 228,
+                "w": 100,
+                "h": 57,
+                "mismatchRatio": 0.426316,
+                "meanDelta": 66.62,
+                "mismatchPixels": 2430
+              },
+              {
+                "x": 300,
+                "y": 228,
+                "w": 100,
+                "h": 57,
+                "mismatchRatio": 0.403158,
+                "meanDelta": 63.079,
+                "mismatchPixels": 2298
+              }
+            ],
+            "masks": {
+              "reference": 0,
+              "implementation": 0
+            }
+          },
+          "artifacts": {
+            "reference": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363\\.parity\\runs\\2026-11-23T07-25-33-058Z-x19w\\cases\\projects\\desktop\\reference.png",
+            "implementation": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363\\.parity\\runs\\2026-11-23T07-25-33-058Z-x19w\\cases\\projects\\desktop\\implementation.png",
+            "diff": "C:\\Users\\shiyuan\\AppData\\Local\\Temp\\pp-anubis-4363\\.parity\\runs\\2026-11-23T07-25-33-058Z-x19w\\cases\\projects\\desktop\\diff.png"
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "cases": 1,
+    "viewports": 1,
+    "verified": 0,
+    "image-verified": 0,
+    "failed": 1,
+    "incomplete": 0
+  }
+}
