@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -271,6 +271,35 @@ window.__ModuleLoader__.load({
         notify()
       }
     }
+    async function openReport(target) {
+      const task = target ?? state.tasks?.[0]
+      if (task === undefined) return
+      state.message = zh ? '正在生成报告…' : 'Generating report…'
+      notify()
+      try {
+        const generated = await fetch('/pixel-parity/task/report', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ taskId: task.id }),
+        })
+        const generatedBody = await generated.json().catch(() => ({}))
+        if (!generated.ok) throw new Error(generatedBody.error ?? `HTTP ${generated.status}`)
+        const opened = await fetch('/pixel-parity/task/open-report', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ taskId: task.id }),
+        })
+        const openedBody = await opened.json().catch(() => ({}))
+        if (!opened.ok) throw new Error(openedBody.error ?? `HTTP ${opened.status}`)
+        state.message = zh ? `已在默认浏览器打开：${openedBody.path}` : `Opened in the default browser: ${openedBody.path}`
+        notify()
+        loadTasks()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
     async function diagnoseLatest() {
       const latest = latestRun(state.data)
       if (latest === undefined) return
@@ -484,7 +513,7 @@ window.__ModuleLoader__.load({
                 task.status === 'paused'
                   ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume', task) }, 'Resume')
                   : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step', task) }, state.taskRunning ? '…' : 'Step'),
-                h('button', { style: styles.taskBtn, onClick: () => taskAction('report', task) }, 'Report'),
+                h('button', { style: styles.taskBtn, onClick: () => openReport(task) }, 'Report'),
                 task.reportPath === undefined
                   ? null
                   : h('a', {
