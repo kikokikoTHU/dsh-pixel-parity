@@ -525,7 +525,7 @@ window.__ModuleLoader__.load({
             return [...groups.entries()].map(([repo, tasks]) => h('div', { key: repo, style: styles.repoSection },
               h('div', { style: styles.repoHeader },
                 h('strong', { title: repo }, repo),
-                h('span', { style: muted }, `${tasks.filter(item => item.status === 'converged').length}✓ ${tasks.filter(item => item.status === 'failed').length}✗ ${tasks.filter(item => item.runs.length === 0).length}–`),
+                h('span', { style: muted }, `${tasks.filter(item => item.status === 'converged').length}✓ ${tasks.filter(item => item.status === 'failed').length}✗ ${tasks.filter(item => item.latest === null).length}–`),
                 h('span', { style: { flex: 1 } }),
                 h('button', { style: styles.taskBtn, onClick: () => runRepo(repo) }, 'Run all'),
               ),
