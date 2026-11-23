@@ -7,7 +7,6 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runParityCheck } from './lib/check.js'
@@ -18,7 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
-import { createTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary, tasksDirectory } from './core/task.mjs'
+import { createTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -1118,33 +1117,6 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
-          path: '/pixel-parity/task/open-report',
-          handler: async (request, response) => {
-            try {
-              const body = await readJson(request)
-              const task = readTask(String(body.taskId ?? ''))
-              if (typeof task.reportPath !== 'string' || !existsSync(task.reportPath)) {
-                throw new Error('report not found; generate it first')
-              }
-              const root = resolve(tasksDirectory())
-              if (!resolve(task.reportPath).startsWith(`${root}${sep}`)) {
-                throw new Error('report path is outside the task store')
-              }
-              const path = task.reportPath
-              const command = process.platform === 'win32'
-                ? ['cmd.exe', ['/c', 'start', '', `"${path}"`]]
-                : process.platform === 'darwin'
-                  ? ['open', [path]]
-                  : ['xdg-open', [path]]
-              spawn(command[0], command[1], { detached: true, stdio: 'ignore' }).unref()
-              respondJson(response, 200, { opened: true, path })
-            } catch (error) {
-              respondJson(response, 400, { error: String(error?.message ?? error) })
-            }
-          },
-        }),
-        server.register({
-          kind: 'exact',
           path: '/pixel-parity/task/pause',
           handler: async (request, response) => {
             try {
@@ -1640,5 +1612,6 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 

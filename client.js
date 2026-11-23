@@ -53,7 +53,9 @@ window.__ModuleLoader__.load({
       },
       message: { padding: '4px 12px', fontSize: 10, borderBottom: border, ...muted },
       diagnosis: { padding: '6px 12px', fontSize: 10, borderBottom: border, maxHeight: 140, overflow: 'auto' },
-      taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
+      viewerBackdrop: { position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(15, 23, 42, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      viewerPanel: { width: '92vw', height: '88vh', background: '#fff', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--dsw-alias-border, #d7dee8)' },
+      viewerHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: border, fontSize: 12 },      taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
       taskRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
       taskBtn: { border, background: 'transparent', borderRadius: 6, padding: '2px 8px', fontSize: 10, cursor: 'pointer', ...text },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
@@ -98,7 +100,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false, viewer: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -271,27 +273,21 @@ window.__ModuleLoader__.load({
         notify()
       }
     }
-    async function openReport(target) {
+    async function showReport(target) {
       const task = target ?? state.tasks?.[0]
       if (task === undefined) return
       state.message = zh ? '正在生成报告…' : 'Generating report…'
       notify()
       try {
-        const generated = await fetch('/pixel-parity/task/report', {
+        const response = await fetch('/pixel-parity/task/report', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ taskId: task.id }),
         })
-        const generatedBody = await generated.json().catch(() => ({}))
-        if (!generated.ok) throw new Error(generatedBody.error ?? `HTTP ${generated.status}`)
-        const opened = await fetch('/pixel-parity/task/open-report', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ taskId: task.id }),
-        })
-        const openedBody = await opened.json().catch(() => ({}))
-        if (!opened.ok) throw new Error(openedBody.error ?? `HTTP ${opened.status}`)
-        state.message = zh ? `已在默认浏览器打开：${openedBody.path}` : `Opened in the default browser: ${openedBody.path}`
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.viewer = task.id
+        state.message = null
         notify()
         loadTasks()
       } catch (failure) {
@@ -344,6 +340,47 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function ReportViewer() {
+      const store = useStore()
+      useEffect(() => {
+        const onKey = event => {
+          if (event.key === 'Escape' && state.viewer !== null) {
+            state.viewer = null
+            notify()
+          }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [])
+      if (store.viewer === null) return null
+      const source = `/pixel-parity/task/report-file?taskId=${encodeURIComponent(store.viewer)}`
+      return h('div', {
+        style: styles.viewerBackdrop,
+        onClick: () => { state.viewer = null; notify() },
+      },
+        h('div', { style: styles.viewerPanel, onClick: event => event.stopPropagation() },
+          h('div', { style: styles.viewerHeader },
+            h('strong', null, `Report · ${store.viewer}`),
+            h('span', { style: { flex: 1 } }),
+            h('a', {
+              style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
+              href: source,
+              download: `${store.viewer}-report.html`,
+            }, 'Download'),
+            h('button', {
+              style: styles.iconButton,
+              onClick: () => { state.viewer = null; notify() },
+            }, '×'),
+          ),
+          h('iframe', {
+            src: source,
+            title: `Report ${store.viewer}`,
+            style: { width: '100%', flex: 1, border: 'none', background: '#fff' },
+          }),
+        ),
+      )
+    }
+
     function Launcher() {
       const store = useStore()
       useEffect(() => {
@@ -370,7 +407,7 @@ window.__ModuleLoader__.load({
         'PP',
         failed > 0 ? h('span', { style: styles.badge }, String(failed)) : null,
       )
-      return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)))
+      return h(React.Fragment, null, button, h(PanelBoundary, null, h(Drawer)), h(ReportViewer))
     }
 
     function ViewportRow({ viewport }) {
@@ -513,7 +550,7 @@ window.__ModuleLoader__.load({
                 task.status === 'paused'
                   ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume', task) }, 'Resume')
                   : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step', task) }, state.taskRunning ? '…' : 'Step'),
-                h('button', { style: styles.taskBtn, onClick: () => openReport(task) }, 'Report'),
+                h('button', { style: styles.taskBtn, onClick: () => showReport(task) }, 'Report'),
                 task.reportPath === undefined
                   ? null
                   : h('a', {
@@ -580,6 +617,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
