@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PixelParity 项目式对齐流程 · 交互设计</title>
+<style>
+:root {
+  --bg: #eef2f7; --surface: #ffffff; --subtle: #fbfcfe;
+  --border: #e5eaf1; --border-weak: #eef2f7;
+  --text: #0f172a; --muted: #64748b; --faint: #94a3b8;
+  --control: #111827; --link: #1d4ed8;
+  --ok: #15803d; --warn: #b45309; --danger: #b91c1c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.72; }
+.layout { display: flex; max-width: 1380px; margin: 0 auto; gap: 28px; padding: 34px 28px 80px; }
+nav { width: 248px; position: sticky; top: 24px; align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; max-height: calc(100vh - 48px); overflow: auto; }
+nav h4 { margin: 0 0 10px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+nav a { display: block; color: var(--muted); text-decoration: none; font-size: 12px; padding: 4px 0; }
+nav a:hover { color: var(--text); }
+nav a.lv3 { padding-left: 12px; font-size: 11px; }
+main { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 40px 48px; }
+.kicker { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+h1 { font-size: 28px; line-height: 1.25; letter-spacing: -.02em; margin: 0 0 10px; }
+h2 { font-size: 20px; margin: 40px 0 12px; padding-top: 18px; border-top: 1px solid var(--border-weak); }
+h3 { font-size: 16px; margin: 28px 0 8px; }
+h4 { font-size: 14px; margin: 22px 0 6px; color: #1e293b; }
+p { margin: 9px 0; color: #1e293b; font-size: 13.5px; }
+ul, ol { padding-left: 22px; margin: 8px 0; }
+li { margin: 4px 0; font-size: 13.5px; }
+strong { color: #0f172a; }
+code { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px 5px; }
+pre { background: #0f172a; color: #e2e8f0; border-radius: 9px; padding: 14px 16px; overflow: auto; font-size: 12px; line-height: 1.6; }
+pre code { background: transparent; border: none; color: inherit; padding: 0; }
+figure { margin: 18px 0 24px; }
+figure img { width: 100%; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, .08); display: block; }
+figcaption { color: var(--faint); font-size: 11px; margin-top: 7px; }
+.table-wrap { overflow: auto; margin: 14px 0; border: 1px solid var(--border); border-radius: 9px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; background: var(--subtle); color: #475569; font-size: 11px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+td { padding: 9px 12px; border-bottom: 1px solid var(--border-weak); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+blockquote { margin: 14px 0; padding: 10px 14px; background: var(--subtle); border-left: 3px solid var(--control); color: var(--muted); font-size: 13px; border-radius: 0 7px 7px 0; }
+hr { border: none; border-top: 1px solid var(--border-weak); margin: 26px 0; }
+a { color: var(--link); }
+.todo { font-weight: 700; color: var(--control); }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+.meta span { border: 1px solid var(--border); background: var(--subtle); color: var(--muted); border-radius: 999px; padding: 3px 9px; font-size: 10px; }
+@media (max-width: 1080px) { nav { display: none; } main { padding: 26px 22px; } }
+@media print { body { background: #fff; } nav { display: none; } .layout { display: block; padding: 0; } main { border: none; padding: 0; } figure img { box-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav><h4>目录</h4><div id="toc"></div></nav>
+<main>
+<div class="kicker">PixelParity · Design Document</div>
+<h1>项目式对齐流程（交互设计）</h1>
+<div class="meta"><span>状态：设计稿</span><span>版本：v1</span><span>更新：2026-11-23</span><span>适用：DSH PP 面板</span></div>
+<h2 id="0-一句话">0. 一句话</h2>
+<p>把现在的“Task 列表”升级为 <strong>项目（Project）→ 轮次（Round）→ 子任务（Subtask）</strong> 三层： 一个项目绑定一个 repo 和一个 base commit，容纳多个设计源；LLM 把设计源匹配到前端页面并生成子任务； 每轮由用户<strong>手动</strong>触发，只执行本轮勾选的子任务；每轮结束生成可内嵌查看的报告。</p>
+<h2 id="1-目标-非目标">1. 目标 / 非目标</h2>
+<h3 id="目标">目标</h3>
+<ol><li>一个项目可以同时管理多个设计图/原型，不需要为每个页面手工建 Task；</li><li>repo 有明确的 <strong>base commit</strong>，后续所有轮次都可追溯到同一基线；</li><li>设计源 → 前端页面的映射由 LLM <strong>自动分析并生成</strong>，人可改选（可选，不阻塞流程）；</li><li>子任务是稳定实体，每轮通过勾选决定执行范围；</li><li>对齐<strong>不自动跑</strong>：必须点 <code>Run next round</code> 才执行一轮；</li><li>每轮结束生成报告，在 DSH 内置页面查看，也可下载；</li><li>用户仓库不被直接改动：项目使用基于 base commit 的独立 worktree。</li></ol>
+<h3 id="非目标">非目标</h3>
+<ul><li>不做定时/后台自动对齐；</li><li>不做“一个 repo 一个大 Task”的混合状态；</li><li>不在本轮设计里做多人协作/权限；</li><li>不保证 LLM 首次匹配一定正确，因此保留“改选页面”作为可选修正入口。</li></ul>
+<h2 id="2-核心概念">2. 核心概念</h2>
+<div class="table-wrap"><table><thead><tr><th>概念</th><th>说明</th></tr></thead><tbody><tr><td><strong>Project</strong></td><td>一个 repo + 一个 base commit + 一组设计源 + 匹配关系 + 子任务 + 轮次历史</td></tr><tr><td><strong>DesignSource</strong></td><td>设计图/原型，支持 URL、本地图片、本地 HTML；创建时缓存快照与尺寸</td></tr><tr><td><strong>Match</strong></td><td>设计源 → 前端页面（route + component）的对应关系，含置信度与自动接受状态</td></tr><tr><td><strong>Subtask</strong></td><td>由 Match 生成的稳定对齐单元（一个设计源对应一个页面/状态）；带默认勾选</td></tr><tr><td><strong>Round</strong></td><td>一次手动触发的执行；包含本轮勾选的 Subtask 快照、执行结果、报告</td></tr><tr><td><strong>Report</strong></td><td>每轮结束生成的 HTML；内嵌查看 + 下载；按轮次归档</td></tr></tbody></table></div>
+<blockquote>迁移关系：现有 Task 相当于一个 Subtask 的一次执行记录；Project 负责分组与轮次编排。</blockquote>
+<h2 id="3-交互预览">3. 交互预览</h2>
+<h3 id="3-1-第-1-步-仓库-设计源与自动匹配">3.1 第 1 步：仓库、设计源与自动匹配</h3>
+<figure><img src="./assets/01-setup.png" alt="仓库、设计源与自动匹配"><figcaption>仓库、设计源与自动匹配</figcaption></figure>
+<p>自动分析与匹配作为<strong>第 1 步的子步骤</strong>，不再单独占一个步骤。整个第 1 步在同一页内完成。预览图中 2/3 个设计源已完成，因此底部的“生成子任务”处于禁用态；全部分析完成后才启用。</p>
+<h4 id="1-1-仓库">1.1 仓库</h4>
+<ul><li>必须是 git 仓库；右侧显示 <code>git ✓</code>，校验失败禁止下一步。</li><li>基准 commit 默认 <code>HEAD</code>，可填 SHA/tag/branch；必须是仓库内可解析的 commit。</li><li>显示分支、提交时间、工作区是否 clean；</li><li>对齐时基于该 commit 创建独立 worktree，不直接改用户工作区。</li><li>创建后 base commit 不可修改。</li></ul>
+<h4 id="1-2-设计源">1.2 设计源</h4>
+<ul><li>每行显示类型（URL/FILE）、位置、尺寸/倍率。</li><li><code>+ 添加 URL</code>：支持 <code>http(s)</code> 原型页；</li><li><code>+ 本地图片 / HTML</code>：支持 png/jpg/webp/html，路径必须在允许的本地根内；</li><li>每行可删除；重复地址提示去重；</li><li>添加时立即抓取一次，记录 viewport、标题、可访问性；失败的条目标记 <code>unreachable</code>，不阻塞其他源；</li><li>所有设计源在项目目录下缓存快照（<code>sources/&lt;id&gt;.png</code>），保证历史轮次可复现。</li></ul>
+<h4 id="1-3-自动分析与匹配-添加设计源即触发">1.3 自动分析与匹配（添加设计源即触发）</h4>
+<ul><li><strong>每添加一个设计源，立即自动开始分析该源</strong>，不需要等项目创建完成，也不需要点“确认/分析”按钮。</li><li>多个设计源可以并行分析（默认并发 2–3，队列可见）；每个源独立经历：</li></ul>
+<p><code>uploaded → analyzing → matched | needs-review | unmatched | failed</code></p>
+<ul><li>页面内显示总进度（如 <code>2/3 分析完成</code>）和每个源的局部状态；底部的 <strong>生成子任务</strong> 在所有源分析完成前保持<strong>禁用</strong>，并在 footer 显示等待原因。</li><li><strong>“所有分析完成”的判定</strong>：每个设计源都到达 <code>matched</code> / <code>needs-review</code> / <code>unmatched</code> 之一，且至少有一个可生成的子任务；<code>analyzing</code>、<code>queued</code>、<code>failed</code> 都算未完成。</li><li>分析失败（网络/解析/LLM 错误）会阻塞下一步，直到：</li><li>重试成功；或</li><li>删除该设计源（其分析任务取消，子任务一并移除）。</li><li>删除设计源会同步删除其 Match/Subtask，并重新计算“是否全部完成”。</li><li>在第 1 步期间新增设计源，会再次禁用 <strong>生成子任务</strong>，直到新源分析完成。</li></ul>
+<p><strong>“生成子任务”门禁</strong></p>
+<div class="table-wrap"><table><thead><tr><th>场景</th><th>按钮状态</th></tr></thead><tbody><tr><td>repo / base commit 未填或无效</td><td>禁用，提示补全仓库与 commit</td></tr><tr><td>设计源正在抓取/排队</td><td>禁用，显示“N 个源等待分析”</td></tr><tr><td>任一源处于 <code>analyzing</code></td><td>禁用，显示“N 个分析中”</td></tr><tr><td>任一源处于 <code>failed</code></td><td>禁用，显示“重试或删除失败源”</td></tr><tr><td>全部源终态，且有 ≥1 个子任务</td><td><strong>启用</strong></td></tr><tr><td>全部源终态，但无任何子任务</td><td>禁用，提示“没有可对齐的子任务”</td></tr></tbody></table></div>
+<ul><li>结果表：设计源 → 候选页面（route + 组件）→ 置信度 → 状态。</li><li>自动接受规则：</li><li><code>≥ 50%</code>：接受最佳候选，生成子任务并默认勾选；</li><li><code>&lt; 50%</code>：仍生成最佳候选子任务，标记 <strong>待复核</strong>，默认<strong>不勾选</strong>；</li><li>完全没有候选：标记 <code>unmatched</code>，不生成子任务。</li><li>“待复核”是终态，不阻塞流程；后续可在子任务页或项目设置里改选/删除。</li><li>展开行显示 LLM 依据（路由、组件、空态分支、尺寸匹配）。</li></ul>
+<p>自动执行时序：</p>
+<pre><code data-lang="">填写 repo + base commit
+  → 添加设计源（可多个）
+  → 每个源立即排队：抓取/读取快照 → LLM 匹配 → 校验 route/component
+  → 写入 Match；生成/更新 Subtask
+  → 所有源到达终态（matched / needs-review / unmatched）
+  → “生成子任务”按钮启用 → 进入第 2 步</code></pre>
+<blockquote>项目记录可以在进入第 1 步时先以 draft 保存，分析结果实时写入；<code>生成子任务</code> 是提交动作，不会重跑已完成的分析。</blockquote>
+<p>LLM 输入：</p>
+<ol><li>仓库路由表、页面组件路径、组件树/关键文本、空态/错误态分支；</li><li>设计源截图、DOM（原型 URL）、尺寸/viewport；</li><li>现有匹配作为上下文（增量分析）。</li></ol>
+<p>LLM 输出（结构化）：</p>
+<pre><code data-lang="json">{
+  "match": {
+    "sourceId": "src_01",
+    "route": "/projects",
+    "component": "apps/hub/src/views/ProjectStatsDesign.vue",
+    "state": "default",
+    "confidence": 0.96,
+    "rationale": "路由存在 /projects；页面标题与原型一致；尺寸 1600x900 匹配"
+  }
+}</code></pre>
+<p>规则：</p>
+<ul><li>LLM 只能从仓库真实存在的 route/component 中选择，插件做二次校验；</li><li>一个设计源可匹配多个页面（例如同一页面的 default/empty 状态），生成多个候选；</li><li>自动接受结果持久化；人工改选是可选修正，不需要在流程里确认。</li></ul>
+<h3 id="3-2-第-2-步-生成子任务与勾选计划">3.2 第 2 步：生成子任务与勾选计划</h3>
+<figure><img src="./assets/02-subtasks.png" alt="生成子任务"><figcaption>生成子任务</figcaption></figure>
+<p>界面说明：</p>
+<ul><li>每个自动接受的 Match 生成一个 <strong>Subtask</strong>：名称、slug、设计源 → 页面、检查范围（viewport）、预计耗时。</li><li>每行前的 checkbox 决定 <strong>本轮</strong> 是否执行；置信度 ≥50% 的默认勾选，待复核的默认不勾选。</li><li><code>已选 3 / 3</code> 实时更新；<code>全选 / 全不选</code> 快捷操作。</li><li><strong>进入项目页</strong>：Project 已在第 1 步创建；此步只确认本轮范围，仍<strong>不执行</strong>任何对齐。</li></ul>
+<p>勾选语义：</p>
+<ul><li>勾选状态保存为“下一轮计划”（<code>nextSelection</code>）；</li><li>每轮触发时把当前勾选快照写入该轮 <code>selection</code>，之后修改勾选只影响下一轮；</li><li>报告会列出本轮未勾选（skipped）的子任务，避免误以为全部执行。</li></ul>
+<h3 id="3-3-项目页-轮次-手动触发">3.3 项目页：轮次 + 手动触发</h3>
+<figure><img src="./assets/03-dashboard.png" alt="项目页与手动轮次"><figcaption>项目页与手动轮次</figcaption></figure>
+<p>界面说明：</p>
+<ul><li>顶部：项目名、<code>repo</code>、<code>base 4363d81</code>、设计源数、子任务数。</li><li>右上角 <strong>Run next round</strong>：唯一执行入口；没有定时器、没有自动排队。</li><li>轮次列表：<code>queued / running / completed / failed</code>；每轮显示时间、执行/跳过数、通过/失败、像素、报告入口。</li><li>右侧：下一轮子任务勾选（触发前可改）；未勾选显示为 skipped。</li><li>点击 <code>Run next round</code> 后：</li></ul>
+<ol><li>冻结本轮选择；</li><li>设置 <code>Round.status = running</code>；</li><li>按选择顺序执行子任务；</li><li>完成后允许生成/查看报告。</li></ol>
+<p>执行模型（重要）：</p>
+<ul><li>一轮 = <strong>Agent 修复（LLM）+ 插件测量</strong> 的一次完整对齐 pass：</li><li>有上一轮报告/plan 时，Agent 先按 plan 在项目 worktree 内修改代码；</li><li>插件随后对每个子任务做一次测量并记录结果；</li><li>首轮没有历史 plan 时退化为“只测量”（建立基线）。</li><li>按钮只发起一轮，<strong>不会自动开始下一轮</strong>；下一轮由用户再次点击。</li><li>若当前没有可用 Agent，Round 可停在 <code>awaiting-agent</code>，只完成测量并出报告（可配置）。</li></ul>
+<p>并发与安全：</p>
+<ul><li>同一项目同一时间只允许一个 running round；</li><li>所有写入发生在项目独立 worktree，用户仓库保持 clean；</li><li>关闭 DSH 会中断当前轮；Round 标记 <code>interrupted</code>，不会自动恢复执行。</li></ul>
+<h3 id="3-4-每轮报告-内嵌查看">3.4 每轮报告：内嵌查看</h3>
+<figure><img src="./assets/04-report.png" alt="轮次报告"><figcaption>轮次报告</figcaption></figure>
+<p>界面说明：</p>
+<ul><li>报告是 <strong>按轮次</strong> 生成的 HTML，标题包含 Round 编号、时间、base commit。</li><li>顶部汇总：像素均值、通过数/总数、相对上一轮变化。</li><li>每个子任务一张卡：设计缩略图、route、状态、像素、几何/样式结论、主要差异、<code>查看 diff</code>。</li><li>底部“下一步”：来自本轮的 findings，作为下一轮的修复计划。</li><li><code>Download</code> 下载 HTML；<code>关闭</code> 返回项目页。</li><li>报告只在 <code>Round.status = completed</code> 后可生成；running/失败中断时按钮禁用。</li></ul>
+<h3 id="3-5-视觉规范-浅色背景-深色控件-dsh-风格">3.5 视觉规范：浅色背景 + 深色控件（DSH 风格）</h3>
+<p>页面背景和卡片保持白/浅灰，<strong>按钮、图标、进度条、选中态使用近黑色</strong>，形成“白底黑控件”的 DSH 风格，而不是整体暗色主题。</p>
+<div class="table-wrap"><table><thead><tr><th>Token</th><th>值</th><th>用途</th></tr></thead><tbody><tr><td><code>--pp-bg</code></td><td><code>#eef2f7</code></td><td>应用背景</td></tr><tr><td><code>--pp-surface</code></td><td><code>#ffffff</code></td><td>页面/抽屉底色</td></tr><tr><td><code>--pp-subtle</code></td><td><code>#fbfcfe</code></td><td>侧栏、弱底色</td></tr><tr><td><code>--pp-border</code></td><td><code>#e5eaf1</code></td><td>卡片/分隔线</td></tr><tr><td><code>--pp-border-weak</code></td><td><code>#eef2f7</code></td><td>行分隔、底栏</td></tr><tr><td><code>--pp-text</code></td><td><code>#0f172a</code></td><td>主文本</td></tr><tr><td><code>--pp-muted</code></td><td><code>#64748b</code></td><td>次要文本</td></tr><tr><td><code>--pp-faint</code></td><td><code>#94a3b8</code></td><td>占位/时间戳</td></tr><tr><td><code>--pp-control</code></td><td><code>#111827</code></td><td>主按钮、图标、进度、选中</td></tr><tr><td><code>--pp-control-text</code></td><td><code>#ffffff</code></td><td>深色控件上的文字</td></tr><tr><td><code>--pp-link</code></td><td><code>#1d4ed8</code></td><td>route/链接</td></tr><tr><td><code>--pp-success</code></td><td><code>#15803d</code> / bg <code>#e8f8ef</code></td><td>已匹配/通过</td></tr><tr><td><code>--pp-warning</code></td><td><code>#b45309</code> / bg <code>#fff7e6</code></td><td>分析中/待复核</td></tr><tr><td><code>--pp-danger</code></td><td><code>#b91c1c</code> / bg <code>#fdecec</code></td><td>失败</td></tr></tbody></table></div>
+<p>细节：</p>
+<ul><li>主按钮（Run next round / 生成子任务）为 <code>#111827</code> 实心白字；次按钮白底、深色描边与深色文字；</li><li>图标（刷新、关闭、诊断、添加）统一深色描边，不使用彩色图标；</li><li>进度条、checkbox、选中的步骤圆点使用近黑色；链接/route 用深蓝；</li><li>禁用态降为 <code>#e2e8f0</code> 背景 + <code>#94a3b8</code> 文本，footer 同时给出“等待 N 个源分析完成”的原因；</li><li>状态 pill 用浅色底 + 深色文字，保持白底页面的轻盈感；</li><li>与 DSH 的字体/圆角/8px 间距栅格保持一致。</li></ul>
+<h2 id="4-数据模型与文件布局">4. 数据模型与文件布局</h2>
+<pre><code data-lang="">data/projects/&lt;projectId&gt;/
+  project.json          # repo, baseCommit, sources, matches, subtasks, rounds
+  sources/              # 设计源缓存
+  worktree/             # 基于 baseCommit 的 git worktree（对齐写入这里）
+  rounds/
+    round-1/
+      round.json
+      report.html
+      assets/
+    round-2/...</code></pre>
+<p><code>project.json</code> 摘要：</p>
+<pre><code data-lang="json">{
+  "version": 1,
+  "id": "proj-20261123-01",
+  "name": "anubis · 设计对齐",
+  "repo": "D:\\work\\anubis",
+  "baseCommit": "4363d81",
+  "status": "ready",
+  "sources": [
+    { "id": "src_01", "kind": "url", "location": "https://.../01-项目统计首页.html", "viewport": { "width": 1600, "height": 900 } },
+    { "id": "src_02", "kind": "file", "location": "D:\\designs\\projects-empty.png", "viewport": { "width": 1440, "height": 900 }, "scale": 2 }
+  ],
+  "matches": [
+    { "sourceId": "src_01", "route": "/projects", "component": "apps/hub/src/views/ProjectStatsDesign.vue", "state": "default", "confidence": 0.96, "status": "confirmed" }
+  ],
+  "subtasks": [
+    { "id": "projects", "sourceId": "src_01", "title": "项目统计首页 · 视觉对齐", "route": "/projects", "state": "default", "defaultSelected": true }
+  ],
+  "nextSelection": ["projects", "projects-detail"],
+  "rounds": [
+    {
+      "id": "round-1",
+      "number": 1,
+      "status": "completed",
+      "selection": ["projects", "projects-detail", "projects-empty"],
+      "skipped": [],
+      "startedAt": "2026-11-23T12:54:00Z",
+      "finishedAt": "2026-11-23T12:58:00Z",
+      "reportPath": "rounds/round-1/report.html"
+    }
+  ]
+}</code></pre>
+<p>状态：</p>
+<pre><code data-lang="">Project: draft → analyzing → ready → running → ready
+Round:   queued → running → completed | failed | interrupted
+Report:  pending → generated</code></pre>
+<h2 id="5-工具与接口">5. 工具与接口</h2>
+<h3 id="工具-给-agent">工具（给 Agent）</h3>
+<pre><code data-lang="ts">parity_project({ action: "create", repo, baseCommit, name })   // 创建后自动分析
+parity_project({ action: "add-source", projectId, kind: "url"|"file", location })
+parity_project({ action: "analyze", projectId })            // 手动重试/重算（可选）
+parity_project({ action: "confirm", projectId, matches })   // 可选：人工改选
+parity_project({ action: "plan", projectId })               // 自动生成；可重新生成
+parity_project({ action: "status", projectId })
+parity_project({ action: "run-round", projectId })          // 手动触发一轮
+parity_project({ action: "report", projectId, round })
+parity_project({ action: "delete", projectId })             // 停止当前轮、删除 worktree 与数据</code></pre>
+<h3 id="host-接口-给面板">Host 接口（给面板）</h3>
+<div class="table-wrap"><table><thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead><tbody><tr><td>GET</td><td><code>/pixel-parity/projects</code></td><td>项目列表与摘要</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/create</code></td><td>创建项目</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/source</code></td><td>添加设计源</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/analyze</code></td><td>触发分析</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/confirm</code></td><td>可选：人工改选匹配</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/plan</code></td><td>生成子任务</td></tr><tr><td>POST</td><td><code>/pixel-parity/project/round</code></td><td>手动发起一轮</td></tr><tr><td>GET</td><td><code>/pixel-parity/project/round/job</code></td><td>轮次执行状态</td></tr><tr><td>GET</td><td><code>/pixel-parity/project/report?round=</code></td><td>内嵌报告 HTML</td></tr></tbody></table></div>
+<h2 id="6-关键交互细节">6. 关键交互细节</h2>
+<ol><li><strong>base commit 锁定</strong>：项目创建后 baseCommit 不可改；要换基线必须新建项目（避免历史报告失真）。</li><li><strong>worktree 隔离</strong>：所有轮次写入项目 worktree；报告记录 <code>git diff --stat baseCommit</code>，用户仓库保持原状。</li><li><strong>设计源快照</strong>：创建/重新抓取时保存图片与 metadata；报告使用快照，不重新访问 URL。</li><li><strong>匹配置信度</strong>：分析自动完成；低置信度条目标记“待复核”并默认不勾选，不阻塞后续步骤，也允许随时改选。</li><li><strong>勾选快照</strong>：点击 Run next round 的瞬间冻结选择；执行中不可改本轮选择，只能改下一轮。</li><li><strong>手动唯一入口</strong>：取消自动轮询/自动续跑；<code>Run next round</code> 是唯一触发点。</li><li><strong>报告时序</strong>：轮次完成后才允许生成报告；running 时按钮禁用并给出 hover 原因。</li><li><strong>删除项目</strong>：二次确认；若有 running round，先取消再删除 worktree 与项目目录。</li><li><strong>失败处理</strong>：单个子任务失败不阻塞其他子任务；轮次结束标记 <code>failed</code> 仍可生成报告。</li><li><strong>演示数据</strong>：报告/预览中的 9.26% 等数字来自当前 anubis 原型，仅作示意。</li></ol>
+<h2 id="7-与当前实现的关系">7. 与当前实现的关系</h2>
+<ul><li>当前 <code>Task</code>（一次测量）可保留为内部执行单元：一个 Round 下每个选中的 Subtask 生成/关联一个 Task 执行记录；</li><li>当前“Repo 分组 + Run all”是过渡形态，后续由 Project 页替代：</li><li>Project 固定 repo/base commit；</li><li>Round 取代“Run all”；</li><li>报告从“每 Task 一份”升级为“每轮一份聚合报告”，子任务结果内嵌。</li><li>已有 <code>data/tasks</code> 可保留用于独立快速检查；项目式流程是上层编排，不强制迁移旧任务。</li></ul>
+<h2 id="8-验收标准">8. 验收标准</h2>
+<ul><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 可以创建项目：repo 校验、base commit 校验、添加 URL/本地设计源；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 每添加一个设计源立即自动分析，无需再点“确认匹配”或“分析”；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 所有设计源分析完成（matched / needs-review / unmatched）前，“生成子任务”保持禁用；新增源会再次禁用；分析失败会阻塞直到重试成功或删除该源；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 低置信度条目标记待复核且默认不勾选，不阻塞流程，可随时改选；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 子任务列表由分析结果自动生成，勾选状态可保存并影响下一轮；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 项目页展示历史轮次；未点 <code>Run next round</code> 不会执行任何对齐；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 每点一次只执行一轮，且本轮只跑勾选的子任务，报告记录 skipped；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 轮次完成后可生成报告并在 DSH 内嵌页查看/下载；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 删除项目会停止运行中的轮次并清理 worktree/报告；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 用户仓库在工作区保持 clean，所有改动落在项目 worktree；</li><li>&lt;span class="todo"&gt;☐&lt;/span&gt; 整个流程使用白底 + 深色控件的 DSH 风格，禁用态有明确原因。</li></ul>
+<h2 id="9-风险与开放问题">9. 风险与开放问题</h2>
+<div class="table-wrap"><table><thead><tr><th>风险</th><th>处理</th></tr></thead><tbody><tr><td>LLM 页面匹配错误</td><td>自动接受最佳候选 + 待复核标记 + 可改选</td></tr><tr><td>原型是动态数据/需登录</td><td>设计源抓取支持 storageState；报告记录抓取条件</td></tr><tr><td>本地路径越权</td><td>限定允许根目录，拒绝任意系统路径</td></tr><tr><td>worktree 磁盘占用</td><td>项目删除时清理；可配置保留轮次数</td></tr><tr><td>一轮内“LLM 修复”依赖 Agent 可用性</td><td>无 Agent 时退化为测量+报告，状态标注</td></tr><tr><td>base commit 后仓库有未提交改动</td><td>项目只用 worktree，忽略用户工作区脏状态</td></tr></tbody></table></div>
+<p><strong>待定</strong>：是否需要“Round 0 基线测量”单独展示；报告是保留所有轮次还是只保留最近 N 轮；项目 worktree 是否允许用户手动打开编辑。</p>
+</main>
+</div>
+<script>
+const toc = document.querySelector('#toc');
+for (const heading of document.querySelectorAll('main h2, main h3')) {
+  const link = document.createElement('a');
+  link.href = '#' + heading.id;
+  link.textContent = heading.textContent;
+  if (heading.tagName === 'H3') link.className = 'lv3';
+  toc.appendChild(link);
+}
+</script>
+</body>
+</html>
