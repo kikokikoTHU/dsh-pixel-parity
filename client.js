@@ -990,8 +990,9 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         if (!state.open) return undefined
         loadTasks()
+        loadProjects()
         loadLogs()
-        const timer = setInterval(() => { loadTasks(); loadLogs() }, 4000)
+        const timer = setInterval(() => { loadTasks(); loadProjects(); loadLogs() }, 4000)
         return () => clearInterval(timer)
       }, [store.open])
       useEffect(() => {
@@ -1013,7 +1014,7 @@ window.__ModuleLoader__.load({
         h('div', { style: styles.drawer, onClick: event => event.stopPropagation() },
           h('div', { style: styles.header },
             h('strong', null, 'Pixel parity'),
-            h('span', { style: styles.pill }, `${taskCount} task${taskCount === 1 ? '' : 's'}`),
+            h('span', { style: styles.pill }, `${taskCount} task${taskCount === 1 ? '' : 's'} · ${(store.projects ?? []).length} project${(store.projects ?? []).length === 1 ? '' : 's'}`),
             h('span', { style: { flex: 1 } }),
             h('button', {
               style: styles.taskBtn,
@@ -1022,13 +1023,33 @@ window.__ModuleLoader__.load({
             h('button', {
               style: styles.iconButton,
               title: t.refresh,
-              onClick: () => loadTasks(),
+              onClick: () => { loadTasks(); loadProjects(); loadLogs() },
             }, '⟳'),
             h('button', {
               style: styles.iconButton,
               title: t.close,
               onClick: () => { state.open = false; notify() },
             }, '×'),
+          ),
+          (store.projects ?? []).length === 0 ? null : h('div', { style: { marginTop: 10 } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px 6px' } },
+              h('strong', { style: { fontSize: 11 } }, 'Projects'),
+              h('span', { style: { ...muted, fontSize: 10 } }, String((store.projects ?? []).length)),
+              h('span', { style: { flex: 1 } }),
+              h('button', { style: styles.taskBtn, onClick: openProjects }, '管理'),
+            ),
+            (store.projects ?? []).slice(0, 5).map(item => h('div', {
+              key: item.id,
+              style: { ...styles.taskCard, cursor: 'pointer' },
+              onClick: () => { state.projectsOpen = true; state.project = item; state.projectStep = item.subtasks.length > 0 ? 3 : 1; notify() },
+            },
+              h('div', { style: styles.taskRow },
+                h('strong', null, item.name),
+                h('span', { style: styles.pill }, item.status),
+                h('span', { style: { ...muted, marginLeft: 'auto', fontSize: 10 } }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+              ),
+              h('div', { style: { ...muted, fontSize: 10, paddingTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.repo),
+            )),
           ),
           (() => {
             const groups = new Map()
@@ -1066,8 +1087,8 @@ window.__ModuleLoader__.load({
             ))
           })(),
           taskCount === 0 ? h('div', { style: { ...styles.taskCard, textAlign: 'center', padding: 18 } },
-            h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐任务'),
-            h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, '用 Projects 创建项目，或让模型在对话里直接建。'),
+            h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐 Task'),
+            h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, (store.projects ?? []).length > 0 ? '项目在下方；Task 是一次对齐测量，可继续用 Projects 创建。' : '用 Projects 创建项目，或让模型在对话里直接建。'),
             h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
           ) : null,
           h('div', { style: styles.logBox },
