@@ -984,6 +984,46 @@ window.__ModuleLoader__.load({
       )
     }
 
+    const drawerCss = `
+      .ppd-backdrop { position: fixed; inset: 0; z-index: 5200; }
+      .ppd-panel { position: fixed; top: 54px; right: 12px; bottom: 96px; width: 440px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 18px 60px rgba(15, 23, 42, .16); display: flex; flex-direction: column; overflow: hidden; color: #0f172a; }
+      .ppd-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }
+      .ppd-head strong { font-size: 12.5px; font-weight: 650; letter-spacing: -.01em; }
+      .ppd-spacer { flex: 1; }
+      .ppd-close { width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #64748b; font-size: 16px; line-height: 1; cursor: pointer; }
+      .ppd-close:hover { background: #f1f5f9; color: #0f172a; }
+      .ppd-body { flex: 1; overflow: auto; padding: 12px 14px 16px; }
+      .ppd-section { margin-bottom: 16px; }
+      .ppd-section-h { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; margin-bottom: 7px; }
+      .ppd-section-h em { font-style: normal; color: #64748b; letter-spacing: 0; }
+      .ppd-icon { width: 22px; height: 22px; border: 1px solid #dbe3ee; border-radius: 5px; background: #fff; color: #111827; font-size: 14px; line-height: 1; cursor: pointer; }
+      .ppd-icon:hover { border-color: #111827; }
+      .ppd-project { width: 100%; text-align: left; background: #fff; border: 1px solid #e5eaf1; border-radius: 8px; padding: 10px 11px; margin-bottom: 7px; cursor: pointer; display: block; }
+      .ppd-project:hover { border-color: #111827; background: #fbfcfe; }
+      .ppd-project-main { display: flex; align-items: center; gap: 7px; }
+      .ppd-project-main b { font-size: 12px; font-weight: 600; color: #0f172a; }
+      .ppd-repo { margin-top: 3px; font-size: 9.5px; color: #94a3b8; font-family: "Cascadia Code", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ppd-meta { margin-top: 5px; font-size: 10px; color: #64748b; }
+      .ppd-pill { border-radius: 999px; padding: 1px 7px; font-size: 9.5px; font-weight: 600; }
+      .ppd-pill.ok { background: #e8f8ef; color: #15803d; }
+      .ppd-pill.warn { background: #fff7e6; color: #b45309; }
+      .ppd-pill.bad { background: #fdecec; color: #b91c1c; }
+      .ppd-pill.neutral { background: #f1f5f9; color: #475569; }
+      .ppd-empty { border: 1px dashed #d8e0ea; border-radius: 8px; padding: 18px; text-align: center; color: #94a3b8; font-size: 11px; }
+      .ppd-btn { height: 28px; padding: 0 10px; margin-top: 10px; border: 1px solid #d8e0ea; border-radius: 6px; background: #fff; color: #0f172a; font-size: 11px; cursor: pointer; }
+      .ppd-btn:hover { border-color: #111827; }
+      .ppd-btn.primary { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+      .ppd-btn:disabled { opacity: .45; cursor: not-allowed; }
+      .ppd-task { border: 1px solid #e5eaf1; border-radius: 8px; padding: 10px 11px; margin-bottom: 7px; }
+      .ppd-task-h { display: flex; align-items: center; gap: 6px; }
+      .ppd-task-h b { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ppd-task-kv { margin-top: 4px; font-size: 10px; color: #64748b; }
+      .ppd-actions { display: flex; gap: 6px; margin-top: 8px; }
+      .ppd-actions button, .ppd-actions a { height: 25px; padding: 0 8px; border: 1px solid #d8e0ea; border-radius: 5px; background: #fff; color: #334155; font-size: 10px; line-height: 23px; text-decoration: none; cursor: pointer; }
+      .ppd-actions button:hover, .ppd-actions a:hover { border-color: #111827; color: #0f172a; }
+      .ppd-actions .danger { color: #b91c1c; border-color: #fecaca; }
+    `
+
     function Drawer() {
       const store = useStore()
       const [draft, setDraft] = useState(store.repo)
@@ -1005,115 +1045,85 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey)
       }, [])
       if (!store.open) return null
-      const taskCount = (store.tasks ?? []).length
-      return h('div', {
-        style: styles.backdrop,
-        onClick: () => { state.open = false; notify() },
-      },
-        h('div', { style: styles.drawer, onClick: event => event.stopPropagation() },
-          h('div', { style: styles.header },
-            h('strong', { style: { fontSize: 12 } }, 'dsh pixel parity'),
-            h('span', { style: { flex: 1 } }),
-            h('button', {
-              style: styles.iconButton,
-              title: t.close,
-              onClick: () => { state.open = false; notify() },
-            }, '×'),
+      const close = () => { state.open = false; notify() }
+      const projects = store.projects ?? []
+      const tasks = store.tasks ?? []
+      const openCreate = () => {
+        state.projectsOpen = true
+        state.creating = true
+        state.project = null
+        notify()
+      }
+      const openProject = item => {
+        state.projectsOpen = true
+        state.project = item
+        state.projectStep = item.subtasks.length > 0 ? 3 : 1
+        notify()
+      }
+      const pillClass = status => {
+        if (['ready', 'matched', 'completed', 'converged'].includes(status)) return 'ok'
+        if (['draft', 'analyzing', 'running', 'queued', 'needs-review'].includes(status)) return 'warn'
+        if (['failed', 'unmatched', 'interrupted'].includes(status)) return 'bad'
+        return 'neutral'
+      }
+      return h('div', { className: 'ppd-backdrop', onClick: close },
+        h('div', { className: 'ppd-panel', onClick: event => event.stopPropagation() },
+          h('style', null, drawerCss),
+          h('header', { className: 'ppd-head' },
+            h('strong', null, 'dsh pixel parity'),
+            h('span', { className: 'ppd-spacer' }),
+            h('button', { className: 'ppd-close', title: '关闭', onClick: close }, '×'),
           ),
-          (store.projects ?? []).length === 0 ? null : h('div', { style: { marginTop: 10 } },
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px 6px' } },
-              h('strong', { style: { fontSize: 11 } }, 'Projects'),
-              h('span', { style: { ...muted, fontSize: 10 } }, String((store.projects ?? []).length)),
-              h('span', { style: { flex: 1 } }),
-              h('button', { style: styles.taskBtn, onClick: openProjects }, '管理'),
-            ),
-            (store.projects ?? []).slice(0, 5).map(item => h('div', {
-              key: item.id,
-              style: { ...styles.taskCard, cursor: 'pointer' },
-              onClick: () => { state.projectsOpen = true; state.project = item; state.projectStep = item.subtasks.length > 0 ? 3 : 1; notify() },
-            },
-              h('div', { style: styles.taskRow },
-                h('strong', null, item.name),
-                h('span', { style: styles.pill }, item.status),
-                h('span', { style: { ...muted, marginLeft: 'auto', fontSize: 10 } }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+          h('div', { className: 'ppd-body' },
+            h('section', { className: 'ppd-section' },
+              h('div', { className: 'ppd-section-h' },
+                h('span', null, 'Projects'),
+                h('em', null, String(projects.length)),
+                h('span', { className: 'ppd-spacer' }),
+                h('button', { className: 'ppd-icon', title: '新建 Project', onClick: openCreate }, '+'),
               ),
-              h('div', { style: { ...muted, fontSize: 10, paddingTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.repo),
-            )),
-          ),
-          (() => {
-            const groups = new Map()
-            for (const task of store.tasks ?? []) {
-              if (!groups.has(task.repo)) groups.set(task.repo, [])
-              groups.get(task.repo).push(task)
-            }
-            return [...groups.entries()].map(([repo, tasks]) => h('div', { key: repo, style: styles.repoSection },
-              h('div', { style: styles.repoHeader },
-                h('strong', { title: repo }, repo),
-                h('span', { style: muted }, `${tasks.filter(item => item.status === 'converged').length}✓ ${tasks.filter(item => item.status === 'failed').length}✗ ${tasks.filter(item => item.latest === null).length}–`),
-                h('span', { style: { flex: 1 } }),
-                h('button', { style: styles.taskBtn, onClick: () => runRepo(repo) }, 'Run all'),
+              projects.length === 0
+                ? h('div', { className: 'ppd-empty' },
+                    h('div', null, '还没有 Project'),
+                    h('button', { className: 'ppd-btn primary', onClick: openCreate }, '新建 Project'),
+                  )
+                : projects.map(item => h('button', { key: item.id, className: 'ppd-project', onClick: () => openProject(item) },
+                    h('div', { className: 'ppd-project-main' },
+                      h('b', null, item.name),
+                      h('span', { className: `ppd-pill ${pillClass(item.status)}` }, item.status),
+                    ),
+                    h('div', { className: 'ppd-repo', title: item.repo }, item.repo),
+                    h('div', { className: 'ppd-meta' }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+                  )),
+            ),
+            tasks.length === 0 ? null : h('section', { className: 'ppd-section' },
+              h('div', { className: 'ppd-section-h' },
+                h('span', null, 'Tasks'),
+                h('em', null, String(tasks.length)),
               ),
               tasks.map(task => {
                 const pixels = task.latest?.pixels ?? []
                 const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
                 const ready = task.status === 'converged' || task.status === 'failed'
-                return h('div', { key: task.id, style: styles.taskCard },
-                  h('div', { style: styles.taskRow },
-                    h('strong', null, task.id),
-                    h('span', { style: styles.pill }, task.status),
-                    h('span', { style: { ...muted, marginLeft: 'auto' } }, 'single run'),
+                return h('div', { key: task.id, className: 'ppd-task' },
+                  h('div', { className: 'ppd-task-h' },
+                    h('b', { title: task.id }, task.id),
+                    h('span', { className: `ppd-pill ${pillClass(task.status)}` }, task.status),
                   ),
-                  h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
-                    average === null ? '尚无 run' : `${(average * 100).toFixed(2)}% pixels`,
-                  ),
-                  h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
-                    h('button', { style: { ...styles.taskBtn, opacity: ready ? 1 : 0.5 }, disabled: !ready, onClick: () => { if (ready) showReport(task) } }, 'Report'),
-                    task.reportPath === undefined ? null : h('a', { style: { ...styles.taskBtn, textDecoration: 'none' }, href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`, target: '_blank' }, 'Download'),
-                    h('button', { style: { ...styles.taskBtn, color: '#c0392b' }, onClick: () => deleteTaskAction(task) }, state.pendingDelete === task.id ? 'Confirm' : 'Delete'),
+                  h('div', { className: 'ppd-task-kv' }, average === null ? '尚无 run' : `${(average * 100).toFixed(2)}% pixels · single run`),
+                  h('div', { className: 'ppd-actions' },
+                    h('button', { disabled: !ready, title: ready ? '打开报告' : '先运行一次任务', onClick: () => { if (ready) showReport(task) } }, 'Report'),
+                    task.reportPath === undefined ? null : h('a', { href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`, target: '_blank', rel: 'noopener' }, 'Download'),
+                    h('button', { className: 'danger', onClick: () => deleteTaskAction(task) }, state.pendingDelete === task.id ? 'Confirm' : 'Delete'),
                   ),
                 )
               }),
-            ))
-          })(),
-          taskCount === 0 ? ((store.projects ?? []).length === 0
-            ? h('div', { style: { ...styles.taskCard, textAlign: 'center', padding: 18 } },
-                h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐 Task'),
-                h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, '用 Projects 创建项目，或让模型在对话里直接建。'),
-                h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
-              )
-            : h('div', {
-                style: { ...styles.taskCard, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, cursor: 'pointer' },
-                title: '新建 Project',
-                onClick: () => { state.projectsOpen = true; state.creating = true; state.project = null; notify() },
-              },
-                h('span', { style: { width: 24, height: 24, borderRadius: 6, background: '#111827', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 16, lineHeight: 1 } }, '+'),
-                h('span', { style: { fontSize: 11, color: '#334155', fontWeight: 600 } }, '新建 Project'),
-              )) : null,
-          store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
-              h('strong', null, 'diagnose'),
-              h('span', { style: styles.pill }, `iter ${store.diagnosis.iteration ?? 1}`),
-              h('span', { style: { flex: 1 } }),
-              h('button', {
-                style: styles.iconButton,
-                title: t.close,
-                onClick: () => { state.diagnosis = null; notify() },
-              }, '×'),
             ),
-            (store.diagnosis.viewports ?? []).slice(0, 1).map((viewport, index) => h('div', { key: index, style: { paddingTop: 4 } },
-              h('div', { style: { fontWeight: 600 } }, `${viewport.status} ${viewport.case} @ ${viewport.viewport}`),
-              (viewport.findings ?? []).slice(0, 3).map((finding, findingIndex) => h('div', {
-                key: findingIndex,
-                style: { ...muted, paddingTop: 2 },
-              }, `[${finding.layer}] ${finding.summary}`)),
-              (viewport.next ?? []).length === 0
-                ? null
-                : h('div', { style: { ...muted, paddingTop: 3 } }, `next: ${viewport.next[0]}`),
-            )),
           ),
         ),
       )
     }
+
 
     return {
       inject: ['slots'],
