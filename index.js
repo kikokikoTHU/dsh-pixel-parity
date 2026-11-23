@@ -1403,6 +1403,8 @@ export function apply(ctx, config) {
     async execute(args) {
       const action = text(args.action, 'action')
       const repo = text(args.repo, 'repo')
+      lastRunRoot = repo
+      panelRepoOverride = repo
       const clean = value => JSON.parse(JSON.stringify(value, (_key, item) => item === null ? undefined : item))
       if (action === 'create') {
         if (args.config === undefined) throw new Error('parity_task create needs config')
@@ -1612,4 +1614,5 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
