@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -1012,18 +1012,8 @@ window.__ModuleLoader__.load({
       },
         h('div', { style: styles.drawer, onClick: event => event.stopPropagation() },
           h('div', { style: styles.header },
-            h('strong', null, 'Pixel parity'),
-            h('span', { style: styles.pill }, `${taskCount} task${taskCount === 1 ? '' : 's'} · ${(store.projects ?? []).length} project${(store.projects ?? []).length === 1 ? '' : 's'}`),
+            h('strong', { style: { fontSize: 12 } }, 'dsh pixel parity'),
             h('span', { style: { flex: 1 } }),
-            h('button', {
-              style: styles.taskBtn,
-              onClick: openProjects,
-            }, 'Projects'),
-            h('button', {
-              style: styles.iconButton,
-              title: t.refresh,
-              onClick: () => { loadTasks(); loadProjects() },
-            }, '⟳'),
             h('button', {
               style: styles.iconButton,
               title: t.close,
