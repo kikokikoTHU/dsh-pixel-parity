@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -943,6 +943,39 @@ export function apply(ctx, config) {
     }
   }
 
+  const projectEditor = async ({ cwd, project, round, subtask, brief }) => {
+    const subagents = typeof ctx.get === 'function' ? ctx.get('subagents') : undefined
+    const agents = typeof ctx.get === 'function' ? ctx.get('agents') : undefined
+    if (subagents === undefined || agents === undefined) throw new Error('agent services unavailable for code alignment')
+    const parent = agents.currentInitiator()
+      ?? (typeof project.ownerSessionId === 'string' ? agents.get(project.ownerSessionId) : undefined)
+      ?? agents.list()[0]
+    if (parent === undefined) throw new Error('no live agent available for code alignment')
+    const controller = new AbortController()
+    const timeoutMs = 10 * 60 * 1000
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const activation = await subagents.startActivation({
+        provider: 'spawn',
+        label: `pp-r${round.number}-${subtask.id}`,
+        cwd,
+        parent,
+        prompt: [{ type: 'text', text: brief }],
+        signal: controller.signal,
+        delivery: 'parent',
+      })
+      const result = await activation.result
+      await activation.dispose().catch(() => {})
+      if (result.stopReason !== 'completed') {
+        throw new Error(`alignment agent stopped with ${result.stopReason}${result.diagnostic === undefined ? '' : `: ${result.diagnostic}`}`)
+      }
+      logEvent('project.round.agent', { projectId: project.id, round: round.number, subtask: subtask.id, childId: String(activation.childId), stopReason: result.stopReason })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+
   const panelRoots = () => {
     const roots = [lastRunRoot, panelRepoOverride, ...(Array.isArray(config?.repos) ? config.repos : [])]
     return roots.filter(root => typeof root === 'string' && root.length > 0)
@@ -1203,6 +1236,7 @@ export function apply(ctx, config) {
                 baseCommit: body.baseCommit ?? 'HEAD',
                 config: body.config ?? 'parity.config.mjs',
                 name: body.name,
+                ownerSessionId: (typeof ctx.get === 'function' ? ctx.get('agents')?.currentInitiator()?.id : undefined),
               })
               respondJson(response, 200, { project: projectSummary(project) })
             } catch (error) {
@@ -1292,7 +1326,7 @@ export function apply(ctx, config) {
               const projectId = String(body.projectId ?? '')
               const job = { id: `projround-${Date.now()}`, projectId, status: 'running', startedAt: new Date().toISOString() }
               projectJob = job
-              void runRound(projectId).then(({ project, round }) => {
+              void runRound(projectId, { editor: projectEditor }).then(({ project, round }) => {
                 projectJob = { ...job, status: 'done', round, project: projectSummary(project), finishedAt: new Date().toISOString() }
               }).catch((error) => {
                 projectJob = { ...job, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
@@ -1772,7 +1806,13 @@ export function apply(ctx, config) {
       const action = text(args.action, 'action')
       if (action === 'create') {
         const repo = args.repo === undefined ? process.cwd() : text(args.repo, 'repo')
-        const project = await createProject({ repo, baseCommit: args.baseCommit ?? 'HEAD', config: args.config ?? 'parity.config.mjs', name: args.name })
+        const project = await createProject({
+          repo,
+          baseCommit: args.baseCommit ?? 'HEAD',
+          config: args.config ?? 'parity.config.mjs',
+          name: args.name,
+          ownerSessionId: (typeof ctx.get === 'function' ? ctx.get('agents')?.currentInitiator()?.id : undefined),
+        })
         let current = project
         for (const design of arrayOfText(args.designs, 'designs')) {
           const location = design.startsWith('http') || isAbsolute(design) ? design : resolve(repo, design)
@@ -1804,7 +1844,7 @@ export function apply(ctx, config) {
         return { action, project: projectSummary(project) }
       }
       if (action === 'run-round') {
-        const { project, round } = await runRound(projectId)
+        const { project, round } = await runRound(projectId, { editor: projectEditor })
         return { action, project: projectSummary(project), round }
       }
       if (action === 'delete') {
@@ -2059,6 +2099,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

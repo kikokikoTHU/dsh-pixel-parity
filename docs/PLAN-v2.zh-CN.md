@@ -309,6 +309,7 @@ cases/<case>/<viewport>/
 | M54 ✅ | Repo 分组 + 批量执行：面板按 `task.repo` 分组，显示 `✓/✗/–` 聚合与 Run all；Host `/repo/run`、`/repo/job` 顺序跑该 repo 下所有未运行 Task；Task 仍是执行/状态/报告单元 | 一键跑整个仓库，同时保留单页结论 |
 | M55 ✅ | Project 流程实现：`core/project.mjs` 持久化 repo/base commit/config/设计源/匹配/子任务/轮次；添加设计源即自动匹配生成子任务；面板 Projects 覆盖层支持创建、源分析、勾选、手动 Run next round 与内嵌轮次报告 | 落地项目式对齐 MVP |
 | M56 ✅ | 补齐 Project 两项：DSH `llm.stream` 自动匹配（失败回退 URL/token 启发式）；每个项目创建独立 git worktree（复用 repo node_modules，删除时清理） | 设计完整落地 |
+| M58 ✅ | Round 代码对齐：链式分支 `pp/<slug>/rNN`、Before/After 测量、spawn 子 Agent 改代码并自行 commit、commit/trailer/无 push 校验、失败回滚、tag；清理 Round/项目删除 branch/tag；runs 移出 worktree | 支持 Agent 自动对齐代码 |
 | M57 ⏳ TODO | Round 内自动调用 Agent 修复代码：Run next round 时读取上一轮 findings/plan，启动 Agent 在项目 worktree 内修改实现，再测量并生成报告；优先做 Assisted（生成修复任务 + 人确认），Auto 需 git 快照/回滚、超时与 token 预算 | 待实现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。

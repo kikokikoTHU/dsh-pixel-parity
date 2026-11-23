@@ -5,7 +5,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
 import { runConfig } from './runner.mjs'
@@ -75,6 +75,8 @@ export async function createProject(input) {
     baseCommit,
     baseCommitInput: input.baseCommit ?? 'HEAD',
     config,
+    ownerSessionId: typeof input.ownerSessionId === 'string' ? input.ownerSessionId : null,
+    dependenciesRoot: typeof input.dependenciesRoot === 'string' ? resolve(input.dependenciesRoot) : repo,
     status: 'draft',
     sources: [],
     matches: [],
@@ -263,6 +265,165 @@ export function setSelection(projectId, selection) {
   return project
 }
 
+function projectSlug(project) {
+  const repo = basename(project.repo).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'repo'
+  const short = String(project.id).split('-').at(-1) ?? 'proj'
+  return `${repo}-${short}`
+}
+
+function roundBranch(project, number) {
+  return `pp/${projectSlug(project)}/r${String(number).padStart(2, '0')}`
+}
+
+function gitHead(worktree) {
+  return git(worktree, ['rev-parse', 'HEAD'])
+}
+
+function remoteRefs(repo) {
+  return git(repo, ['for-each-ref', '--format=%(refname):%(objectname)', 'refs/remotes'])
+}
+
+function averagePixels(manifest) {
+  const values = []
+  for (const entry of manifest?.cases ?? []) {
+    for (const viewport of entry.viewports ?? []) {
+      if (typeof viewport.pixels?.metrics?.mismatchRatio === 'number') values.push(viewport.pixels.metrics.mismatchRatio)
+    }
+  }
+  return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function makeBrief(project, round, subtask, before) {
+  const caseEntry = before.manifest?.cases?.find(entry => entry.id === subtask.caseId)
+  const viewports = caseEntry?.viewports ?? []
+  const details = viewports.map(viewport => {
+    const pixels = viewport.pixels?.metrics?.mismatchRatio
+    return `- ${viewport.viewportId}: pixels ${typeof pixels === 'number' ? `${(pixels * 100).toFixed(2)}%` : 'n/a'}, geometry ${viewport.geometry?.pass === false ? 'fail' : 'pass'}, styles ${viewport.styles?.pass === false ? 'fail' : 'pass'}${viewport.error ? `, error: ${viewport.error}` : ''}`
+  }).join('\n')
+  return [
+    `You are fixing ONE alignment subtask in a git worktree.`,
+    `Project: ${project.name} (${project.id})`,
+    `Round: ${round.number}`,
+    `Subtask: ${subtask.title} (${subtask.id}, case ${subtask.caseId})`,
+    `Branch: ${round.branch}`,
+    `Design source: ${project.sources.find(source => source.id === subtask.sourceId)?.location ?? 'unknown'}`,
+    `Current measurement:`,
+    details || '- no viewport detail',
+    ``,
+    `Goals:`,
+    `1. Inspect the implementation and the reference/diff artifacts.`,
+    `2. Change only implementation code needed for this subtask.`,
+    `3. Do not change parity config, design sources, package.json, lockfiles, .parity, or vite.pp.config.js.`,
+    `4. Do not run git push, git remote, or network commands.`,
+    `5. Create EXACTLY ONE commit with this shape:`,
+    `   pp(${subtask.id}): align ${subtask.title} to design`,
+    `   ...`,
+    `   PP-Project: ${project.id}`,
+    `   PP-Round: ${round.number}`,
+    `   PP-Subtask: ${subtask.id}`,
+    `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
+    `6. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
+    `7. Reply with the commit sha and a short summary of changed files.`,
+  ].join('\n')
+}
+
+async function validateAgentCommit(worktree, repo, headBefore, remoteBefore, round, subtask) {
+  const headAfter = gitHead(worktree)
+  if (headAfter === headBefore) throw new Error('agent did not create a commit')
+  const count = Number(git(worktree, ['rev-list', '--count', `${headBefore}..HEAD`]))
+  if (count !== 1) throw new Error(`agent created ${count} commits; exactly one is required`)
+  const status = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+  if (status.length > 0) throw new Error(`worktree has tracked changes after commit: ${status}`)
+  if (remoteRefs(repo) !== remoteBefore) throw new Error('remote refs changed during the round (push is forbidden)')
+  const message = git(worktree, ['log', '-1', '--pretty=%B'])
+  for (const trailer of ['PP-Project:', 'PP-Round:', 'PP-Subtask:', 'PP-Base-Commit:']) {
+    if (!message.includes(trailer)) throw new Error(`commit message is missing ${trailer}`)
+  }
+  return { sha: headAfter, message }
+}
+
+async function runAlignmentRound(project, round, options) {
+  const worktree = project.worktree
+  if (typeof worktree !== 'string' || !existsSync(worktree)) throw new Error('project worktree is missing')
+  const dirty = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+  if (dirty.length > 0) throw new Error(`worktree has tracked changes before the round: ${dirty}`)
+  const previous = [...project.rounds].reverse().find(item => item.status === 'completed' && typeof item.headSha === 'string')
+  const startRef = previous?.headSha ?? project.baseCommit
+  round.branch = roundBranch(project, round.number)
+  round.startRef = startRef
+  git(worktree, ['switch', '-C', round.branch, startRef])
+  round.headBefore = gitHead(worktree)
+  round.commits = []
+  round.subtasks = []
+
+  for (const subtaskId of round.selection) {
+    const subtask = project.subtasks.find(item => item.id === subtaskId)
+    if (subtask === undefined) continue
+    const headBefore = gitHead(worktree)
+    const remoteBefore = remoteRefs(project.repo)
+    const before = await runConfig({
+      configPath: project.config,
+      repoRoot: worktree,
+      dependenciesRoot: project.dependenciesRoot ?? undefined,
+      caseIds: [subtask.caseId],
+      baselineMode: 'ephemeral',
+      headless: options.headless !== false,
+      outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-before`),
+    })
+    const entry = { subtaskId, caseId: subtask.caseId, before: averagePixels(before.manifest), status: 'edited', sha: null, error: null }
+    try {
+      await options.editor({
+        cwd: worktree,
+        project,
+        round,
+        subtask,
+        before,
+        brief: makeBrief(project, round, subtask, before),
+      })
+      const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, round, subtask)
+      const after = await runConfig({
+        configPath: project.config,
+        repoRoot: worktree,
+        caseIds: [subtask.caseId],
+        baselineMode: 'ephemeral',
+        headless: options.headless !== false,
+        outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-after`),
+      })
+      const afterPixels = averagePixels(after.manifest)
+      entry.after = afterPixels
+      entry.sha = commit.sha.slice(0, 12)
+      entry.message = commit.message.split('\n')[0]
+      entry.runDir = after.runDir
+      const passed = (after.manifest.summary?.failed ?? 1) === 0
+      const improved = beforePixels(entry) === null || afterPixels === null || entry.after <= entry.before + 0.0005
+      if (!passed && !improved) {
+        git(worktree, ['reset', '--hard', headBefore])
+        entry.status = 'rolled-back'
+        entry.error = `no improvement (${(entry.before * 100).toFixed(2)}% -> ${(afterPixels * 100).toFixed(2)}%)`
+      } else {
+        round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
+        entry.status = 'committed'
+        round.afterResult = after
+      }
+    } catch (error) {
+      try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
+      entry.status = 'failed'
+      entry.error = String(error?.message ?? error)
+    }
+    round.subtasks.push(entry)
+  }
+  round.headSha = gitHead(worktree)
+  round.status = round.subtasks.some(entry => entry.status === 'failed' || entry.status === 'rolled-back') ? 'failed' : 'completed'
+  if (round.status === 'completed' && round.commits.length > 0) {
+    try { git(worktree, ['tag', '-f', `pp-r${String(round.number).padStart(2, '0')}`, 'HEAD']) } catch {}
+  }
+  round.finishedAt = new Date().toISOString()
+  round.summary = round.afterResult?.manifest?.summary ?? null
+  if (round.afterResult !== undefined) round.reportPath = buildRoundReport(project, round, round.afterResult)
+  return round
+}
+
+function beforePixels(entry) { return entry.before ?? null }
 export async function runRound(projectId, options = {}) {
   const project = readProject(projectId)
   const selected = project.nextSelection.filter(id => project.subtasks.some(task => task.id === id))
@@ -282,9 +443,17 @@ export async function runRound(projectId, options = {}) {
   logEvent('project.round.start', { projectId, round: number, selection: selected })
 
   try {
+    if (typeof options.editor === 'function') {
+      await runAlignmentRound(project, round, options)
+      project.status = 'ready'
+      writeProject(project)
+      logEvent('project.round.done', { projectId, round: number, summary: round.summary, reportPath: round.reportPath, branch: round.branch, commits: round.commits })
+      return { project, round }
+    }
     const result = await runConfig({
       configPath: project.config,
       repoRoot: project.worktree ?? project.repo,
+      dependenciesRoot: project.dependenciesRoot ?? undefined,
       caseIds: selected,
       baselineMode: 'ephemeral',
       headless: options.headless !== false,
@@ -370,7 +539,7 @@ function buildRoundReport(project, round, result) {
   figcaption{color:#94a3b8;font-size:10px;margin-top:3px}
   </style></head><body><div class="page">
   <h1>Round ${round.number} 对齐报告</h1>
-  <div class="sub">${escapeHtml(project.name)} · base ${escapeHtml(project.baseCommit.slice(0, 7))} · ${escapeHtml(round.finishedAt ?? '')}</div>
+  <div class="sub">${escapeHtml(project.name)} · base ${escapeHtml(project.baseCommit.slice(0, 7))} · ${escapeHtml(round.finishedAt ?? '')}${round.branch === undefined ? '' : ' · ' + escapeHtml(round.branch)}</div>
   <div class="stats">
     <div><b>${summary.verified ?? 0}/${manifest.cases?.length ?? 0}</b><span>cases passed</span></div>
     <div><b>${summary.failed ?? 0}</b><span>failed</span></div>
@@ -449,6 +618,9 @@ export function projectSummary(project) {
     },
   }
 }
+
+
+
 
 
 
