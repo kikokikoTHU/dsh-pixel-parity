@@ -1,4 +1,4 @@
-﻿# Pixel parity
+# Pixel parity
 
 Design-faithful frontend implementation: render, measure, and iterate until the code
 matches the reference — instead of judging by eye.
@@ -101,9 +101,13 @@ parity_task({ action: "status" | "list" | "delete", repo, taskId })
 A task persists under the plugin installation directory at
 `<plugin>/data/tasks/<taskId>/task.json` (reports and assets live beside it), records
 `repo`, `config`, `cases`, `viewports`, `goal`, `dependenciesRoot`, and every iteration
-(`runDir`, pixels, delta, plan). It ends as `converged`, `paused`, or `blocked`. The PP
-panel lists tasks from that store without needing a repository path, with Step / Report /
-Download / Pause actions.
+(`runDir`, pixels, delta, plan). It ends as `converged`, `exhausted`, or `blocked`. The PP
+panel lists tasks from that store without needing a repository path, with Report /
+Download / Delete actions and a progress bar (`iter N/M`, default 4).
+
+Each completed iteration also writes `<task>/checkpoint.json`. On startup the plugin
+recovers tasks interrupted mid-measurement from that checkpoint and, unless the plugin row
+sets `autoResume: false`, resumes unfinished tasks to their iteration budget automatically.
 
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.

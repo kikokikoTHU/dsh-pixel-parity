@@ -57,6 +57,7 @@ export function createTask(input) {
       requireStyles: input.goal?.requireStyles !== false,
     },
     maxIterations: Number.isInteger(input.maxIterations) && input.maxIterations > 0 ? input.maxIterations : 4,
+    autoResume: input.autoResume !== false,
     status: 'draft',
     iteration: 0,
     createdAt: now,
@@ -68,6 +69,7 @@ export function createTask(input) {
     blockedReason: null,
   }
   saveTask(task)
+  writeCheckpoint(task)
   return task
 }
 
@@ -178,6 +180,7 @@ export async function stepTask(input) {
     task.blockedReason = task.iteration >= task.maxIterations ? `reached maxIterations (${task.maxIterations})` : null
   }
   saveTask(task)
+  writeCheckpoint(task)
   return { task, plan: task.plan, runDir: result.runDir }
 }
 
@@ -200,6 +203,75 @@ export function deleteTask(id) {
   const directory = join(tasksDirectory(), task.id)
   rmSync(directory, { recursive: true, force: true })
   return { id: task.id, repo: task.repo }
+}
+export function checkpointPath(id) {
+  return join(tasksDirectory(), id, 'checkpoint.json')
+}
+
+export function writeCheckpoint(task) {
+  const checkpoint = {
+    version: 1,
+    taskId: task.id,
+    iteration: task.iteration,
+    maxIterations: task.maxIterations,
+    status: task.status,
+    lastRunDir: task.currentRunDir,
+    reportPath: task.reportPath,
+    plan: task.plan,
+    updatedAt: new Date().toISOString(),
+  }
+  mkdirSync(join(tasksDirectory(), task.id), { recursive: true })
+  writeFileSync(checkpointPath(task.id), `${JSON.stringify(checkpoint, null, 2)}\n`)
+}
+
+/** Tasks that still have iterations left and are safe to resume. */
+export function resumableTasks() {
+  return listTasks().filter(task => {
+    if (task.autoResume === false) return false
+    if (task.iteration >= task.maxIterations) return false
+    return ['draft', 'needs-edit', 'measuring'].includes(task.status)
+  })
+}
+
+/** Restore tasks interrupted mid-measurement from their checkpoint. */
+export function recoverInterruptedTasks() {
+  for (const task of listTasks()) {
+    if (task.status !== 'measuring') continue
+    let checkpoint
+    try {
+      checkpoint = JSON.parse(readFileSync(checkpointPath(task.id), 'utf8'))
+    } catch {
+      checkpoint = null
+    }
+    task.status = 'needs-edit'
+    task.blockedReason = 'interrupted: DSH closed during measurement'
+    if (checkpoint !== null && Number.isInteger(checkpoint.iteration)) {
+      task.iteration = checkpoint.iteration
+      task.currentRunDir = checkpoint.lastRunDir ?? task.currentRunDir
+    }
+    saveTask(task)
+    writeCheckpoint(task)
+  }
+}
+
+/** Run all resumable tasks to their iteration budget. */
+export async function autoResumeTasks(options = {}) {
+  const intervalMs = options.intervalMs ?? 1000
+  for (const task of resumableTasks()) {
+    let current = task
+    while (current !== null && current.iteration < current.maxIterations && ['draft', 'needs-edit', 'measuring'].includes(current.status)) {
+      if (options.signal?.aborted === true) return
+      try {
+        const result = await stepTask({ id: current.id, dependenciesRoot: current.dependenciesRoot, headless: true })
+        current = result.task
+        writeCheckpoint(current)
+      } catch {
+        break
+      }
+      if (current.status === 'converged' || current.status === 'exhausted' || current.status === 'blocked') break
+      await new Promise(resolve => setTimeout(resolve, intervalMs))
+    }
+  }
 }
 /** Compact task view for tools and the panel. */
 export function taskSummary(task) {
@@ -230,6 +302,8 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+
+
 
 
 

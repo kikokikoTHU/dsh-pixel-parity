@@ -1,4 +1,4 @@
-﻿# Pixel parity workflow
+# Pixel parity workflow
 
 Make an implementation measurably match a reference. Two modes:
 
@@ -267,8 +267,10 @@ parity_task({ action: "report", repo, taskId }) // writes the task report
 ```
 
 A task records its metadata, iterations, and plan under the plugin data directory (`<plugin>/data/tasks/<id>/`), so the PP panel can list it without scanning a repository. Use
-`action: "status" | "list" | "pause" | "resume"` to manage it. Prefer this over ad-hoc
-`parity_run` when optimizing a page across rounds.
+`action: "status" | "list" | "delete"` to manage it; there is no pause/resume. Each completed
+iteration writes `checkpoint.json`, and on startup the plugin recovers interrupted tasks and
+auto-resumes unfinished ones. Prefer this over ad-hoc `parity_run` when optimizing a page
+across rounds.
 
 ### Autopilot: act without asking
 

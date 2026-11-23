@@ -17,7 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
-import { createTask, deleteTask, listTasks, readTask, reportTask, stepTask, taskSummary } from './core/task.mjs'
+import { autoResumeTasks, createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -1150,6 +1150,22 @@ export function apply(ctx, config) {
   }
 
   if (typeof ctx.inject === 'function') {
+    ctx.inject(['webServer'], (scoped) => {
+      scoped.effect(() => {
+        const timer = setTimeout(() => {
+          try {
+            recoverInterruptedTasks()
+          } catch {}
+          if (config?.autoResume !== false) {
+            autoResumeTasks({ intervalMs: 1000 }).catch(() => {})
+          }
+        }, 5000)
+        return () => clearTimeout(timer)
+      })
+    })
+  }
+
+  if (typeof ctx.inject === 'function') {
     // webServer is optional: the plugin still works in hosts without a web server.
     ctx.inject(['webServer'], registerPanelRoutes)
   } else if (typeof ctx.get === 'function') {
@@ -1624,6 +1640,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

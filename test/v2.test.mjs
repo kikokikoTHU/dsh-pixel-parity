@@ -1,4 +1,4 @@
-﻿/**
+/**
  * v2 core tests: config normalization, G/S comparisons, masking, and one
  * end-to-end run over the web fixtures.
  *
@@ -1603,6 +1603,8 @@ http.createServer((req, res) => {
     assert.equal(result.task.iteration, 1)
     assert.equal(result.task.status, 'converged')
     const reportPath = reportTask(task.id)
+    const checkpoint = JSON.parse(readFileSync(join(process.env.PIXEL_PARITY_TASK_DIR, task.id, 'checkpoint.json'), 'utf8'))
+    assert.equal(checkpoint.iteration, result.task.iteration)
     assert.ok(readFileSync(reportPath, 'utf8').includes('PixelParity task'))
     assert.equal(listTasks(repoRoot).length, 1)
     deleteTask(task.id)
@@ -1860,5 +1862,6 @@ http.createServer((req, res) => {
 console.log(results.join('\n'))
 console.log(`\n${results.filter(line => line.startsWith('ok')).length}/${results.length} passed`)
 process.exitCode = failed > 0 ? 1 : 0
+
 
 

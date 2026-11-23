@@ -1,4 +1,4 @@
-﻿# PixelParity v2 实现方案：任意前端仓库 ↔ 设计稿 / 参考实现 / 代码原型
+# PixelParity v2 实现方案：任意前端仓库 ↔ 设计稿 / 参考实现 / 代码原型
 
 > 定位：不是给某个 repo 写死的验收脚本，而是一个**通用对齐工具**。Web 前端先行；桌面程序 UI（Electron、Tauri、原生窗口）通过同一套适配器接口逐步接入。
 > 原则：核心与运行时解耦；能力不足时**降级并明说**，绝不假装验证过。
@@ -303,6 +303,7 @@ cases/<case>/<viewport>/
 | M48 ✅ | Task 元信息与产物集中存到插件目录 `data/tasks/<id>/`（repo/config/cases/viewports/goal/dependenciesRoot/迭代/报告），面板无需扫描仓库即可列出全部 Task；报告支持面板内下载 | 任务不依赖 repo 也能查看/恢复 |
 | M49 ✅ | Task 删除：工具 `action=delete`、面板 Delete（二次确认）、`/pixel-parity/task/delete`；删除 task.json、report.html、report-assets；报告改为内嵌查看器（iframe），不再调用系统浏览器 | 任务生命周期完整 |
 | M50 ✅ | Task 迭代模型调整：默认 4 轮、面板去掉 Step/Pause/Resume，进度条显示 iter N/M；停止 pause 能力；Delete 先 abort 正在跑的 run 再删除；迭代由模型按 autopilot 持续调用 step 完成 | 任务自助迭代，用户不再手动点 Step |
+| M51 ✅ | 迭代 checkpoint：每轮结束写 `checkpoint.json`；插件启动时恢复 `measuring` 中断状态并从 checkpoint 续跑，未完成 Task 自动跑完剩余轮数；`config.autoResume: false` 可关闭 | 重启后从断点恢复并自完成 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

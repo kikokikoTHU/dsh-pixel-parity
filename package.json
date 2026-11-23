@@ -1,6 +1,6 @@
 {
   "name": "dsh-pixel-parity",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "A DeepSeek Harness plugin that aligns a frontend implementation with a design, reference page, or prototype using measured geometry, styles, and pixel diffs.",
   "type": "module",
   "exports": {
@@ -52,9 +52,9 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
   }
 }
-
-
