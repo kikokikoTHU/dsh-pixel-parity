@@ -8,7 +8,7 @@
 - **分支**：每轮一个链式分支 `pp/<repo-slug>-<projectId4>/rNN`，Round 1 从 base commit 拉出，Round N 从上一成功轮的分支 HEAD 拉出。
 - **提交**：**按 subtask 提交**，一个 subtask 一个 commit；轮次结束打 tag `pp-rNN`。不额外做“整轮 commit”。
 - **Message**：Conventional 风格 + 机器可读 trailers（`PP-Round`、`PP-Subtask`、`PP-Base`、`PP-Before/After`）。
-- **LLM**：由插件**指挥 DSH Agent** 修改代码；插件负责测量、校验、commit，Agent 不允许自行 commit。
+- **LLM**：由插件**指挥 DSH Agent** 修改代码；**Agent 自行 commit（每个 subtask 一个），但禁止 push**；插件负责测量、校验提交、打 tag。
 - **多轮**：Round 2 在 Round 1 分支基础上继续，不重新从 base 切；失败轮次回滚，不推进链条。
 
 ---
@@ -64,9 +64,9 @@ pp/anubis-a1b2/r10
 1. 每个 subtask 开始前记录 `headBefore`；
 2. Agent 修改后，插件运行 `git diff`；
 3. 无改动 → 跳过，不产生空 commit；
-4. 改动有效 → 只 `git add` 该 subtask 范围内的文件并 commit；
-5. 轮次结束 → 在最终 HEAD 打 tag `pp-rNN`；
-6. 不生成额外的“round commit”。
+4. Agent 只 `git add` 该 subtask 范围内的文件，并按模板 **自行 commit**；
+5. 插件校验：HEAD 恰好前进 1 个 commit、message/trailers 合法、未 push；不合法 → 回滚并重试一次；
+6. 轮次结束 → 插件在最终 HEAD 打 tag `pp-rNN`；不生成额外的“round commit”。
 
 可配置：
 
@@ -150,8 +150,8 @@ PP-Subtasks: projects,shell
 
 | 角色 | 职责 |
 | --- | --- |
-| 插件（Host） | 创建/切换分支、测量、生成修复 brief、调用 Agent、校验 diff、commit、打 tag、写报告 |
-| DSH Agent（LLM） | 在项目 worktree 内读代码、改代码、必要时运行局部检查 |
+| 插件（Host） | 创建/切换分支、测量 Before/After、生成修复 brief、启动 Agent、校验提交与 push、打 tag、写报告 |
+| DSH Agent（LLM） | 在项目 worktree 内读代码、改代码、运行局部检查、**自行 git add + commit**，但禁止 push |
 | 用户 | 触发轮次、查看报告、审查分支/PR |
 
 ### 每轮流程
@@ -164,19 +164,32 @@ Run next round
        1. 测量当前实现（Before）
        2. 由 findings/plan 生成修复 brief
        3. 启动 Agent（cwd = project worktree）
-          约束：只改实现代码；禁止改设计源/配置/依赖；禁止 commit
-       4. Agent 完成后检查 git diff
+          约束：只改实现代码；禁止改设计源/配置/依赖；禁止 push
+          Agent 自行 git add + commit（每 subtask 一个）
+       4. 插件校验 Agent 的提交：
+          - HEAD 恰好前进 1 个 commit
+          - commit message / PP-* trailers 合法
+          - 工作区干净
+          - 没有 push、没有远程 ref 变化
        5. 重新测量（After）
-       6. 通过或指标改善 → git add 范围内文件 + commit
+       6. 通过或指标改善 → 保留 commit
           否则 → git reset --hard <headBefore>，记录失败
-  → 打 tag pp-rNN
+  → 插件打 tag pp-rNN
   → 生成本轮报告（分支、commits、Before/After）
 ```
 
-- Agent 通过 `ctx.agents` / subagent 机制启动，不由插件直接调用 `llm.stream` 写代码；
-- Agent 必须使用文件编辑工具，插件只接受落盘后的 diff；
+- Agent 通过 `ctx.agents` / subagent 机制启动；插件不直接写代码；
+- Agent 必须使用文件编辑工具；插件只接受落盘后的 diff 和 commit；
 - 插件在 Agent 前后各测量一次，报告明确 Before/After；
-- 是否“必须改善才提交”可配置，默认 `requireImprovement: true`。
+- 默认 `requireImprovement: true`：没有改善的 commit 会被丢弃。
+
+### 禁止 push 的强制手段
+
+仅靠 prompt 不够，采用三层：
+
+1. **工具限制**：Agent 会话只开放文件编辑与 `git add/commit/status/diff`，不提供 `git push`、`git remote`、网络工具；
+2. **pre-push hook**：在项目 worktree 配置 per-worktree `core.hooksPath`，安装拒绝所有 push 的 pre-push 脚本；
+3. **审计**：插件在轮次前后对比 `git for-each-ref refs/remotes`、`git reflog`，发现任何远端推送立即失败并告警。
 
 ### 安全边界
 
@@ -185,8 +198,6 @@ Run next round
 - Agent 超时（默认 10 分钟）后中止并回滚；
 - 每次 Agent 运行有 token/轮次预算；
 - 不把 secrets 写入 prompt 或 commit。
-
----
 
 ## 5. 多次 round 如何管理
 
@@ -203,11 +214,11 @@ base 4363d81
 规则：
 
 1. 每轮新分支的起点 = **上一成功轮的分支 HEAD**；
-2. 失败轮次：`git reset --hard` 回滚未提交改动；分支可删除或保留为 `-failed`；
+2. 失败轮次：`git reset --hard` 回滚，分支不推进；该轮分支与 tag 在清理 Round 时删除；
 3. 不在失败分支上继续下一轮，避免把无效改动带入；
 4. 保留 tag `pp-rNN` 对应成功轮次；
 5. 项目页显示分支链与每轮 commit 数；
-6. 项目删除时：默认保留分支供 review，可选 `deleteBranches` 删除。
+6. 项目删除时：默认同时删除该项目下所有 Round 分支与 tag（可通过 `keepBranches` 关闭）。
 
 ### 为什么不每轮从 base 切
 
@@ -220,6 +231,32 @@ base 4363d81
 - 用户明确要求“从干净基线重做”；
 - base commit 变更（必须新建项目）；
 - 对比实验（保留旧链，另建 `.../rNN-exp`）。
+
+## 清理 Round 与分支
+
+清理历史 Round 必须同步删除该轮对应的 Git 引用：
+
+| 操作 | 删除内容 |
+| --- | --- |
+| 删除失败/中断 Round | round 目录、`pp/.../rNN` 分支、`pp-rNN` tag |
+| 删除全部 Round | 所有 round 目录、该项目所有 `pp/.../rNN` 分支、所有 `pp-rNN` tag |
+| 删除项目 | 项目目录、worktree、所有 Round 分支与 tag |
+
+实现约束：
+
+1. 清理前先确认该分支不在当前 worktree 上；如果在，先 `git switch --detach <上一成功轮 SHA 或 base>`；
+2. 只删除**记录在 project.rounds 且匹配项目前缀**的分支，禁止按通配符误删用户分支；
+3. 用 `git branch -D`（允许删除未合并分支）、`git tag -d`；
+4. 删除结果写入日志与项目摘要：`{ branches: [], tags: [] }`；
+5. 若分支已被用户手工删除，清理应继续并视为成功；
+6. Round 正在运行时禁止清理。
+
+```bash
+# 清理第 N 轮前
+git switch --detach <previous-success-sha>
+git branch -D pp/<slug>-<id4>/r<NN>
+git tag -d pp-r<NN>
+```
 
 ---
 
