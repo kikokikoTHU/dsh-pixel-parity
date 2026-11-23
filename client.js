@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -63,6 +63,8 @@ window.__ModuleLoader__.load({
       projectRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid #f4f7fb' },
       viewerHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: border, fontSize: 12 },      repoSection: { marginTop: 10, paddingTop: 8, borderTop: border },
       repoHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, paddingBottom: 4, overflow: 'hidden' },
+      logBox: { marginTop: 10, padding: '8px 10px', border: '1px solid #e5eaf1', borderRadius: 8, background: '#fbfcfe' },
+      logRow: { display: 'flex', gap: 6, fontSize: 9.5, color: '#475569', padding: '2px 0', fontFamily: '"Cascadia Code", Consolas, monospace' },
       taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
       taskRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
       taskBtn: { border, background: 'transparent', borderRadius: 6, padding: '2px 8px', fontSize: 10, cursor: 'pointer', ...text },
@@ -108,7 +110,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, viewer: null, pendingDelete: null, logs: [], projects: null, projectsOpen: false, project: null, projectStep: 1, projectDraft: { repo: '', baseCommit: 'HEAD', config: 'parity.config.mjs', name: '' }, sourceDraft: '', projectBusy: false, creating: false, roundViewer: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -403,6 +405,17 @@ window.__ModuleLoader__.load({
       }
     }
 
+
+    async function loadLogs() {
+      try {
+        const response = await fetch('/pixel-parity/logs?limit=30')
+        const body = await response.json().catch(() => ({}))
+        if (response.ok) {
+          state.logs = body.entries ?? []
+          notify()
+        }
+      } catch {}
+    }
 
     async function loadProjects() {
       try {
@@ -977,7 +990,8 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         if (!state.open) return undefined
         loadTasks()
-        const timer = setInterval(() => { loadTasks() }, 4000)
+        loadLogs()
+        const timer = setInterval(() => { loadTasks(); loadLogs() }, 4000)
         return () => clearInterval(timer)
       }, [store.open])
       useEffect(() => {
@@ -1029,9 +1043,45 @@ window.__ModuleLoader__.load({
                 h('span', { style: { flex: 1 } }),
                 h('button', { style: styles.taskBtn, onClick: () => runRepo(repo) }, 'Run all'),
               ),
-              tasks.map(task => {              }),
+              tasks.map(task => {
+                const pixels = task.latest?.pixels ?? []
+                const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
+                const ready = task.status === 'converged' || task.status === 'failed'
+                return h('div', { key: task.id, style: styles.taskCard },
+                  h('div', { style: styles.taskRow },
+                    h('strong', null, task.id),
+                    h('span', { style: styles.pill }, task.status),
+                    h('span', { style: { ...muted, marginLeft: 'auto' } }, 'single run'),
+                  ),
+                  h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
+                    average === null ? '尚无 run' : `${(average * 100).toFixed(2)}% pixels`,
+                  ),
+                  h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
+                    h('button', { style: { ...styles.taskBtn, opacity: ready ? 1 : 0.5 }, disabled: !ready, onClick: () => { if (ready) showReport(task) } }, 'Report'),
+                    task.reportPath === undefined ? null : h('a', { style: { ...styles.taskBtn, textDecoration: 'none' }, href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`, target: '_blank' }, 'Download'),
+                    h('button', { style: { ...styles.taskBtn, color: '#c0392b' }, onClick: () => deleteTaskAction(task) }, state.pendingDelete === task.id ? 'Confirm' : 'Delete'),
+                  ),
+                )
+              }),
             ))
           })(),
+          taskCount === 0 ? h('div', { style: { ...styles.taskCard, textAlign: 'center', padding: 18 } },
+            h('div', { style: { fontSize: 12, fontWeight: 600 } }, '还没有对齐任务'),
+            h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, '用 Projects 创建项目，或让模型在对话里直接建。'),
+            h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
+          ) : null,
+          h('div', { style: styles.logBox },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 4 } },
+              h('strong', { style: { fontSize: 11 } }, 'Plugin log'),
+              h('span', { style: { ...muted, fontSize: 10 } }, `${(store.logs ?? []).length} entries`),
+              h('span', { style: { flex: 1 } }),
+              h('button', { style: styles.iconButton, onClick: loadLogs }, '↻'),
+            ),
+            (store.logs ?? []).slice(-8).reverse().map((entry, index) => h('div', { key: index, style: styles.logRow },
+              h('span', { style: { color: entry.level === 'error' ? '#b91c1c' : '#64748b' } }, entry.at?.slice(11, 19) ?? ''),
+              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: JSON.stringify(entry.data) }, entry.event),
+            )),
+          ),
           store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },

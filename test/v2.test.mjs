@@ -240,6 +240,7 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/artifact',
     '/pixel-parity/diagnose',
     '/pixel-parity/job',
+    '/pixel-parity/logs',
     '/pixel-parity/overview',
     '/pixel-parity/project/analyze',
     '/pixel-parity/project/asset',

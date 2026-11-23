@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -9,6 +9,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
 import { runConfig } from './runner.mjs'
+import { logEvent } from './log.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -85,6 +86,7 @@ export async function createProject(input) {
   }
   project.worktree = createWorktree(project)
   writeProject(project)
+  logEvent('project.create', { id: project.id, repo: project.repo, baseCommit: project.baseCommit, worktree: project.worktree })
   return project
 }
 
@@ -175,6 +177,7 @@ export async function analyzeProject(project, options = {}) {
     project.matches.push(match)
     usedCases.add(match.caseId)
     source.status = match.status
+    logEvent('project.match', { projectId: project.id, sourceId: source.id, location: source.location, caseId: match.caseId, confidence: match.confidence, status: match.status, rationale: match.rationale })
   }
   project.subtasks = []
   const subtaskCases = new Set()
@@ -218,6 +221,7 @@ export async function addSource(projectId, input, options = {}) {
   }
   project.sources.push(source)
   project.status = 'analyzing'
+  logEvent('project.source.add', { projectId: project.id, sourceId: source.id, kind, location })
   writeProject(project)
   try {
     await analyzeProject(project, options)
@@ -228,6 +232,7 @@ export async function addSource(projectId, input, options = {}) {
       target.status = 'failed'
       target.error = String(error?.message ?? error)
       writeProject(current)
+      logEvent('project.source.failed', { projectId, sourceId: source.id, error: String(error?.message ?? error) }, 'error')
     }
     throw error
   }
@@ -237,6 +242,7 @@ export async function addSource(projectId, input, options = {}) {
 export async function removeSource(projectId, sourceId, options = {}) {
   const project = readProject(projectId)
   project.sources = project.sources.filter(source => source.id !== sourceId)
+  logEvent('project.source.remove', { projectId, sourceId })
   project.matches = project.matches.filter(match => match.sourceId !== sourceId)
   project.subtasks = project.subtasks.filter(task => task.sourceId !== sourceId)
   project.nextSelection = project.nextSelection.filter(id => project.subtasks.some(task => task.id === id))
@@ -273,6 +279,7 @@ export async function runRound(projectId, options = {}) {
   project.rounds.push(round)
   project.status = 'running'
   writeProject(project)
+  logEvent('project.round.start', { projectId, round: number, selection: selected })
 
   try {
     const result = await runConfig({
@@ -289,6 +296,7 @@ export async function runRound(projectId, options = {}) {
     round.reportPath = buildRoundReport(project, round, result)
     project.status = 'ready'
     writeProject(project)
+    logEvent('project.round.done', { projectId, round: number, summary: round.summary, reportPath: round.reportPath })
     return { project, round }
   } catch (error) {
     round.status = 'failed'
@@ -296,6 +304,7 @@ export async function runRound(projectId, options = {}) {
     round.finishedAt = new Date().toISOString()
     project.status = 'ready'
     writeProject(project)
+    logEvent('project.round.failed', { projectId, round: number, error: String(error?.message ?? error) }, 'error')
     throw error
   }
 }
@@ -405,6 +414,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 

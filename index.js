@@ -19,6 +19,7 @@ import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
 import { addSource, analyzeProject, createProject, deleteProject, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runRound, setSelection } from './core/project.mjs'
+import { logEvent, readLogs } from './core/log.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -935,6 +936,7 @@ export function apply(ctx, config) {
     try {
       const parsed = JSON.parse(text.slice(start, end + 1))
       if (typeof parsed.caseId !== 'string') return null
+      logEvent('project.llm.match', { source: source.location, caseId: parsed.caseId, confidence: Number(parsed.confidence) })
       return { caseId: parsed.caseId, confidence: Number(parsed.confidence), rationale: String(parsed.rationale ?? '') }
     } catch {
       return null
@@ -1181,6 +1183,14 @@ export function apply(ctx, config) {
           kind: 'exact',
           path: '/pixel-parity/projects',
           resource: async () => asJson({ projects: listProjects().map(projectSummary) }),
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/logs',
+          resource: async (request) => {
+            const limit = Number(new URL(request.url).searchParams.get('limit') ?? 60)
+            return asJson({ entries: readLogs(Number.isFinite(limit) ? Math.max(1, Math.min(300, limit)) : 60) })
+          },
         }),
         server.register({
           kind: 'exact',
@@ -1951,6 +1961,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
