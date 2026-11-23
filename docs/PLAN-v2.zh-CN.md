@@ -301,6 +301,7 @@ cases/<case>/<viewport>/
 | M46 ✅ | 自动驾驶协议：新增 `parity_align`（把诊断转成可执行 plan：几何→样式→结构→mock→像素），技能规定失败后自动执行、自行补 fixtures/mock，仅在缺凭证/资产/产品决策时询问 | LLM 主动对齐，不等用户指令 |
 | M47 ✅ | 持久化 Task：`parity_task`（create/step/status/list/pause/resume/report），记录迭代、delta、plan、报告；面板新增 Task 卡；报告生成器输出 HTML | 检查→对齐→报告 收成一个可恢复任务 |
 | M48 ✅ | Task 元信息与产物集中存到插件目录 `data/tasks/<id>/`（repo/config/cases/viewports/goal/dependenciesRoot/迭代/报告），面板无需扫描仓库即可列出全部 Task；报告支持面板内下载 | 任务不依赖 repo 也能查看/恢复 |
+| M49 ✅ | Task 删除：工具 `action=delete`、面板 Delete（二次确认）、`/pixel-parity/task/delete`；删除 task.json、report.html、report-assets；报告改为内嵌查看器（iframe），不再调用系统浏览器 | 任务生命周期完整 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 
@@ -339,4 +340,5 @@ anubis 不进入插件代码，只作为“真实仓库验证”的一个样本�
 - 给关键容器加 `data-parity` 属性（纯增量，不改样式）。
 
 接入步骤与配置示例见 `docs/EXAMPLES.md`（落地时补充）。
+
 

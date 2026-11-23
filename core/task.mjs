@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Persisted alignment task. Task metadata and reports live under the plugin's
  * own `data/tasks/` directory, so they survive sessions and do not depend on a
  * repository being scanned. `repo` stays in the metadata for the actual runs.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runConfig } from './runner.mjs'
@@ -212,6 +212,13 @@ export function reportTask(id) {
   return path
 }
 
+/** Delete a task directory, including its report and report assets. */
+export function deleteTask(id) {
+  const task = readTask(id)
+  const directory = join(tasksDirectory(), task.id)
+  rmSync(directory, { recursive: true, force: true })
+  return { id: task.id, repo: task.repo }
+}
 /** Compact task view for tools and the panel. */
 export function taskSummary(task) {
   const latest = task.runs.at(-1)
@@ -241,4 +248,5 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+
 

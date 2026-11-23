@@ -17,7 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
-import { createTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary } from './core/task.mjs'
+import { createTask, deleteTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -775,7 +775,7 @@ const TASK_PARAMETERS = {
   properties: {
     action: {
       type: 'string',
-      enum: ['create', 'step', 'status', 'list', 'pause', 'resume', 'report'],
+      enum: ['create', 'step', 'status', 'list', 'pause', 'resume', 'report', 'delete'],
       description: 'create: start a task; step: run one measurement iteration; status; list; pause; resume; report.',
     },
     repo: { type: 'string', description: 'Absolute path to the repository root.' },
@@ -829,6 +829,8 @@ const TASK_OUTPUT_SCHEMA = {
     tasks: { type: 'array', items: TASK_VIEW_SCHEMA },
     plan: { type: 'object', additionalProperties: true },
     reportPath: { type: 'string' },
+    deleted: { type: 'boolean' },
+    taskId: { type: 'string' },
   },
 }
 
@@ -1123,6 +1125,19 @@ export function apply(ctx, config) {
               const body = await readJson(request)
               const task = body.resume === true ? resumeTask(String(body.taskId ?? '')) : pauseTask(String(body.taskId ?? ''))
               respondJson(response, 200, { task: taskSummary(task) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/task/delete',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const removed = deleteTask(String(body.taskId ?? ''))
+              respondJson(response, 200, { deleted: true, taskId: removed.id })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
             }
@@ -1433,6 +1448,10 @@ export function apply(ctx, config) {
         const reportPath = reportTask(taskId)
         return { action, task: clean(taskSummary(readTask(taskId))), reportPath }
       }
+      if (action === 'delete') {
+        const removed = deleteTask(taskId)
+        return { action, deleted: true, taskId: removed.id }
+      }
       if (action === 'step') {
         const result = await stepTask({
           id: taskId,
@@ -1612,6 +1631,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

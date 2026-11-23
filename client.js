@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -100,7 +100,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false, viewer: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false, viewer: null, pendingDelete: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -296,6 +296,31 @@ window.__ModuleLoader__.load({
       }
     }
 
+    async function deleteTaskAction(task) {
+      if (state.pendingDelete !== task.id) {
+        state.pendingDelete = task.id
+        state.message = zh ? `再次点击 Delete 确认删除 ${task.id}` : `Click Delete again to confirm removing ${task.id}`
+        notify()
+        return
+      }
+      state.pendingDelete = null
+      try {
+        const response = await fetch('/pixel-parity/task/delete', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ taskId: task.id }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        if (state.viewer === task.id) state.viewer = null
+        state.message = zh ? `已删除 ${task.id}` : `Deleted ${task.id}`
+        notify()
+        loadTasks()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
     async function diagnoseLatest() {
       const latest = latestRun(state.data)
       if (latest === undefined) return
@@ -561,6 +586,10 @@ window.__ModuleLoader__.load({
                       download: `${task.id}-report.html`,
                     }, 'Download'),
                 task.status === 'paused' ? null : h('button', { style: styles.taskBtn, onClick: () => taskAction('pause', task) }, 'Pause'),
+                h('button', {
+                  style: { ...styles.taskBtn, color: '#c0392b', borderColor: '#e3b4ae' },
+                  onClick: () => deleteTaskAction(task),
+                }, state.pendingDelete === task.id ? 'Confirm' : 'Delete'),
               ),
             )
           }),
@@ -617,6 +646,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 

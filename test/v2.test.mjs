@@ -241,6 +241,7 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/job',
     '/pixel-parity/overview',
     '/pixel-parity/run',
+    '/pixel-parity/task/delete',
     '/pixel-parity/task/job',
     '/pixel-parity/task/pause',
     '/pixel-parity/task/report',
@@ -1587,7 +1588,7 @@ http.createServer((req, res) => {
 
   await test('task creates, steps, and writes a report', async () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'parity-task-'))
-    const { createTask, stepTask, reportTask, listTasks } = await import('../core/task.mjs')
+    const { createTask, stepTask, reportTask, listTasks, deleteTask } = await import('../core/task.mjs')
     const task = createTask({ repo: repoRoot, config: fixtureConfig, cases: ['exact'] })
     assert.equal(task.status, 'draft')
     const result = await stepTask({ id: task.id, dependenciesRoot: repo })
@@ -1596,6 +1597,8 @@ http.createServer((req, res) => {
     const reportPath = reportTask(task.id)
     assert.ok(readFileSync(reportPath, 'utf8').includes('PixelParity task'))
     assert.equal(listTasks(repoRoot).length, 1)
+    deleteTask(task.id)
+    assert.equal(listTasks(repoRoot).length, 0)
   })
 
   await test('init detects the real repo workspace app and routes', () => {
