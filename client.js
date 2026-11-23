@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -249,7 +249,7 @@ window.__ModuleLoader__.load({
         const response = await fetch(`/pixel-parity/task/${action}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ repo: task.repo, taskId: task.id }),
+          body: JSON.stringify({ repo: task.repo, taskId: task.id, ...(action === 'resume' ? { resume: true } : {}) }),
         })
         const body = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
@@ -507,6 +507,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 

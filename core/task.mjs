@@ -160,16 +160,18 @@ export async function stepTask(input) {
   }))
   task.iteration = iteration
   task.currentRunDir = result.runDir
+  const summary = manifest.summary ?? {}
+  const runStatus = (summary.failed ?? 0) > 0 ? 'failed' : (summary.incomplete ?? 0) > 0 ? 'incomplete' : 'verified'
   task.runs.push({
     iteration,
     runDir: result.runDir,
-    status: manifest.summary?.failed === 0 && manifest.summary?.incomplete === 0 ? 'verified' : 'failed',
+    status: runStatus,
     summary: manifest.summary ?? null,
     delta: manifest.delta ?? null,
     cases,
   })
 
-  const passed = manifest.summary?.failed === 0 && manifest.summary?.incomplete === 0
+  const passed = (summary.failed ?? 0) === 0 && (summary.incomplete ?? 0) === 0
   if (passed) {
     task.status = 'converged'
     task.plan = null
@@ -179,6 +181,10 @@ export async function stepTask(input) {
     const plan = buildAlignmentPlan(diagnosis, manifest)
     task.status = 'needs-edit'
     task.plan = plan
+    if (task.iteration >= task.maxIterations) {
+      task.status = 'paused'
+      task.blockedReason = `reached maxIterations (${task.maxIterations})`
+    }
   }
   saveTask(task)
   return { task, plan: task.plan, runDir: result.runDir }
