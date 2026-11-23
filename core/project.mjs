@@ -370,7 +370,7 @@ async function runAlignmentRound(project, round, options) {
       headless: options.headless !== false,
       outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-before`),
     })
-    const entry = { subtaskId, caseId: subtask.caseId, before: averagePixels(before.manifest), status: 'edited', sha: null, error: null }
+    const entry = { subtaskId, caseId: subtask.caseId, before: averagePixels(before.manifest), beforeRunDir: before.runDir, status: 'edited', sha: null, error: null }
     try {
       await options.editor({
         cwd: worktree,
@@ -394,6 +394,7 @@ async function runAlignmentRound(project, round, options) {
       entry.sha = commit.sha.slice(0, 12)
       entry.message = commit.message.split('\n')[0]
       entry.runDir = after.runDir
+      entry.afterRunDir = after.runDir
       const passed = (after.manifest.summary?.failed ?? 1) === 0
       const improved = beforePixels(entry) === null || afterPixels === null || entry.after <= entry.before + 0.0005
       if (!passed && !improved) {
@@ -478,10 +479,103 @@ export async function runRound(projectId, options = {}) {
   }
 }
 
+function loadRunCase(runDir, caseId) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(runDir, 'manifest.json'), 'utf8'))
+    return manifest.cases?.find(entry => entry.id === caseId) ?? null
+  } catch {
+    return null
+  }
+}
+
+function copyViewportShots(runDir, caseId, viewportId, prefix, assets) {
+  const files = {}
+  const sourceDir = join(runDir, 'cases', caseId, viewportId)
+  for (const name of ['reference.png', 'implementation.png', 'diff.png']) {
+    const source = join(sourceDir, name)
+    if (existsSync(source)) {
+      const target = `${prefix}-${caseId}-${viewportId}-${name}`
+      copyFileSync(source, join(assets, target))
+      files[name.replace('.png', '')] = target
+    }
+  }
+  return files
+}
+
+function comparisonSide(project, round, runDir, caseId, label, entry) {
+  if (typeof runDir !== 'string') return ''
+  const caseEntry = loadRunCase(runDir, caseId)
+  if (caseEntry === null) return ''
+  return caseEntry.viewports.map(viewport => {
+    const prefix = label === 'Before' ? 'before' : 'after'
+    const files = copyViewportShots(runDir, caseId, viewport.viewportId, `${prefix}-${entry.subtaskId}`, join(projectsDirectory(), project.id, 'rounds', round.id, 'assets'))
+    const pixels = viewport.pixels?.metrics?.mismatchRatio
+    const geometry = viewport.geometry?.available === true ? (viewport.geometry.pass === true ? 'pass' : 'fail') : 'unavailable'
+    const styles = viewport.styles?.available === true ? (viewport.styles.pass === true ? 'pass' : 'fail') : 'unavailable'
+    return `<div class="vp">
+      <div class="kv">${escapeHtml(label)} · ${escapeHtml(viewport.viewportId)} · pixels ${typeof pixels === 'number' ? `${(pixels * 100).toFixed(2)}%` : '—'} · geometry ${geometry} · styles ${styles}</div>
+      <div class="shots">
+        ${files.reference ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.reference)}"><figcaption>reference</figcaption></figure>` : ''}
+        ${files.implementation ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.implementation)}"><figcaption>implementation</figcaption></figure>` : ''}
+        ${files.diff ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.diff)}"><figcaption>diff</figcaption></figure>` : ''}
+      </div>
+    </div>`
+  }).join('')
+}
+
+function buildComparisonReport(project, round, directory, assets) {
+  const sections = round.subtasks.map(entry => {
+    const beforeDir = entry.beforeRunDir ?? join(projectsDirectory(), project.id, 'runs', `${round.id}-${entry.subtaskId}-before`)
+    const afterDir = entry.afterRunDir ?? entry.runDir
+    const before = comparisonSide(project, round, beforeDir, entry.caseId, 'Before', entry)
+    const after = comparisonSide(project, round, afterDir, entry.caseId, 'After', entry)
+    const beforePixels = typeof entry.before === 'number' ? `${(entry.before * 100).toFixed(2)}%` : '—'
+    const afterPixels = typeof entry.after === 'number' ? `${(entry.after * 100).toFixed(2)}%` : '—'
+    return `<section class="case">
+      <div class="case-h"><strong>${escapeHtml(entry.subtaskId)}</strong><span class="pill ${entry.status === 'committed' ? 'ok' : 'bad'}">${escapeHtml(entry.status)}</span><span class="mut">${escapeHtml(beforePixels)} → ${escapeHtml(afterPixels)}</span></div>
+      <div class="compare">
+        <div class="side"><h3>Before</h3>${before || '<div class="mut">no before capture</div>'}</div>
+        <div class="side"><h3>After</h3>${after || '<div class="mut">no after capture</div>'}</div>
+      </div>
+      <div class="kv">${entry.sha == null ? '' : `commit ${escapeHtml(entry.sha)}`}${entry.error == null ? '' : ` · ${escapeHtml(entry.error)}`}</div>
+    </section>`
+  }).join('')
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Round ${round.number} report</title>
+  <style>
+  body{margin:0;background:#f7f8fa;color:#0f172a;font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif;font-size:13px}
+  .page{max-width:1200px;margin:0 auto;padding:28px}
+  h1{font-size:18px;margin:0}
+  h3{font-size:12px;margin:0 0 6px;color:#334155}
+  .sub{color:#64748b;font-size:12px;margin-top:4px}
+  .mut{color:#94a3b8;font-size:11px}
+  .case{background:#fff;border:1px solid #e5eaf1;border-radius:9px;padding:14px;margin-bottom:12px}
+  .case-h{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .pill{border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600}
+  .ok{background:#e8f8ef;color:#15803d}.bad{background:#fdecec;color:#b91c1c}
+  .compare{display:flex;gap:14px}
+  .side{flex:1;min-width:0}
+  .kv{color:#64748b;font-size:11px;margin-top:6px}
+  .shots{display:flex;gap:8px;flex-wrap:wrap}
+  figure{margin:0;width:31%;min-width:150px}
+  img{width:100%;border:1px solid #e2e8f0;border-radius:6px;display:block}
+  figcaption{color:#94a3b8;font-size:10px;margin-top:3px}
+  </style></head><body><div class="page">
+  <h1>Round ${round.number} 对齐报告</h1>
+  <div class="sub">${escapeHtml(project.name)} · base ${escapeHtml(project.baseCommit.slice(0, 7))}${round.branch === undefined ? '' : ' · ' + escapeHtml(round.branch)} · ${(round.commits ?? []).length} commits</div>
+  ${sections}
+  </div></body></html>`
+  const path = join(directory, 'report.html')
+  writeFileSync(path, html)
+  return path
+}
+
 function buildRoundReport(project, round, result) {
   const directory = join(projectsDirectory(), project.id, 'rounds', round.id)
   const assets = join(directory, 'assets')
   mkdirSync(assets, { recursive: true })
+  if (Array.isArray(round.subtasks) && round.subtasks.length > 0) {
+    return buildComparisonReport(project, round, directory, assets)
+  }
   const manifest = result.manifest
   const summary = manifest.summary ?? {}
   const cases = (manifest.cases ?? []).map(entry => {
@@ -551,6 +645,24 @@ function buildRoundReport(project, round, result) {
   return path
 }
 
+export function regenerateRoundReport(projectId, roundNumber) {
+  const project = readProject(projectId)
+  const round = project.rounds.find(item => item.number === Number(roundNumber))
+  if (round === undefined) throw new Error(`round not found: ${roundNumber}`)
+  const directory = join(projectsDirectory(), project.id, 'rounds', round.id)
+  mkdirSync(join(directory, 'assets'), { recursive: true })
+  if (Array.isArray(round.subtasks) && round.subtasks.length > 0) {
+    round.reportPath = buildComparisonReport(project, round, directory, join(directory, 'assets'))
+  } else if (typeof round.runDir === 'string') {
+    const manifest = JSON.parse(readFileSync(join(round.runDir, 'manifest.json'), 'utf8'))
+    round.reportPath = buildRoundReport(project, round, { runDir: round.runDir, manifest })
+  } else {
+    throw new Error('round has no capture data to report')
+  }
+  writeProject(project)
+  return round.reportPath
+}
+
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 }
@@ -618,6 +730,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
