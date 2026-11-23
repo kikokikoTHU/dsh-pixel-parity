@@ -16,6 +16,7 @@ import { approveRun } from './core/baselines.mjs'
 import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
+import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -726,6 +727,44 @@ const LOGIN_OUTPUT_SCHEMA = {
   },
 }
 
+const ALIGN_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['repo'],
+  properties: {
+    repo: { type: 'string', description: 'Absolute path to the repository root.' },
+    runDir: { type: 'string', description: 'Run directory to plan from. Default: the newest run.' },
+  },
+}
+
+const ALIGN_STEP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'priority', 'case', 'viewport', 'target', 'action', 'verify'],
+  properties: {
+    kind: { type: 'string' },
+    priority: { type: 'integer' },
+    case: { type: 'string' },
+    viewport: { type: 'string' },
+    target: { type: 'string' },
+    action: { type: 'string' },
+    verify: { type: 'string' },
+  },
+}
+
+const ALIGN_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['runDir', 'iteration', 'autonomy', 'stopWhen', 'steps'],
+  properties: {
+    runDir: { type: 'string' },
+    iteration: { type: 'integer' },
+    autonomy: { type: 'string' },
+    stopWhen: { type: 'string' },
+    steps: { type: 'array', items: ALIGN_STEP_SCHEMA },
+  },
+}
+
 const BASELINE_OPTIONS = {
   pin: '对齐在线原型并固化基线',
   ephemeral: '仅本次比对，不保存基线',
@@ -1136,6 +1175,37 @@ export function apply(ctx, config) {
       if (diagnosis.parentRun === null) delete diagnosis.parentRun
       if (diagnosis.delta === null) delete diagnosis.delta
       return diagnosis
+    },
+  }))
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'parity_align',
+    description: 'AUTOPILOT entry point. After a failed parity_run, call this to get an executable alignment plan (geometry → styles → structure → mock data → pixels). The agent must execute the steps immediately in the target repository, create fixtures/mock data itself when data is missing, and re-run parity_run; do not ask the user for permission, structure work, or mock data. Stop only for missing credentials, unavailable assets, or a product decision.',
+    parameters: ALIGN_PARAMETERS,
+    output: {
+      schema: ALIGN_OUTPUT_SCHEMA,
+      render(_args, value) {
+        const lines = [`Alignment plan ${value.runDir} (iteration ${value.iteration})`]
+        lines.push(`AUTOPILOT: ${value.autonomy}`)
+        for (const [index, step] of value.steps.entries()) {
+          lines.push(`${index + 1}. [${step.kind}] ${step.case} @ ${step.viewport} — ${step.target}`)
+          lines.push(`   action: ${step.action}`)
+          lines.push(`   verify: ${step.verify}`)
+        }
+        lines.push(`stop: ${value.stopWhen}`)
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args) {
+      const repo = text(args.repo, 'repo')
+      const runDir = resolveRunDir(repo, args.runDir === undefined ? undefined : text(args.runDir, 'runDir'))
+      const manifest = readManifest(runDir)
+      const diagnosis = diagnoseRun(runDir)
+      return {
+        runDir,
+        iteration: diagnosis.iteration ?? 1,
+        ...buildAlignmentPlan(diagnosis, manifest),
+      }
     },
   }))
 

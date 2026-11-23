@@ -298,6 +298,7 @@ cases/<case>/<viewport>/
 | M43 ✅ | 面板升级：标题栏 PP 按钮 + 右侧抽屉、打开时 4s 自动刷新、仓库路径选择（localStorage + Host 校验）、▶ 重跑最近参数、✓ 批准最新基线、中英文案 | 面板可操作，减少回聊天/CLI |
 | M44 ✅ | iframe IR 采集（一层，坐标换算到页面坐标，绝对渲染正确）、面板诊断按钮、QML 2D 斜切/缩放矩阵映射（`Matrix4x4`）；语义渲染对 iframe 用 div 近似 | 剩余导出/面板项收尾 |
 | M45 ✅ | `parity_login` + `cli login`：有头浏览器登录后按 URL/选择器条件保存 storageState；`settle`（networkIdle / selector / 字体 / 图片解码 / 延迟）与 CDP 跨域 `@font-face` 采集 | 登录态可生成，采集更稳 |
+| M46 ✅ | 自动驾驶协议：新增 `parity_align`（把诊断转成可执行 plan：几何→样式→结构→mock→像素），技能规定失败后自动执行、自行补 fixtures/mock，仅在缺凭证/资产/产品决策时询问 | LLM 主动对齐，不等用户指令 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 

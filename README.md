@@ -78,6 +78,15 @@ run), so "did this change help?" is measured rather than claimed. `parity_diagno
 the next fix: geometry deltas first, then style diffs, then the largest pixel regions with
 the IR nodes that overlap them. See [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
+### Autopilot
+
+`parity_align` is the autopilot entry point: it turns a failed run into an executable plan
+(geometry → styles → structure → mock data → pixels) and instructs the agent to execute it
+immediately in the target repository — including creating fixtures or local mock data when
+the data area is empty. The loop stops only for missing credentials, unavailable assets, or
+a genuine product decision. The skill carries the same protocol, so the user does not have
+to ask for structure work or mock data.
+
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.
 

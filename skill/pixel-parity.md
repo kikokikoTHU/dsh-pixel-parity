@@ -256,6 +256,25 @@ Never treat IR/QML/component export as the alignment step: those exports describ
 captured. Alignment is measured by `parity_run` + `parity_diagnose` against the real
 implementation.
 
+### Autopilot: act without asking
+
+A failed `parity_run` is not a question for the user. Run the loop yourself:
+
+1. `parity_align({ repo, runDir })` — returns an ordered, executable plan
+   (geometry → styles → structure → mock data → pixels) and an autonomy note.
+2. Execute the steps immediately in the target repository. For a structure step,
+   compare the reference and implementation section by section and implement the
+   missing or misplaced blocks. For a mock step, create fixtures or local mock data
+   yourself (a `fixtures` module can serve API responses; component-level mock data
+   is fine for a layout check).
+3. Re-run `parity_run` with the same arguments; read `iteration` and `delta`.
+4. Repeat until verified or the remaining differences are covered by a named
+   tolerance. Cap at 8 iterations.
+
+Do not ask the user to approve edits, choose selectors, or provide mock data. Stop
+and ask only when: credentials/login are required, an asset (font/icon/image) is
+unavailable, or the reference leaves a genuine product decision open.
+
 ### 6. Report
 
 - Config path, cases, viewports, and driver (Playwright or Chrome CLI).

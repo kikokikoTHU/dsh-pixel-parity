@@ -296,6 +296,48 @@ await test('QML generator maps 2D skew matrices to Matrix4x4', async () => {
   assert.match(qml, /Qt\.matrix4x4\(1, 0, 0, 0, 0\.2, 1,/)
 })
 
+await test('alignment plan orders layers and includes mock guidance', async () => {
+  const { buildAlignmentPlan } = await import('../core/plan.mjs')
+  const manifest = {
+    cases: [{
+      id: 'c',
+      viewports: [{
+        viewportId: 'v',
+        thresholds: { maxMismatch: 0.01 },
+        geometry: { pass: true },
+        styles: { pass: true },
+        pixels: { pass: false, metrics: { mismatchRatio: 0.2 } },
+      }],
+    }],
+  }
+  const plan = buildAlignmentPlan({ viewports: [{ case: 'c', viewport: 'v', findings: [] }] }, manifest)
+  assert.deepEqual(plan.steps.map(step => step.kind), ['structure', 'mock'])
+  assert.match(plan.autonomy, /Do not ask the user/)
+  assert.match(plan.steps[1].action, /fixtures or local mock data/)
+})
+
+await test('alignment plan puts geometry and styles before pixels', async () => {
+  const { buildAlignmentPlan } = await import('../core/plan.mjs')
+  const manifest = {
+    cases: [{
+      id: 'c',
+      viewports: [{
+        viewportId: 'v',
+        thresholds: { maxMismatch: 0.01 },
+        geometry: { pass: false },
+        styles: { pass: false },
+        pixels: { pass: false, metrics: { mismatchRatio: 0.2 } },
+      }],
+    }],
+  }
+  const findings = [
+    { layer: 'geometry', anchor: 'sidebar', suggestion: 'fix width' },
+    { layer: 'styles', anchor: 'sidebar', property: 'color', suggestion: 'fix color' },
+  ]
+  const plan = buildAlignmentPlan({ viewports: [{ case: 'c', viewport: 'v', findings }] }, manifest)
+  assert.deepEqual(plan.steps.map(step => step.kind), ['geometry', 'style', 'pixels'])
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,
@@ -1763,6 +1805,14 @@ http.createServer((req, res) => {
     assert.ok(loginTool !== undefined)
     tools.assertSupportedJsonSchema(loginTool.parameters)
     tools.assertSupportedJsonSchema(loginTool.output.schema)
+
+    const alignTool = registered.get('parity_align')
+    assert.ok(alignTool !== undefined)
+    tools.assertSupportedJsonSchema(alignTool.parameters)
+    tools.assertSupportedJsonSchema(alignTool.output.schema)
+    const planValue = await alignTool.execute({ repo, runDir: value.runDir }, {})
+    assert.deepEqual(tools.validateJsonSchemaValue(alignTool.output.schema, planValue, 'value'), [])
+    assert.ok(Array.isArray(planValue.steps))
     const diagnosisValue = await diagnoseTool.execute({ repo, runDir: value.runDir }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(diagnoseTool.output.schema, diagnosisValue, 'value'), [])
   })
