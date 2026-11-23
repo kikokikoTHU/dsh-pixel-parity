@@ -30,6 +30,8 @@ let panelRepoOverride
 let lastRunRequest
 /** The panel-launched run job, if any. */
 let activeJob
+/** The panel-launched task-step job, if any. */
+let taskJob
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -1052,20 +1054,36 @@ export function apply(ctx, config) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
               return
             }
-            try {
-              const result = await stepTask({
-                repo: resolve(String(body.repo ?? '')),
-                id: String(body.taskId ?? ''),
-                dependenciesRoot: typeof body.dependencies === 'string' ? body.dependencies : undefined,
-              })
-              respondJson(response, 200, {
+            if (taskJob?.status === 'running') {
+              respondJson(response, 200, { jobId: taskJob.id, running: true })
+              return
+            }
+            const repo = resolve(String(body.repo ?? ''))
+            const id = String(body.taskId ?? '')
+            const job = { id: `taskjob-${Date.now()}`, repo, taskId: id, status: 'running', startedAt: new Date().toISOString() }
+            taskJob = job
+            stepTask({
+              repo,
+              id,
+              dependenciesRoot: typeof body.dependencies === 'string' ? body.dependencies : undefined,
+            }).then((result) => {
+              taskJob = {
+                ...job,
+                status: 'done',
                 task: taskSummary(result.task),
                 ...(result.plan === null || result.plan === undefined ? {} : { plan: result.plan }),
-              })
-            } catch (error) {
-              respondJson(response, 400, { error: String(error?.message ?? error) })
-            }
+                finishedAt: new Date().toISOString(),
+              }
+            }).catch((error) => {
+              taskJob = { ...job, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
+            })
+            respondJson(response, 202, { jobId: job.id })
           },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/task/job',
+          resource: async () => asJson(taskJob ?? null),
         }),
         server.register({
           kind: 'exact',
@@ -1576,3 +1594,4 @@ function buildRunValue(result) {
     })),
   }
 }
+

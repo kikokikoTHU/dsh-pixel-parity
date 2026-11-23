@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null, taskRunning: false }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
 
@@ -216,10 +216,34 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function pollTaskJob() {
+      const timer = setInterval(async () => {
+        try {
+          const response = await fetch('/pixel-parity/task/job', { cache: 'no-store' })
+          const job = await response.json()
+          if (job === null) return
+          if (job.status === 'done') {
+            clearInterval(timer)
+            state.taskRunning = false
+            state.message = `step done: ${job.task?.status ?? ''}`
+            notify()
+            loadTasks()
+            loadOverview()
+          } else if (job.status === 'error') {
+            clearInterval(timer)
+            state.taskRunning = false
+            state.message = `step failed: ${job.error}`
+            notify()
+          }
+        } catch {}
+      }, 1000)
+    }
+
     async function taskAction(action) {
       const task = state.tasks?.[0]
       if (task === undefined) return
       state.message = action === 'step' ? (zh ? '正在执行 step…' : 'Running task step…') : action
+      if (action === 'step') state.taskRunning = true
       notify()
       try {
         const response = await fetch(`/pixel-parity/task/${action}`, {
@@ -229,6 +253,12 @@ window.__ModuleLoader__.load({
         })
         const body = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        if (action === 'step' && body.jobId !== undefined) {
+          state.message = zh ? 'step 已在后台运行…' : 'step running in background…'
+          notify()
+          pollTaskJob()
+          return
+        }
         state.message = action === 'report'
           ? `report: ${body.reportPath}`
           : `${action} ${body.task?.status ?? 'done'}`
@@ -236,6 +266,7 @@ window.__ModuleLoader__.load({
         loadTasks()
         loadOverview()
       } catch (failure) {
+        state.taskRunning = false
         state.message = String(failure?.message ?? failure)
         notify()
       }
@@ -411,7 +442,7 @@ window.__ModuleLoader__.load({
               task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
             ),
             h('div', { style: { display: 'flex', gap: 6, paddingTop: 4 } },
-              h('button', { style: styles.taskBtn, onClick: () => taskAction('step') }, 'Step'),
+              h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step') }, state.taskRunning ? '…' : 'Step'),
               h('button', { style: styles.taskBtn, onClick: () => taskAction('report') }, 'Report'),
               h('button', { style: styles.taskBtn, onClick: () => taskAction('pause') }, 'Pause'),
             ),
@@ -473,6 +504,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
