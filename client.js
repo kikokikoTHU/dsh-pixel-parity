@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -221,6 +221,13 @@ window.__ModuleLoader__.load({
     async function showReport(target) {
       const task = target ?? state.tasks?.[0]
       if (task === undefined) return
+      if (task.status !== 'converged' && task.status !== 'exhausted') {
+        state.message = zh
+          ? `所有 ${task.maxIterations} 轮迭代完成后才能生成报告（当前 ${task.iteration}/${task.maxIterations}）`
+          : `Report unlocks after all ${task.maxIterations} iterations (${task.iteration}/${task.maxIterations} done)`
+        notify()
+        return
+      }
       state.message = zh ? '正在生成报告…' : 'Generating report…'
       notify()
       try {
@@ -506,6 +513,7 @@ window.__ModuleLoader__.load({
           (store.tasks ?? []).slice(0, 5).map(task => {
             const pixels = task.latest?.pixels ?? []
             const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
+            const reportReady = task.status === 'converged' || task.status === 'exhausted'
             return h('div', { key: task.id, style: styles.taskCard },
               h('div', { style: styles.taskRow },
                 h('strong', null, task.id),
@@ -523,7 +531,23 @@ window.__ModuleLoader__.load({
                 `${task.iteration}/${task.maxIterations}`,
               ),
               h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
-                h('button', { style: styles.taskBtn, onClick: () => showReport(task) }, 'Report'),
+                h('span', {
+                  title: reportReady
+                    ? (zh ? '打开报告' : 'Open the report')
+                    : (zh
+                        ? `所有 ${task.maxIterations} 轮迭代完成后才能生成报告（当前 ${task.iteration}/${task.maxIterations}）`
+                        : `Report unlocks after all ${task.maxIterations} iterations (${task.iteration}/${task.maxIterations} done)`),
+                  style: { display: 'inline-block' },
+                },
+                  h('button', {
+                    style: {
+                      ...styles.taskBtn,
+                      ...(reportReady ? {} : { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' }),
+                    },
+                    disabled: !reportReady,
+                    onClick: () => { if (reportReady) showReport(task) },
+                  }, 'Report'),
+                ),
                 task.reportPath === undefined
                   ? null
                   : h('a', {
