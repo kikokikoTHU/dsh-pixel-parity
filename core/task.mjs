@@ -1,51 +1,61 @@
 /**
- * Persisted alignment task: one objective (cases × viewports + thresholds)
- * that survives sessions and records every iteration.
+ * Persisted alignment task. Task metadata and reports live under the plugin's
+ * own `data/tasks/` directory, so they survive sessions and do not depend on a
+ * repository being scanned. `repo` stays in the metadata for the actual runs.
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runConfig } from './runner.mjs'
 import { diagnoseRun } from './diagnose.mjs'
 import { buildAlignmentPlan } from './plan.mjs'
 import { buildTaskReport } from './task-report.mjs'
 
-const TASKS_DIR = '.parity/tasks'
+const HERE = dirname(fileURLToPath(import.meta.url))
 
-export function tasksDirectory(repo) {
-  return join(resolve(repo), TASKS_DIR)
+/** Root of the task store: `<plugin>/data/tasks`, overridable for tests. */
+export function tasksDirectory() {
+  return process.env.PIXEL_PARITY_TASK_DIR === undefined
+    ? resolve(HERE, '..', 'data', 'tasks')
+    : resolve(process.env.PIXEL_PARITY_TASK_DIR)
 }
 
-export function taskPath(repo, id) {
-  return join(tasksDirectory(repo), id, 'task.json')
+export function taskPath(id) {
+  return join(tasksDirectory(), id, 'task.json')
+}
+
+function newTaskId() {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
+  const suffix = Math.random().toString(36).slice(2, 6)
+  return `task-${stamp}-${suffix}`
 }
 
 /**
- * Create a task and write task.json.
- * @param {{repo: string, config: string, cases?: string[], viewports?: string[], goal?: object, maxIterations?: number}} input
+ * Create a task and persist it under the plugin's data directory.
+ * @param {{repo: string, config: string, cases?: string[], viewports?: string[], goal?: object, maxIterations?: number, dependenciesRoot?: string, id?: string}} input
  * @returns {object} task.
  */
 export function createTask(input) {
   const repo = resolve(input.repo)
   if (!existsSync(repo)) throw new Error(`repo not found: ${repo}`)
   if (typeof input.config !== 'string' || input.config.length === 0) throw new Error('config is required')
-  const config = isAbsolute(input.config) ? input.config : resolve(repo, input.config)
+  const config = isAbsolute(input.config) ? resolve(input.config) : resolve(repo, input.config)
   if (!existsSync(config)) throw new Error(`config not found: ${config}`)
   const now = new Date().toISOString()
-  const id = input.id ?? `task-${now.replace(/[-:.TZ]/g, '').slice(0, 14)}`
-  const goal = {
-    maxMismatch: typeof input.goal?.maxMismatch === 'number' ? input.goal.maxMismatch : 0.01,
-    requireGeometry: input.goal?.requireGeometry !== false,
-    requireStyles: input.goal?.requireStyles !== false,
-  }
   const task = {
-    version: 1,
-    id,
+    version: 2,
+    id: input.id ?? newTaskId(),
     repo,
     config,
     cases: Array.isArray(input.cases) ? input.cases : [],
     viewports: Array.isArray(input.viewports) ? input.viewports : [],
-    goal,
+    dependenciesRoot: typeof input.dependenciesRoot === 'string' ? resolve(input.dependenciesRoot) : null,
+    goal: {
+      maxMismatch: typeof input.goal?.maxMismatch === 'number' ? input.goal.maxMismatch : 0.01,
+      requireGeometry: input.goal?.requireGeometry !== false,
+      requireStyles: input.goal?.requireStyles !== false,
+    },
     maxIterations: Number.isInteger(input.maxIterations) && input.maxIterations > 0 ? input.maxIterations : 8,
     status: 'draft',
     iteration: 0,
@@ -63,25 +73,28 @@ export function createTask(input) {
 
 export function saveTask(task) {
   task.updatedAt = new Date().toISOString()
-  const directory = join(tasksDirectory(task.repo), task.id)
+  const directory = join(tasksDirectory(), task.id)
   mkdirSync(directory, { recursive: true })
   writeFileSync(join(directory, 'task.json'), `${JSON.stringify(task, null, 2)}\n`)
 }
 
-export function readTask(repo, id) {
-  const path = taskPath(repo, id)
+export function readTask(id) {
+  const path = taskPath(id)
   if (!existsSync(path)) throw new Error(`task not found: ${id}`)
   return JSON.parse(readFileSync(path, 'utf8'))
 }
 
+/** List tasks, optionally filtered by repository. */
 export function listTasks(repo) {
-  const directory = tasksDirectory(repo)
+  const directory = tasksDirectory()
   if (!existsSync(directory)) return []
   const tasks = []
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     try {
-      tasks.push(JSON.parse(readFileSync(join(directory, entry.name, 'task.json'), 'utf8')))
+      const task = JSON.parse(readFileSync(join(directory, entry.name, 'task.json'), 'utf8'))
+      if (repo !== undefined && resolve(task.repo) !== resolve(repo)) continue
+      tasks.push(task)
     } catch {
       // skip a half-written task
     }
@@ -89,8 +102,8 @@ export function listTasks(repo) {
   return tasks.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
 }
 
-export function pauseTask(repo, id, reason = 'paused by user') {
-  const task = readTask(repo, id)
+export function pauseTask(id, reason = 'paused by user') {
+  const task = readTask(id)
   if (task.status === 'converged') return task
   task.status = 'paused'
   task.blockedReason = reason
@@ -98,8 +111,8 @@ export function pauseTask(repo, id, reason = 'paused by user') {
   return task
 }
 
-export function resumeTask(repo, id) {
-  const task = readTask(repo, id)
+export function resumeTask(id) {
+  const task = readTask(id)
   if (task.status === 'paused') {
     task.status = task.runs.length > 0 ? 'needs-edit' : 'draft'
     task.blockedReason = null
@@ -110,11 +123,11 @@ export function resumeTask(repo, id) {
 
 /**
  * Run one measurement iteration and update the task.
- * @param {{repo: string, id: string, dependenciesRoot?: string, headless?: boolean}} input
+ * @param {{id: string, dependenciesRoot?: string, headless?: boolean}} input
  * @returns {Promise<{task: object, plan: object|null, runDir: string}>}
  */
 export async function stepTask(input) {
-  const task = readTask(input.repo, input.id)
+  const task = readTask(input.id)
   if (task.status === 'converged') return { task, plan: null, runDir: task.currentRunDir }
   if (task.status === 'paused') throw new Error(`task ${task.id} is paused; resume it first`)
   if (task.iteration >= task.maxIterations) {
@@ -132,7 +145,7 @@ export async function stepTask(input) {
     result = await runConfig({
       configPath: task.config,
       repoRoot: task.repo,
-      dependenciesRoot: input.dependenciesRoot,
+      dependenciesRoot: input.dependenciesRoot ?? task.dependenciesRoot ?? undefined,
       caseIds: task.cases.length > 0 ? task.cases : undefined,
       viewportIds: task.viewports.length > 0 ? task.viewports : undefined,
       baselineMode: 'ephemeral',
@@ -178,26 +191,21 @@ export async function stepTask(input) {
     task.blockedReason = null
   } else {
     const diagnosis = diagnoseRun(result.runDir)
-    const plan = buildAlignmentPlan(diagnosis, manifest)
-    task.status = 'needs-edit'
-    task.plan = plan
-    if (task.iteration >= task.maxIterations) {
-      task.status = 'paused'
-      task.blockedReason = `reached maxIterations (${task.maxIterations})`
-    }
+    task.plan = buildAlignmentPlan(diagnosis, manifest)
+    task.status = task.iteration >= task.maxIterations ? 'paused' : 'needs-edit'
+    task.blockedReason = task.iteration >= task.maxIterations ? `reached maxIterations (${task.maxIterations})` : null
   }
   saveTask(task)
   return { task, plan: task.plan, runDir: result.runDir }
 }
 
 /**
- * Generate (or refresh) the task report.
- * @param {string} repo - repository root.
+ * Generate (or refresh) the task report under the task directory.
  * @param {string} id - task id.
  * @returns {string} report path.
  */
-export function reportTask(repo, id) {
-  const task = readTask(repo, id)
+export function reportTask(id) {
+  const task = readTask(id)
   const path = buildTaskReport(task)
   task.reportPath = path
   saveTask(task)
@@ -233,3 +241,4 @@ export function taskSummary(task) {
     plan: task.plan,
   }
 }
+

@@ -4,7 +4,18 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+
+/** Directory for one task's persisted artifacts (plugin data dir, not the repo). */
+function taskDirectory(id) {
+  const root = process.env.PIXEL_PARITY_TASK_DIR === undefined
+    ? resolve(HERE, '..', 'data', 'tasks')
+    : resolve(process.env.PIXEL_PARITY_TASK_DIR)
+  return join(root, id)
+}
 
 /**
  * Generate `<task>/report.html` and return its path.
@@ -12,7 +23,7 @@ import { join } from 'node:path'
  * @returns {string} report path.
  */
 export function buildTaskReport(task) {
-  const directory = join(task.repo, '.parity', 'tasks', task.id)
+  const directory = taskDirectory(task.id)
   const assets = join(directory, 'report-assets')
   mkdirSync(assets, { recursive: true })
 

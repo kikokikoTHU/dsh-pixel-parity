@@ -1,4 +1,4 @@
-# PixelParity v2 实现方案：任意前端仓库 ↔ 设计稿 / 参考实现 / 代码原型
+﻿# PixelParity v2 实现方案：任意前端仓库 ↔ 设计稿 / 参考实现 / 代码原型
 
 > 定位：不是给某个 repo 写死的验收脚本，而是一个**通用对齐工具**。Web 前端先行；桌面程序 UI（Electron、Tauri、原生窗口）通过同一套适配器接口逐步接入。
 > 原则：核心与运行时解耦；能力不足时**降级并明说**，绝不假装验证过。
@@ -299,7 +299,8 @@ cases/<case>/<viewport>/
 | M44 ✅ | iframe IR 采集（一层，坐标换算到页面坐标，绝对渲染正确）、面板诊断按钮、QML 2D 斜切/缩放矩阵映射（`Matrix4x4`）；语义渲染对 iframe 用 div 近似 | 剩余导出/面板项收尾 |
 | M45 ✅ | `parity_login` + `cli login`：有头浏览器登录后按 URL/选择器条件保存 storageState；`settle`（networkIdle / selector / 字体 / 图片解码 / 延迟）与 CDP 跨域 `@font-face` 采集 | 登录态可生成，采集更稳 |
 | M46 ✅ | 自动驾驶协议：新增 `parity_align`（把诊断转成可执行 plan：几何→样式→结构→mock→像素），技能规定失败后自动执行、自行补 fixtures/mock，仅在缺凭证/资产/产品决策时询问 | LLM 主动对齐，不等用户指令 |
-| M47 ✅ | 持久化 Task：`parity_task`（create/step/status/list/pause/resume/report），`.parity/tasks/<id>/task.json` 记录迭代、delta、plan、报告；面板新增 Task 卡（状态/进度/Step/Report/Pause）；报告生成器输出 HTML | 检查→对齐→报告 收成一个可恢复任务 |
+| M47 ✅ | 持久化 Task：`parity_task`（create/step/status/list/pause/resume/report），记录迭代、delta、plan、报告；面板新增 Task 卡；报告生成器输出 HTML | 检查→对齐→报告 收成一个可恢复任务 |
+| M48 ✅ | Task 元信息与产物集中存到插件目录 `data/tasks/<id>/`（repo/config/cases/viewports/goal/dependenciesRoot/迭代/报告），面板无需扫描仓库即可列出全部 Task；报告支持面板内下载 | 任务不依赖 repo 也能查看/恢复 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
 
@@ -338,3 +339,4 @@ anubis 不进入插件代码，只作为“真实仓库验证”的一个样本�
 - 给关键容器加 `data-parity` 属性（纯增量，不改样式）。
 
 接入步骤与配置示例见 `docs/EXAMPLES.md`（落地时补充）。
+

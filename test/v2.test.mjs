@@ -21,6 +21,7 @@ import { buildIr, expandStyle, flattenIr, validateIr } from '../core/ir.mjs'
 import { generateHtml } from '../core/ir-web.mjs'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
+process.env.PIXEL_PARITY_TASK_DIR = join(tmpdir(), 'parity-task-store')
 const fixtureConfig = join(here, 'fixtures', 'web', 'parity.config.mjs')
 const interactionConfig = join(here, 'fixtures', 'interactions', 'parity.config.mjs')
 const results = []
@@ -1589,10 +1590,10 @@ http.createServer((req, res) => {
     const { createTask, stepTask, reportTask, listTasks } = await import('../core/task.mjs')
     const task = createTask({ repo: repoRoot, config: fixtureConfig, cases: ['exact'] })
     assert.equal(task.status, 'draft')
-    const result = await stepTask({ repo: repoRoot, id: task.id, dependenciesRoot: repo })
+    const result = await stepTask({ id: task.id, dependenciesRoot: repo })
     assert.equal(result.task.iteration, 1)
     assert.equal(result.task.status, 'converged')
-    const reportPath = reportTask(repoRoot, task.id)
+    const reportPath = reportTask(task.id)
     assert.ok(readFileSync(reportPath, 'utf8').includes('PixelParity task'))
     assert.equal(listTasks(repoRoot).length, 1)
   })
@@ -1848,3 +1849,4 @@ http.createServer((req, res) => {
 console.log(results.join('\n'))
 console.log(`\n${results.filter(line => line.startsWith('ok')).length}/${results.length} passed`)
 process.exitCode = failed > 0 ? 1 : 0
+

@@ -1,4 +1,4 @@
-# Pixel parity
+﻿# Pixel parity
 
 Design-faithful frontend implementation: render, measure, and iterate until the code
 matches the reference — instead of judging by eye.
@@ -98,9 +98,12 @@ parity_task({ action: "report", repo, taskId })    // task report (iteration his
 parity_task({ action: "status" | "list" | "pause" | "resume", repo, taskId })
 ```
 
-A task persists in `<repo>/.parity/tasks/<taskId>/task.json`, records every iteration
-(`runDir`, pixels, delta, plan), and ends as `converged`, `paused`, or `blocked`. The PP
-panel shows the latest task with its status, progress, and Step / Report / Pause buttons.
+A task persists under the plugin installation directory at
+`<plugin>/data/tasks/<taskId>/task.json` (reports and assets live beside it), records
+`repo`, `config`, `cases`, `viewports`, `goal`, `dependenciesRoot`, and every iteration
+(`runDir`, pixels, delta, plan). It ends as `converged`, `paused`, or `blocked`. The PP
+panel lists tasks from that store without needing a repository path, with Step / Report /
+Download / Pause actions.
 
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.
@@ -316,3 +319,4 @@ exists, but a run over them fails explicitly rather than pretending to verify.
 ELECTRON_RUN_AS_NODE=1 <electron> test/run-tests.js
 PARITY_REPO=<repo-with-playwright> ELECTRON_RUN_AS_NODE=1 <electron> test/v2.test.mjs
 ```
+

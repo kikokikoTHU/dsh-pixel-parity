@@ -1035,11 +1035,7 @@ export function apply(ctx, config) {
           path: '/pixel-parity/tasks',
           resource: async (request) => {
             const requested = new URL(request.url).searchParams.get('repo')
-            const roots = requested === null || requested.length === 0 ? panelRoots() : [resolve(requested)]
-            if (requested !== null && requested.length > 0 && !existsSync(join(roots[0], '.parity'))) {
-              return new Response(JSON.stringify({ error: `no .parity under ${roots[0]}` }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
-            }
-            const tasks = roots.flatMap(root => existsSync(join(root, '.parity', 'tasks')) ? listTasks(root) : [])
+            const tasks = listTasks(requested === null || requested.length === 0 ? undefined : resolve(requested))
             return asJson({ tasks: tasks.map(task => taskSummary(task)) })
           },
         }),
@@ -1058,12 +1054,10 @@ export function apply(ctx, config) {
               respondJson(response, 200, { jobId: taskJob.id, running: true })
               return
             }
-            const repo = resolve(String(body.repo ?? ''))
             const id = String(body.taskId ?? '')
-            const job = { id: `taskjob-${Date.now()}`, repo, taskId: id, status: 'running', startedAt: new Date().toISOString() }
+            const job = { id: `taskjob-${Date.now()}`, taskId: id, status: 'running', startedAt: new Date().toISOString() }
             taskJob = job
             stepTask({
-              repo,
               id,
               dependenciesRoot: typeof body.dependencies === 'string' ? body.dependencies : undefined,
             }).then((result) => {
@@ -1089,13 +1083,18 @@ export function apply(ctx, config) {
           kind: 'exact',
           path: '/pixel-parity/task/report-file',
           resource: async (request) => {
-            const url = new URL(request.url)
-            const repo = resolve(url.searchParams.get('repo') ?? '')
-            const id = url.searchParams.get('taskId') ?? ''
+            const id = new URL(request.url).searchParams.get('taskId') ?? ''
             if (id.length === 0 || /[\\/]/.test(id)) return new Response('bad task', { status: 400 })
-            const path = join(repo, '.parity', 'tasks', id, 'report.html')
-            if (!existsSync(path)) return new Response('report not found; generate it first', { status: 404 })
-            return new Response(readFileSync(path), {
+            let task
+            try {
+              task = readTask(id)
+            } catch {
+              return new Response('task not found', { status: 404 })
+            }
+            if (typeof task.reportPath !== 'string' || !existsSync(task.reportPath)) {
+              return new Response('report not found; generate it first', { status: 404 })
+            }
+            return new Response(readFileSync(task.reportPath), {
               headers: {
                 'content-type': 'text/html; charset=utf-8',
                 'content-disposition': `inline; filename="${id}-report.html"`,
@@ -1109,7 +1108,7 @@ export function apply(ctx, config) {
           handler: async (request, response) => {
             try {
               const body = await readJson(request)
-              const path = reportTask(resolve(String(body.repo ?? '')), String(body.taskId ?? ''))
+              const path = reportTask(String(body.taskId ?? ''))
               respondJson(response, 200, { reportPath: path })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1122,8 +1121,7 @@ export function apply(ctx, config) {
           handler: async (request, response) => {
             try {
               const body = await readJson(request)
-              const repo = resolve(String(body.repo ?? ''))
-              const task = body.resume === true ? resumeTask(repo, String(body.taskId ?? '')) : pauseTask(repo, String(body.taskId ?? ''))
+              const task = body.resume === true ? resumeTask(String(body.taskId ?? '')) : pauseTask(String(body.taskId ?? ''))
               respondJson(response, 200, { task: taskSummary(task) })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1414,6 +1412,7 @@ export function apply(ctx, config) {
           cases: arrayOfText(args.cases, 'cases'),
           viewports: arrayOfText(args.viewports, 'viewports'),
           maxIterations: args.maxIterations === undefined ? undefined : Number(args.maxIterations),
+          dependenciesRoot: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
         })
         return { action, task: clean(taskSummary(task)) }
       }
@@ -1422,21 +1421,20 @@ export function apply(ctx, config) {
       }
       const taskId = text(args.taskId, 'taskId')
       if (action === 'status') {
-        return { action, task: clean(taskSummary(readTask(repo, taskId))) }
+        return { action, task: clean(taskSummary(readTask(taskId))) }
       }
       if (action === 'pause') {
-        return { action, task: clean(taskSummary(pauseTask(repo, taskId))) }
+        return { action, task: clean(taskSummary(pauseTask(taskId))) }
       }
       if (action === 'resume') {
-        return { action, task: clean(taskSummary(resumeTask(repo, taskId))) }
+        return { action, task: clean(taskSummary(resumeTask(taskId))) }
       }
       if (action === 'report') {
-        const reportPath = reportTask(repo, taskId)
-        return { action, task: clean(taskSummary(readTask(repo, taskId))), reportPath }
+        const reportPath = reportTask(taskId)
+        return { action, task: clean(taskSummary(readTask(taskId))), reportPath }
       }
       if (action === 'step') {
         const result = await stepTask({
-          repo,
           id: taskId,
           dependenciesRoot: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
         })

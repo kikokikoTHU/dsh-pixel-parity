@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -486,7 +486,7 @@ window.__ModuleLoader__.load({
                 ? null
                 : h('a', {
                     style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
-                    href: `/pixel-parity/task/report-file?repo=${encodeURIComponent(task.repo)}&taskId=${encodeURIComponent(task.id)}`,
+                    href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`,
                     target: '_blank',
                     rel: 'noopener',
                     download: `${task.id}-report.html`,

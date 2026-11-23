@@ -1,4 +1,4 @@
-# Pixel parity workflow
+﻿# Pixel parity workflow
 
 Make an implementation measurably match a reference. Two modes:
 
@@ -266,7 +266,7 @@ parity_task({ action: "step", repo, taskId })   // runs, updates status, returns
 parity_task({ action: "report", repo, taskId }) // writes the task report
 ```
 
-A task records its iterations and plan under `<repo>/.parity/tasks/<id>/`. Use
+A task records its metadata, iterations, and plan under the plugin data directory (`<plugin>/data/tasks/<id>/`), so the PP panel can list it without scanning a repository. Use
 `action: "status" | "list" | "pause" | "resume"` to manage it. Prefer this over ad-hoc
 `parity_run` when optimizing a page across rounds.
 
@@ -324,3 +324,4 @@ load the exact font or state the substitution.
 `desktop` are reserved: the adapter interface exists, but a run over those surfaces
 fails explicitly. Never describe a run as verified on a surface the tool did not
 actually capture.
+
