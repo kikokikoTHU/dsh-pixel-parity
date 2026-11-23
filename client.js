@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -239,8 +239,8 @@ window.__ModuleLoader__.load({
       }, 1000)
     }
 
-    async function taskAction(action) {
-      const task = state.tasks?.[0]
+    async function taskAction(action, target) {
+      const task = target ?? state.tasks?.[0]
       if (task === undefined) return
       state.message = action === 'step' ? (zh ? '正在执行 step…' : 'Running task step…') : action
       if (action === 'step') state.taskRunning = true
@@ -467,33 +467,38 @@ window.__ModuleLoader__.load({
               onClick: () => { setDraft(''); setRepo('') },
             }, '↺'),
           ),
-          task === undefined ? null : h('div', { style: styles.taskCard },
-            h('div', { style: styles.taskRow },
-              h('strong', null, task.id),
-              h('span', { style: styles.pill }, task.status),
-              h('span', { style: { ...muted, marginLeft: 'auto' } }, `iter ${task.iteration}/${task.maxIterations}`),
-            ),
-            h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
-              taskAvg === null ? (zh ? '尚无 run' : 'no run yet') : `${(taskAvg * 100).toFixed(2)}% pixels`,
-              task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
-            ),
-            h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
-              task.status === 'paused'
-                ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume') }, 'Resume')
-                : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step') }, state.taskRunning ? '…' : 'Step'),
-              h('button', { style: styles.taskBtn, onClick: () => taskAction('report') }, 'Report'),
-              task.reportPath === undefined
-                ? null
-                : h('a', {
-                    style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
-                    href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`,
-                    target: '_blank',
-                    rel: 'noopener',
-                    download: `${task.id}-report.html`,
-                  }, 'Download'),
-              task.status === 'paused' ? null : h('button', { style: styles.taskBtn, onClick: () => taskAction('pause') }, 'Pause'),
-            ),
-          ),          store.message === null ? null : h('div', { style: styles.message }, store.message),
+          (store.tasks ?? []).slice(0, 5).map(task => {
+            const pixels = task.latest?.pixels ?? []
+            const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
+            return h('div', { key: task.id, style: styles.taskCard },
+              h('div', { style: styles.taskRow },
+                h('strong', null, task.id),
+                h('span', { style: styles.pill }, task.status),
+                h('span', { style: { ...muted, marginLeft: 'auto' } }, `iter ${task.iteration}/${task.maxIterations}`),
+              ),
+              h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
+                average === null ? (zh ? '尚无 run' : 'no run yet') : `${(average * 100).toFixed(2)}% pixels`,
+                task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
+              ),
+              h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
+                task.status === 'paused'
+                  ? h('button', { style: styles.taskBtn, onClick: () => taskAction('resume', task) }, 'Resume')
+                  : h('button', { style: styles.taskBtn, disabled: state.taskRunning, onClick: () => taskAction('step', task) }, state.taskRunning ? '…' : 'Step'),
+                h('button', { style: styles.taskBtn, onClick: () => taskAction('report', task) }, 'Report'),
+                task.reportPath === undefined
+                  ? null
+                  : h('a', {
+                      style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
+                      href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`,
+                      target: '_blank',
+                      rel: 'noopener',
+                      download: `${task.id}-report.html`,
+                    }, 'Download'),
+                task.status === 'paused' ? null : h('button', { style: styles.taskBtn, onClick: () => taskAction('pause', task) }, 'Pause'),
+              ),
+            )
+          }),
+          store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
               h('strong', null, 'diagnose'),
@@ -546,6 +551,8 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
+
 
 
 
