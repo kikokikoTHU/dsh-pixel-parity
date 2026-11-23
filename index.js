@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -1686,6 +1686,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
