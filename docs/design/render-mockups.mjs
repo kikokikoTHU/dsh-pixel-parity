@@ -16,15 +16,15 @@ mkdirSync(assets, { recursive: true })
 const css = `
 * { box-sizing: border-box; }
 body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; }
-.shell { width: 1200px; min-height: 1000px; background: #fff; display: flex; flex-direction: column; }
+.shell { width: 1200px; min-height: 1040px; background: #fff; display: flex; flex-direction: column; }
 .topbar { height: 54px; border-bottom: 1px solid #e5eaf1; display: flex; align-items: center; gap: 10px; padding: 0 22px; background: #fff; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 13px; color: #0f172a; }
 .mark { width: 24px; height: 24px; border-radius: 7px; background: #111827; color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
 .crumb { color: #64748b; font-size: 12px; }
 .crumb b { color: #0f172a; font-weight: 600; }
 .spacer { flex: 1; }
-.ghost { border: 1px solid #cbd5e1; background: #fff; color: #0f172a; border-radius: 7px; padding: 6px 11px; font-size: 12px; }
-.primary { border: 1px solid #111827; background: #111827; color: #fff; border-radius: 7px; padding: 7px 14px; font-size: 12px; font-weight: 600; }
+.ghost { border: 1px solid #cbd5e1; background: #fff; color: #0f172a; border-radius: 6px; padding: 5px 10px; font-size: 12px; }
+.primary { border: 1px solid #111827; background: #111827; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; }
 .primary[disabled] { background: #e2e8f0; border-color: #e2e8f0; color: #94a3b8; }
 .body { display: flex; flex: 1; }
 .rail { width: 214px; border-right: 1px solid #eef2f7; padding: 22px 16px; background: #fbfcfe; }
@@ -39,11 +39,11 @@ body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Inter, "Sego
 .main { flex: 1; padding: 24px 28px; overflow: hidden; }
 .h1 { margin: 0; font-size: 18px; letter-spacing: -.01em; color: #0f172a; }
 .sub { margin: 5px 0 0; color: #64748b; font-size: 12px; }
-.card { border: 1px solid #e5eaf1; border-radius: 10px; background: #fff; }
+.card { border: 1px solid #e5eaf1; border-radius: 8px; background: #fff; }
 .card-h { padding: 13px 15px; border-bottom: 1px solid #eef2f7; display: flex; align-items: center; gap: 8px; }
 .card-b { padding: 15px; }
 .label { font-size: 11px; color: #64748b; margin-bottom: 5px; display: block; }
-.field { height: 34px; border: 1px solid #dbe3ee; border-radius: 7px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: #0f172a; background: #fff; }
+.field { height: 32px; border: 1px solid #dbe3ee; border-radius: 7px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: #0f172a; background: #fff; }
 .field.mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; }
 .field .hint { margin-left: auto; color: #94a3b8; font-size: 10px; }
 .row { display: flex; gap: 12px; }
@@ -52,15 +52,15 @@ body { margin: 0; background: #eef2f7; color: #0f172a; font-family: Inter, "Sego
 .src .kind { width: 30px; height: 26px; border-radius: 6px; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
 .kind.url { background: #eef2f7; color: #111827; }
 .kind.file { background: #f1f5f9; color: #334155; }
-.src div p { margin: 0; font-size: 11px; color: #1e293b; font-family: "Cascadia Code", Consolas, monospace; }
+.src div p { margin: 0; font-size: 12px; color: #1e293b; font-family: "Cascadia Code", Consolas, monospace; }
 .src div small { color: #94a3b8; font-size: 10px; }
 .x { margin-left: auto; color: #94a3b8; font-size: 14px; }
 .add { display: flex; gap: 8px; margin-top: 9px; }
 .addbtn { border: 1px dashed #c7d4e5; color: #111827; background: #fbfdff; border-radius: 7px; padding: 6px 10px; font-size: 11px; }
 .footer { border-top: 1px solid #eef2f7; padding: 12px 28px; display: flex; align-items: center; gap: 10px; background: #fff; }
 .footer .note { color: #94a3b8; font-size: 11px; }
-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-th { text-align: left; color: #64748b; font-weight: 600; padding: 8px 8px; border-bottom: 1px solid #eef2f7; font-size: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; color: #64748b; font-weight: 600; padding: 8px 8px; border-bottom: 1px solid #eef2f7; font-size: 11px; }
 td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; vertical-align: middle; color: #334155; }
 tr:last-child td { border-bottom: none; }
 .pill { border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 600; display: inline-block; }
@@ -78,7 +78,7 @@ tr:last-child td { border-bottom: none; }
 .meta { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; border-radius: 999px; padding: 3px 9px; font-size: 10px; }
 .chip.blue { background: #eef2f7; border-color: #d6dde8; color: #111827; }
-.round { border: 1px solid #e5eaf1; border-radius: 10px; padding: 13px 14px; margin-bottom: 10px; background: #fff; }
+.round { border: 1px solid #e5eaf1; border-radius: 8px; padding: 13px 14px; margin-bottom: 10px; background: #fff; }
 .round.now { border-color: #111827; box-shadow: 0 0 0 3px #eef2f7; }
 .round-h { display: flex; align-items: center; gap: 8px; }
 .round-h b { font-size: 12px; color: #0f172a; }
@@ -90,7 +90,7 @@ tr:last-child td { border-bottom: none; }
 .split { display: flex; gap: 18px; }
 .col { flex: 1; }
 .big { font-size: 22px; font-weight: 700; letter-spacing: -.02em; color: #0f172a; }
-.kv { font-size: 11px; color: #64748b; line-height: 1.7; }
+.kv { font-size: 12px; color: #64748b; line-height: 1.7; }
 .kv b { color: #0f172a; font-weight: 600; }
 .empty { border: 1px dashed #d8e0ea; border-radius: 9px; padding: 16px; color: #94a3b8; font-size: 11px; text-align: center; }
 .hr { height: 1px; background: #eef2f7; margin: 12px 0; }
@@ -131,7 +131,7 @@ const setup = `
 <h1 class="h1">新建对齐项目</h1>
 <p class="sub">指定仓库与基准 commit，再加入要对照的设计图或原型页面。</p>
 <div class="card" style="margin-top:16px">
-  <div class="card-h"><b style="font-size:12px">1 · 仓库</b><span class="mut" style="font-size:10px">对齐将以这个 commit 为基准，后续不会被工作区改动影响</span></div>
+  <div class="card-h"><b style="font-size:13px">1 · 仓库</b><span class="mut" style="font-size:10px">对齐将以这个 commit 为基准，后续不会被工作区改动影响</span></div>
   <div class="card-b">
     <div class="row">
       <div class="grow"><span class="label">仓库路径</span><div class="field mono">D:\\work\\anubis <span class="hint">git ✓</span></div></div>
@@ -141,7 +141,7 @@ const setup = `
   </div>
 </div>
 <div class="card" style="margin-top:12px">
-  <div class="card-h"><b style="font-size:12px">2 · 设计源</b><span class="mut" style="font-size:10px">支持 URL、本地图片或本地 HTML</span></div>
+  <div class="card-h"><b style="font-size:13px">2 · 设计源</b><span class="mut" style="font-size:10px">支持 URL、本地图片或本地 HTML</span></div>
   <div class="card-b">
     <div class="src"><span class="kind url">URL</span><div><p>https://liumeitong66.github.io/SPC/01-项目统计首页.html</p><small>原型 · 1600×900</small></div><span class="pill ok">已匹配</span><span class="x">×</span></div>
     <div class="src"><span class="kind url">URL</span><div><p>https://liumeitong66.github.io/SPC/02-项目明细.html</p><small>原型 · 1600×900</small></div><span class="pill ok">已匹配</span><span class="x">×</span></div>
@@ -152,7 +152,7 @@ const setup = `
   </div>
 </div>
 <div class="card" style="margin-top:12px">
-  <div class="card-h"><b style="font-size:12px">3 · 自动分析与匹配</b><span class="pill warn">2/3 分析完成</span><span class="spacer"></span><span class="mut" style="font-size:10px">全部完成后才能进入下一步</span></div>
+  <div class="card-h"><b style="font-size:13px">3 · 自动分析与匹配</b><span class="pill warn">2/3 分析完成</span><span class="spacer"></span><span class="mut" style="font-size:10px">全部完成后才能进入下一步</span></div>
   <div class="card-b" style="padding:4px 14px 10px">
     <table>
       <tr><th style="width:34%">设计源</th><th>候选页面</th><th style="width:14%">置信度</th><th style="width:16%">状态</th></tr>
@@ -171,7 +171,7 @@ const match = `
   <span class="chip blue">已分析 3 个设计源</span><span class="chip">候选页面 6 个</span><span class="chip">自动接受 2 个</span><span class="chip">待复核 1 个</span>
 </div>
 <div class="card" style="margin-top:12px">
-  <div class="card-h"><b style="font-size:12px">设计源 → 前端页面</b><span class="spacer"></span><span class="mut" style="font-size:10px">可下拉修改</span></div>
+  <div class="card-h"><b style="font-size:13px">设计源 → 前端页面</b><span class="spacer"></span><span class="mut" style="font-size:10px">可下拉修改</span></div>
   <div class="card-b" style="padding:0 14px 6px">
     <table>
       <tr><th style="width:34%">设计源</th><th>候选页面</th><th style="width:20%">组件 / 入口</th><th style="width:12%">置信度</th><th style="width:10%">状态</th></tr>
@@ -184,7 +184,7 @@ const match = `
 <div class="card" style="margin-top:12px">
   <div class="card-b" style="display:flex;gap:16px;align-items:center">
     <div class="thumb"></div>
-    <div style="flex:1"><b style="font-size:12px">projects-empty.png → /projects?state=empty</b><div class="kv">LLM 依据：路由表存在 /projects；页面组件包含 empty 分支；设计图尺寸与 1600×900 viewport 匹配。已自动生成子任务，默认不勾选；可在后续子任务页调整，不需要在这里确认。</div></div>
+    <div style="flex:1"><b style="font-size:13px">projects-empty.png → /projects?state=empty</b><div class="kv">LLM 依据：路由表存在 /projects；页面组件包含 empty 分支；设计图尺寸与 1600×900 viewport 匹配。已自动生成子任务，默认不勾选；可在后续子任务页调整，不需要在这里确认。</div></div>
     <button class="ghost">可选：改选页面</button>
   </div>
 </div>`
@@ -193,7 +193,7 @@ const subtasks = `
 <h1 class="h1">生成对齐子任务</h1>
 <p class="sub">每个匹配生成一个子任务；勾选决定“下一轮”实际执行哪些。未勾选的不会运行。</p>
 <div class="card" style="margin-top:14px">
-  <div class="card-h"><b style="font-size:12px">Round 1 · 计划子任务</b><span class="spacer"></span><span class="mut" style="font-size:10px">已选 3 / 3</span></div>
+  <div class="card-h"><b style="font-size:13px">Round 1 · 计划子任务</b><span class="spacer"></span><span class="mut" style="font-size:10px">已选 3 / 3</span></div>
   <div class="card-b" style="padding:6px 14px 10px">
     <table>
       <tr><th style="width:6%"></th><th style="width:34%">子任务</th><th>设计源 → 页面</th><th style="width:14%">检查范围</th><th style="width:12%">预计</th></tr>
@@ -232,7 +232,7 @@ const dashboard = `
     <div class="hr"></div>
     <div class="split">
       <div style="flex:1.35">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12px">轮次</b><span class="mut" style="font-size:10px">每轮由你手动触发，不会自动执行</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13px">轮次</b><span class="mut" style="font-size:10px">每轮由你手动触发，不会自动执行</span></div>
         <div class="round">
           <div class="round-h"><b>Round 1</b><span class="pill ok">done</span><span class="timeline">2026-11-23 12:54 · 3/3 子任务</span><span class="spacer"></span><button class="ghost" style="padding:4px 8px">Report</button></div>
           <div class="kv" style="margin-top:6px">2 failed · 1 passed · 9.26% pixels · 几何/样式 pass</div>
@@ -245,7 +245,7 @@ const dashboard = `
         <div class="round" style="opacity:.55"><div class="round-h"><b>Round 3</b><span class="timeline">after Round 2</span></div></div>
       </div>
       <div class="col">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:12px">Round 2 子任务</b><span class="mut" style="font-size:10px">触发前可调整</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13px">Round 2 子任务</b><span class="mut" style="font-size:10px">触发前可调整</span></div>
         <div class="card"><div class="card-b" style="padding:4px 12px 10px">
           <table>
             <tr><td style="width:8%"><span class="chk"></span></td><td><b>项目统计首页</b><div class="route">/projects</div></td><td class="mut" style="text-align:right">~40s</td></tr>
@@ -269,7 +269,7 @@ const report = `
     <span class="crumb">/ anubis / 2026-11-23T12:54</span>
     <span class="spacer"></span><button class="ghost">Download</button><button class="ghost">关闭</button>
   </div>
-  <div class="main" style="padding:22px 30px;background:#0b0f14">
+  <div class="main" style="padding:22px 30px;background:#f7f8fa">
     <div style="display:flex;gap:24px;align-items:flex-start">
       <div style="flex:1">
         <h2 style="margin:0;font-size:16px">Round 1 对齐报告</h2>
@@ -282,20 +282,20 @@ const report = `
     <div class="card" style="margin-top:14px"><div class="card-b" style="display:flex;gap:16px">
       <div class="thumb" style="width:160px;height:92px"></div>
       <div style="flex:1">
-        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:12px">项目统计首页 · /projects</b><span class="pill bad">failed</span><span class="pill">9.26% pixels</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:13px">项目统计首页 · /projects</b><span class="pill bad">failed</span><span class="pill">9.26% pixels</span></div>
         <div class="kv" style="margin-top:5px">几何 pass · 样式 pass · 像素差异集中在“良率对比”条形图区域；表格列宽与原型存在偏差。</div>
         <div style="margin-top:8px;display:flex;gap:8px"><span class="chip">[structure] 良率对比条形图</span><span class="chip">[mock] 数据条数差异</span></div>
       </div>
       <button class="ghost" style="align-self:center">查看 diff</button>
     </div></div>
     <div class="card" style="margin-top:10px"><div class="card-b" style="display:flex;gap:16px">
-      <div class="thumb" style="width:160px;height:92px;background:linear-gradient(135deg,#162338,#1b2a44)"></div>
+      <div class="thumb" style="width:160px;height:92px;background:linear-gradient(135deg,#f8fafc 0 50%,#eef2f7 50% 100%)"></div>
       <div style="flex:1">
-        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:12px">项目明细页 · /projects/:id</b><span class="pill ok">passed</span><span class="pill">0.00% pixels</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><b style="font-size:13px">项目明细页 · /projects/:id</b><span class="pill ok">passed</span><span class="pill">0.00% pixels</span></div>
         <div class="kv" style="margin-top:5px">几何/样式/像素均通过，已可作为 baseline。</div>
       </div>
     </div></div>
-    <div class="card" style="margin-top:10px"><div class="card-h"><b style="font-size:12px">下一步</b></div><div class="card-b">
+    <div class="card" style="margin-top:10px"><div class="card-h"><b style="font-size:13px">下一步</b></div><div class="card-b">
       <div class="kv">1. 修复良率对比条形图的布局与数据条数；2. 重新勾选 Round 2 子任务；3. 手动触发 Run next round。</div>
     </div></div>
   </div>
@@ -311,7 +311,7 @@ const cards = [
 const requireFromAnubis = createRequire('C:/Users/shiyuan/go/src/web/anubis/package.json')
 const { chromium } = requireFromAnubis('playwright')
 const browser = await chromium.launch({ headless: true })
-const page = await browser.newPage({ viewport: { width: 1200, height: 1000 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({ viewport: { width: 1200, height: 1040 }, deviceScaleFactor: 2 })
 for (const [name, html] of cards) {
   const file = join(mockups, name.replace('.png', '.html'))
   writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`)
