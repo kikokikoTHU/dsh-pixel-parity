@@ -991,8 +991,7 @@ window.__ModuleLoader__.load({
         if (!state.open) return undefined
         loadTasks()
         loadProjects()
-        loadLogs()
-        const timer = setInterval(() => { loadTasks(); loadProjects(); loadLogs() }, 4000)
+        const timer = setInterval(() => { loadTasks(); loadProjects() }, 4000)
         return () => clearInterval(timer)
       }, [store.open])
       useEffect(() => {
@@ -1023,7 +1022,7 @@ window.__ModuleLoader__.load({
             h('button', {
               style: styles.iconButton,
               title: t.refresh,
-              onClick: () => { loadTasks(); loadProjects(); loadLogs() },
+              onClick: () => { loadTasks(); loadProjects() },
             }, '⟳'),
             h('button', {
               style: styles.iconButton,
@@ -1091,19 +1090,6 @@ window.__ModuleLoader__.load({
             h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, (store.projects ?? []).length > 0 ? '项目在下方；Task 是一次对齐测量，可继续用 Projects 创建。' : '用 Projects 创建项目，或让模型在对话里直接建。'),
             h('button', { style: { ...styles.taskBtn, marginTop: 10 }, onClick: openProjects }, '打开 Projects'),
           ) : null,
-          h('div', { style: styles.logBox },
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 4 } },
-              h('strong', { style: { fontSize: 11 } }, 'Plugin log'),
-              h('span', { style: { ...muted, fontSize: 10 } }, `${(store.logs ?? []).length} entries`),
-              h('span', { style: { flex: 1 } }),
-              h('button', { style: styles.iconButton, onClick: loadLogs }, '↻'),
-            ),
-            (store.logs ?? []).slice(-8).reverse().map((entry, index) => h('div', { key: index, style: styles.logRow },
-              h('span', { style: { color: entry.level === 'error' ? '#b91c1c' : '#64748b' } }, entry.at?.slice(11, 19) ?? ''),
-              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: JSON.stringify(entry.data) }, entry.event),
-            )),
-          ),
-          store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
               h('strong', null, 'diagnose'),
@@ -1142,6 +1128,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
