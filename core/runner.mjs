@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Case orchestration: capture both sides, judge G/S/P, write evidence.
  *
  * The runner is surface-agnostic. For v2 only `web` (Playwright/Chrome) and
@@ -7,6 +7,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process'
+import { connect } from 'node:net'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
