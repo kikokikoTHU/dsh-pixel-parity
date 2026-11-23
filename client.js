@@ -53,6 +53,9 @@ window.__ModuleLoader__.load({
       },
       message: { padding: '4px 12px', fontSize: 10, borderBottom: border, ...muted },
       diagnosis: { padding: '6px 12px', fontSize: 10, borderBottom: border, maxHeight: 140, overflow: 'auto' },
+      taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
+      taskRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
+      taskBtn: { border, background: 'transparent', borderRadius: 6, padding: '2px 8px', fontSize: 10, cursor: 'pointer', ...text },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
       card: { border, borderRadius: 9, padding: 8 },
       row: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
@@ -95,9 +98,20 @@ window.__ModuleLoader__.load({
     })()
 
     // One shared store: the launcher and the drawer live in different slot trees.
-    const state = { open: false, data: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null }
+    const state = { open: false, data: null, tasks: null, error: null, loading: false, repo: storedRepo, message: null, diagnosis: null }
     const listeners = new Set()
     const notify = () => { for (const listener of listeners) listener() }
+
+    async function loadTasks() {
+      try {
+        const query = state.repo.length > 0 ? `?repo=${encodeURIComponent(state.repo)}` : ''
+        const response = await fetch(`/pixel-parity/tasks${query}`, { cache: 'no-store' })
+        if (!response.ok) return
+        const body = await response.json()
+        state.tasks = body.tasks ?? []
+        notify()
+      } catch {}
+    }
 
     async function loadOverview() {
       state.loading = true
@@ -202,6 +216,30 @@ window.__ModuleLoader__.load({
       }
     }
 
+    async function taskAction(action) {
+      const task = state.tasks?.[0]
+      if (task === undefined) return
+      state.message = action === 'step' ? (zh ? '正在执行 step…' : 'Running task step…') : action
+      notify()
+      try {
+        const response = await fetch(`/pixel-parity/task/${action}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ repo: task.repo, taskId: task.id }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.message = action === 'report'
+          ? `report: ${body.reportPath}`
+          : `${action} ${body.task?.status ?? 'done'}`
+        notify()
+        loadTasks()
+        loadOverview()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
     async function diagnoseLatest() {
       const latest = latestRun(state.data)
       if (latest === undefined) return
@@ -337,7 +375,7 @@ window.__ModuleLoader__.load({
             h('button', {
               style: styles.iconButton,
               title: t.refresh,
-              onClick: () => loadOverview(),
+              onClick: () => { loadOverview(); loadTasks() },
             }, '⟳'),
             h('button', {
               style: styles.iconButton,
@@ -362,7 +400,22 @@ window.__ModuleLoader__.load({
               onClick: () => { setDraft(''); setRepo('') },
             }, '↺'),
           ),
-          store.message === null ? null : h('div', { style: styles.message }, store.message),
+          task === undefined ? null : h('div', { style: styles.taskCard },
+            h('div', { style: styles.taskRow },
+              h('strong', null, task.id),
+              h('span', { style: styles.pill }, task.status),
+              h('span', { style: { ...muted, marginLeft: 'auto' } }, `iter ${task.iteration}/${task.maxIterations}`),
+            ),
+            h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
+              taskAvg === null ? (zh ? '尚无 run' : 'no run yet') : `${(taskAvg * 100).toFixed(2)}% pixels`,
+              task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
+            ),
+            h('div', { style: { display: 'flex', gap: 6, paddingTop: 4 } },
+              h('button', { style: styles.taskBtn, onClick: () => taskAction('step') }, 'Step'),
+              h('button', { style: styles.taskBtn, onClick: () => taskAction('report') }, 'Report'),
+              h('button', { style: styles.taskBtn, onClick: () => taskAction('pause') }, 'Pause'),
+            ),
+          ),          store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
               h('strong', null, 'diagnose'),
@@ -420,3 +473,6 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
+
+

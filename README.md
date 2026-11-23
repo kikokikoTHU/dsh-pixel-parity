@@ -87,6 +87,21 @@ the data area is empty. The loop stops only for missing credentials, unavailable
 a genuine product decision. The skill carries the same protocol, so the user does not have
 to ask for structure work or mock data.
 
+### Tasks
+
+For work that spans more than one iteration, use `parity_task`:
+
+```
+parity_task({ action: "create", repo, config: "parity.config.mjs", cases: ["projects"] })
+parity_task({ action: "step", repo, taskId })      // one measurement + plan
+parity_task({ action: "report", repo, taskId })    // task report (iteration history + images)
+parity_task({ action: "status" | "list" | "pause" | "resume", repo, taskId })
+```
+
+A task persists in `<repo>/.parity/tasks/<taskId>/task.json`, records every iteration
+(`runDir`, pixels, delta, plan), and ends as `converged`, `paused`, or `blocked`. The PP
+panel shows the latest task with its status, progress, and Step / Report / Pause buttons.
+
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.
 

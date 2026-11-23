@@ -256,6 +256,20 @@ Never treat IR/QML/component export as the alignment step: those exports describ
 captured. Alignment is measured by `parity_run` + `parity_diagnose` against the real
 implementation.
 
+### Task-first execution
+
+For any alignment that will need more than one round, create a task and drive it:
+
+```
+parity_task({ action: "create", repo, config: "parity.config.mjs", cases, viewports })
+parity_task({ action: "step", repo, taskId })   // runs, updates status, returns the plan
+parity_task({ action: "report", repo, taskId }) // writes the task report
+```
+
+A task records its iterations and plan under `<repo>/.parity/tasks/<id>/`. Use
+`action: "status" | "list" | "pause" | "resume"` to manage it. Prefer this over ad-hoc
+`parity_run` when optimizing a page across rounds.
+
 ### Autopilot: act without asking
 
 A failed `parity_run` is not a question for the user. Run the loop yourself:

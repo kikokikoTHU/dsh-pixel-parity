@@ -17,6 +17,7 @@ import { initRepo } from './core/init.mjs'
 import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
+import { createTask, listTasks, pauseTask, readTask, reportTask, resumeTask, stepTask, taskSummary } from './core/task.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -765,6 +766,70 @@ const ALIGN_OUTPUT_SCHEMA = {
   },
 }
 
+const TASK_PARAMETERS = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['action', 'repo'],
+  properties: {
+    action: {
+      type: 'string',
+      enum: ['create', 'step', 'status', 'list', 'pause', 'resume', 'report'],
+      description: 'create: start a task; step: run one measurement iteration; status; list; pause; resume; report.',
+    },
+    repo: { type: 'string', description: 'Absolute path to the repository root.' },
+    taskId: { type: 'string', description: 'Task id (required except for create/list).' },
+    config: { type: 'string', description: 'Config path for create (absolute or relative to repo).' },
+    cases: { type: 'array', items: { type: 'string' }, description: 'Case ids to include (default: all).' },
+    viewports: { type: 'array', items: { type: 'string' }, description: 'Viewport ids to include (default: all).' },
+    maxIterations: { type: 'number', description: 'Iteration budget (default 8).' },
+    dependencies: { type: 'string', description: 'Directory where Playwright resolves (defaults to repo).' },
+  },
+}
+
+const TASK_VIEW_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'repo', 'config', 'status', 'iteration', 'maxIterations', 'cases', 'viewports'],
+  properties: {
+    id: { type: 'string' },
+    repo: { type: 'string' },
+    config: { type: 'string' },
+    status: { type: 'string' },
+    iteration: { type: 'integer' },
+    maxIterations: { type: 'integer' },
+    goal: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        maxMismatch: { type: 'number' },
+        requireGeometry: { type: 'boolean' },
+        requireStyles: { type: 'boolean' },
+      },
+    },
+    cases: { type: 'array', items: { type: 'string' } },
+    viewports: { type: 'array', items: { type: 'string' } },
+    currentRunDir: { type: 'string' },
+    reportPath: { type: 'string' },
+    blockedReason: { type: 'string' },
+    updatedAt: { type: 'string' },
+    latest: { type: 'object', additionalProperties: true },
+    plan: { type: 'object', additionalProperties: true },
+  },
+}
+
+const TASK_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['action'],
+  properties: {
+    action: { type: 'string' },
+    task: TASK_VIEW_SCHEMA,
+    tasks: { type: 'array', items: TASK_VIEW_SCHEMA },
+    plan: { type: 'object', additionalProperties: true },
+    reportPath: { type: 'string' },
+  },
+}
+
 const BASELINE_OPTIONS = {
   pin: '对齐在线原型并固化基线',
   ephemeral: '仅本次比对，不保存基线',
@@ -958,6 +1023,72 @@ export function apply(ctx, config) {
             }
             try {
               respondJson(response, 200, approveRun({ runDir, note: typeof body.note === 'string' ? body.note : 'approved from panel' }))
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/tasks',
+          resource: async (request) => {
+            const requested = new URL(request.url).searchParams.get('repo')
+            const roots = requested === null || requested.length === 0 ? panelRoots() : [resolve(requested)]
+            if (requested !== null && requested.length > 0 && !existsSync(join(roots[0], '.parity'))) {
+              return new Response(JSON.stringify({ error: `no .parity under ${roots[0]}` }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
+            }
+            const tasks = roots.flatMap(root => existsSync(join(root, '.parity', 'tasks')) ? listTasks(root) : [])
+            return asJson({ tasks: tasks.map(task => taskSummary(task)) })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/task/step',
+          handler: async (request, response) => {
+            let body
+            try {
+              body = await readJson(request)
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+              return
+            }
+            try {
+              const result = await stepTask({
+                repo: resolve(String(body.repo ?? '')),
+                id: String(body.taskId ?? ''),
+                dependenciesRoot: typeof body.dependencies === 'string' ? body.dependencies : undefined,
+              })
+              respondJson(response, 200, {
+                task: taskSummary(result.task),
+                ...(result.plan === null || result.plan === undefined ? {} : { plan: result.plan }),
+              })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/task/report',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const path = reportTask(resolve(String(body.repo ?? '')), String(body.taskId ?? ''))
+              respondJson(response, 200, { reportPath: path })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/task/pause',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const repo = resolve(String(body.repo ?? ''))
+              const task = body.resume === true ? resumeTask(repo, String(body.taskId ?? '')) : pauseTask(repo, String(body.taskId ?? ''))
+              respondJson(response, 200, { task: taskSummary(task) })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
             }
@@ -1206,6 +1337,78 @@ export function apply(ctx, config) {
         iteration: diagnosis.iteration ?? 1,
         ...buildAlignmentPlan(diagnosis, manifest),
       }
+    },
+  }))
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'parity_task',
+    description: 'Persisted alignment task: one objective (cases × viewports + thresholds) that owns the check → align → report loop. Use action=create for a new task, action=step to run one iteration and receive the plan, action=report to write the task report, action=status/list/pause/resume to manage it. Prefer this over ad-hoc parity_run for ongoing optimization.',
+    parameters: TASK_PARAMETERS,
+    output: {
+      schema: TASK_OUTPUT_SCHEMA,
+      render(_args, value) {
+        if (value.action === 'list') {
+          const lines = [`PixelParity tasks (${value.tasks?.length ?? 0})`]
+          for (const task of value.tasks ?? []) lines.push(`${task.status.padEnd(12)} ${task.id}  iter ${task.iteration}/${task.maxIterations}`)
+          return [{ type: 'text', text: lines.join('\n') }]
+        }
+        const task = value.task
+        if (task === undefined) return [{ type: 'text', text: value.reportPath ?? value.action }]
+        const lines = [`Task ${task.id} · ${task.status} · iter ${task.iteration}/${task.maxIterations}`]
+        if (value.reportPath !== undefined) lines.push(`report: ${value.reportPath}`)
+        if (task.currentRunDir !== undefined) lines.push(`run: ${task.currentRunDir}`)
+        if (task.blockedReason !== undefined) lines.push(`blocked: ${task.blockedReason}`)
+        for (const step of value.plan?.steps ?? task.plan?.steps ?? []) {
+          lines.push(`next: [${step.kind}] ${step.target} — ${step.action}`)
+        }
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
+    },
+    async execute(args) {
+      const action = text(args.action, 'action')
+      const repo = text(args.repo, 'repo')
+      const clean = value => JSON.parse(JSON.stringify(value, (_key, item) => item === null ? undefined : item))
+      if (action === 'create') {
+        if (args.config === undefined) throw new Error('parity_task create needs config')
+        const task = createTask({
+          repo,
+          config: text(args.config, 'config'),
+          cases: arrayOfText(args.cases, 'cases'),
+          viewports: arrayOfText(args.viewports, 'viewports'),
+          maxIterations: args.maxIterations === undefined ? undefined : Number(args.maxIterations),
+        })
+        return { action, task: clean(taskSummary(task)) }
+      }
+      if (action === 'list') {
+        return { action, tasks: listTasks(repo).map(task => clean(taskSummary(task))) }
+      }
+      const taskId = text(args.taskId, 'taskId')
+      if (action === 'status') {
+        return { action, task: clean(taskSummary(readTask(repo, taskId))) }
+      }
+      if (action === 'pause') {
+        return { action, task: clean(taskSummary(pauseTask(repo, taskId))) }
+      }
+      if (action === 'resume') {
+        return { action, task: clean(taskSummary(resumeTask(repo, taskId))) }
+      }
+      if (action === 'report') {
+        const reportPath = reportTask(repo, taskId)
+        return { action, task: clean(taskSummary(readTask(repo, taskId))), reportPath }
+      }
+      if (action === 'step') {
+        const result = await stepTask({
+          repo,
+          id: taskId,
+          dependenciesRoot: args.dependencies === undefined ? undefined : text(args.dependencies, 'dependencies'),
+        })
+        return {
+          action,
+          task: clean(taskSummary(result.task)),
+          ...(result.plan === null || result.plan === undefined ? {} : { plan: clean(result.plan) }),
+        }
+      }
+      throw new Error(`unknown parity_task action: ${action}`)
     },
   }))
 

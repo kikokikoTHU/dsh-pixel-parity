@@ -240,6 +240,10 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/job',
     '/pixel-parity/overview',
     '/pixel-parity/run',
+    '/pixel-parity/task/pause',
+    '/pixel-parity/task/report',
+    '/pixel-parity/task/step',
+    '/pixel-parity/tasks',
   ])
   const overviewRoute = registered.find(route => route.path === '/pixel-parity/overview')
   const response = await overviewRoute.resource(new Request('http://local/pixel-parity/overview'), {})
@@ -1578,6 +1582,19 @@ http.createServer((req, res) => {
     }
   })
 
+  await test('task creates, steps, and writes a report', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'parity-task-'))
+    const { createTask, stepTask, reportTask, listTasks } = await import('../core/task.mjs')
+    const task = createTask({ repo: repoRoot, config: fixtureConfig, cases: ['exact'] })
+    assert.equal(task.status, 'draft')
+    const result = await stepTask({ repo: repoRoot, id: task.id, dependenciesRoot: repo })
+    assert.equal(result.task.iteration, 1)
+    assert.equal(result.task.status, 'converged')
+    const reportPath = reportTask(repoRoot, task.id)
+    assert.ok(readFileSync(reportPath, 'utf8').includes('PixelParity task'))
+    assert.equal(listTasks(repoRoot).length, 1)
+  })
+
   await test('init detects the real repo workspace app and routes', () => {
     const detection = detectRepo(repo)
     assert.equal(detection.framework, 'vue')
@@ -1813,6 +1830,14 @@ http.createServer((req, res) => {
     const planValue = await alignTool.execute({ repo, runDir: value.runDir }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(alignTool.output.schema, planValue, 'value'), [])
     assert.ok(Array.isArray(planValue.steps))
+
+    const taskTool = registered.get('parity_task')
+    assert.ok(taskTool !== undefined)
+    tools.assertSupportedJsonSchema(taskTool.parameters)
+    tools.assertSupportedJsonSchema(taskTool.output.schema)
+    const taskRepo = mkdtempSync(join(tmpdir(), 'parity-task-tool-'))
+    const createdTask = await taskTool.execute({ action: 'create', repo: taskRepo, config: fixtureConfig }, {})
+    assert.deepEqual(tools.validateJsonSchemaValue(taskTool.output.schema, createdTask, 'value'), [])
     const diagnosisValue = await diagnoseTool.execute({ repo, runDir: value.runDir }, {})
     assert.deepEqual(tools.validateJsonSchemaValue(diagnoseTool.output.schema, diagnosisValue, 'value'), [])
   })
