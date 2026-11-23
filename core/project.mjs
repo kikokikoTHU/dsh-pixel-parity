@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.mjs'
@@ -83,8 +83,24 @@ export async function createProject(input) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
+  project.worktree = createWorktree(project)
   writeProject(project)
   return project
+}
+
+function createWorktree(project) {
+  const directory = join(projectsDirectory(), project.id, 'worktree')
+  try {
+    git(project.repo, ['worktree', 'add', '--detach', directory, project.baseCommit])
+    const modules = join(project.repo, 'node_modules')
+    if (existsSync(modules) && !existsSync(join(directory, 'node_modules'))) {
+      try { symlinkSync(modules, join(directory, 'node_modules'), 'junction') } catch {}
+    }
+    return directory
+  } catch (error) {
+    project.worktreeError = String(error?.message ?? error)
+    return project.repo
+  }
 }
 
 const cjk = text => (text.match(/[\u4e00-\u9fa5]{2,}/g) ?? [])
@@ -122,7 +138,7 @@ function candidatesFromConfig(config) {
   })
 }
 
-function analyzeOne(project, source, config, usedCases) {
+async function analyzeOne(project, source, config, usedCases, matcher) {
   const candidates = candidatesFromConfig(config)
   const ranked = candidates
     .map(candidate => ({ ...candidate, score: scoreSource(source, candidate) }))
@@ -144,14 +160,14 @@ function analyzeOne(project, source, config, usedCases) {
 }
 
 /** Analyze every pending source and regenerate matches/subtasks. */
-export async function analyzeProject(project) {
+export async function analyzeProject(project, options = {}) {
   const config = await loadConfig(project.config)
   const previous = new Map(project.matches.map(match => [match.sourceId, match]))
   project.matches = []
   const usedCases = new Set()
   for (const source of project.sources) {
     if (source.status === 'failed') continue
-    const match = previous.get(source.id) ?? analyzeOne(project, source, config, usedCases)
+    const match = previous.get(source.id) ?? await analyzeOne(project, source, config, usedCases, options.matcher)
     if (match === null) {
       source.status = 'unmatched'
       continue
@@ -186,7 +202,7 @@ export async function analyzeProject(project) {
   return project
 }
 
-export async function addSource(projectId, input) {
+export async function addSource(projectId, input, options = {}) {
   const project = readProject(projectId)
   const kind = input.kind === 'file' ? 'file' : 'url'
   const location = String(input.location ?? '').trim()
@@ -204,7 +220,7 @@ export async function addSource(projectId, input) {
   project.status = 'analyzing'
   writeProject(project)
   try {
-    await analyzeProject(project)
+    await analyzeProject(project, options)
   } catch (error) {
     const current = readProject(projectId)
     const target = current.sources.find(item => item.id === source.id)
@@ -218,7 +234,7 @@ export async function addSource(projectId, input) {
   return readProject(projectId)
 }
 
-export async function removeSource(projectId, sourceId) {
+export async function removeSource(projectId, sourceId, options = {}) {
   const project = readProject(projectId)
   project.sources = project.sources.filter(source => source.id !== sourceId)
   project.matches = project.matches.filter(match => match.sourceId !== sourceId)
@@ -226,7 +242,7 @@ export async function removeSource(projectId, sourceId) {
   project.nextSelection = project.nextSelection.filter(id => project.subtasks.some(task => task.id === id))
   project.status = 'analyzing'
   writeProject(project)
-  if (project.sources.length > 0) await analyzeProject(project)
+  if (project.sources.length > 0) await analyzeProject(project, options)
   else {
     project.status = 'draft'
     writeProject(project)
@@ -261,7 +277,7 @@ export async function runRound(projectId, options = {}) {
   try {
     const result = await runConfig({
       configPath: project.config,
-      repoRoot: project.repo,
+      repoRoot: project.worktree ?? project.repo,
       caseIds: selected,
       baselineMode: 'ephemeral',
       headless: options.headless !== false,
@@ -363,7 +379,11 @@ function escapeHtml(value) {
 
 export function deleteProject(projectId) {
   const project = readProject(projectId)
-  rmSync(join(projectsDirectory(), project.id), { recursive: true, force: true })
+  if (typeof project.worktree === 'string' && resolve(project.worktree) !== resolve(project.repo)) {
+    try { unlinkSync(join(project.worktree, 'node_modules')) } catch {}
+    try { git(project.repo, ['worktree', 'remove', '--force', project.worktree]) } catch {}
+  }
+  rmSync(join(projectsDirectory(), project.id), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   return project
 }
 
@@ -385,5 +405,8 @@ export function projectSummary(project) {
     },
   }
 }
+
+
+
 
 

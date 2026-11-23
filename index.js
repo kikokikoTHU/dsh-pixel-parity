@@ -904,6 +904,43 @@ const RUN_DESCRIPTION = [
  * @param {object} ctx - Cordis context with tools and skills services.
  */
 export function apply(ctx, config) {
+  const projectMatcher = async ({ source, candidates }) => {
+    const llm = typeof ctx.get === 'function' ? ctx.get('llm') : undefined
+    const defaults = typeof ctx.get === 'function' ? ctx.get('agentDefaultModel') : undefined
+    if (llm === undefined || defaults === undefined) return null
+    const selection = defaults.currentSelection()
+    if (selection?.provider === undefined || selection?.model === undefined) return null
+    const prompt = [
+      'You match a design source to a frontend page case.',
+      'Return ONLY JSON: {"caseId":"<one candidate>","confidence":0.0-1.0,"rationale":"short reason"}.',
+      `Design source: ${source.kind} ${source.location}`,
+      'Candidates:',
+      ...candidates.map(candidate => `- ${candidate.caseId}: ${candidate.urls.join(' | ')}`),
+    ].join('\n')
+    let text = ''
+    for await (const chunk of llm.stream({
+      provider: selection.provider,
+      model: selection.model,
+      reasoningEffort: selection.reasoningEffort,
+      system: 'You are a precise UI page matcher. Answer with JSON only.',
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+      maxTokens: 500,
+      temperature: 0,
+    })) {
+      if (chunk.type === 'text-delta') text += chunk.text
+    }
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start < 0 || end <= start) return null
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1))
+      if (typeof parsed.caseId !== 'string') return null
+      return { caseId: parsed.caseId, confidence: Number(parsed.confidence), rationale: String(parsed.rationale ?? '') }
+    } catch {
+      return null
+    }
+  }
+
   const panelRoots = () => {
     const roots = [lastRunRoot, panelRepoOverride, ...(Array.isArray(config?.repos) ? config.repos : [])]
     return roots.filter(root => typeof root === 'string' && root.length > 0)
@@ -1172,7 +1209,7 @@ export function apply(ctx, config) {
               const project = await addSource(String(body.projectId ?? ''), {
                 kind: body.kind ?? 'url',
                 location: String(body.location ?? ''),
-              })
+              }, { matcher: projectMatcher })
               respondJson(response, 200, { project: projectSummary(project) })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1185,7 +1222,7 @@ export function apply(ctx, config) {
           handler: async (request, response) => {
             try {
               const body = await readJson(request)
-              const project = await removeSource(String(body.projectId ?? ''), String(body.sourceId ?? ''))
+              const project = await removeSource(String(body.projectId ?? ''), String(body.sourceId ?? ''), { matcher: projectMatcher })
               respondJson(response, 200, { project: projectSummary(project) })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1199,7 +1236,7 @@ export function apply(ctx, config) {
             try {
               const body = await readJson(request)
               const project = readProject(String(body.projectId ?? ''))
-              await analyzeProject(project)
+              await analyzeProject(project, { matcher: projectMatcher })
               respondJson(response, 200, { project: projectSummary(readProject(project.id)) })
             } catch (error) {
               respondJson(response, 400, { error: String(error?.message ?? error) })
@@ -1716,12 +1753,12 @@ export function apply(ctx, config) {
       }
       const projectId = text(args.projectId, 'projectId')
       if (action === 'add-source') {
-        const project = await addSource(projectId, { kind: args.kind ?? 'url', location: text(args.location, 'location') })
+        const project = await addSource(projectId, { kind: args.kind ?? 'url', location: text(args.location, 'location') }, { matcher: projectMatcher })
         return { action, project: projectSummary(project) }
       }
       if (action === 'analyze') {
         const project = readProject(projectId)
-        await analyzeProject(project)
+        await analyzeProject(project, { matcher: projectMatcher })
         return { action, project: projectSummary(readProject(projectId)) }
       }
       if (action === 'selection') {
@@ -1906,6 +1943,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
