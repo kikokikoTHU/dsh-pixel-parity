@@ -1,4 +1,4 @@
-# Pixel parity
+﻿# Pixel parity
 
 Design-faithful frontend implementation: render, measure, and iterate until the code
 matches the reference — instead of judging by eye.
@@ -323,6 +323,7 @@ exists, but a run over them fails explicitly rather than pretending to verify.
 ELECTRON_RUN_AS_NODE=1 <electron> test/run-tests.js
 PARITY_REPO=<repo-with-playwright> ELECTRON_RUN_AS_NODE=1 <electron> test/v2.test.mjs
 ```
+
 
 
 
