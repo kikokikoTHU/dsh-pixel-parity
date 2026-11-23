@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -1823,7 +1823,7 @@ export function apply(ctx, config) {
       additionalProperties: false,
       required: ['action'],
       properties: {
-        action: { type: 'string', enum: ['providers', 'spawn'] },
+        action: { type: 'string', enum: ['providers', 'spawn', 'spawn-root'] },
         provider: { type: 'string' },
         projectId: { type: 'string' },
         prompt: { type: 'string' },
@@ -1856,7 +1856,7 @@ export function apply(ctx, config) {
       const providerName = typeof args.provider === 'string' ? args.provider : providers[0]?.name
       const provider = providerName === undefined ? undefined : subagents.getProvider(providerName)
       if (provider === undefined) return { ok: false, reason: 'no provider', providers }
-      const parent = agents.currentInitiator() ?? agents.list()[0]
+      const parent = args.action === 'spawn-root' ? agents.list()[0] : (agents.currentInitiator() ?? agents.list()[0])
       if (parent === undefined) return { ok: false, reason: 'no parent agent', providers }
       let cwd = process.cwd()
       if (typeof args.projectId === 'string' && args.projectId.length > 0) {
@@ -2059,6 +2059,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
