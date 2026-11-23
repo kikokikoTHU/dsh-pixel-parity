@@ -103,8 +103,9 @@ A task persists under the plugin installation directory at
 `repo`, `config`, `cases`, `viewports`, `goal`, `dependenciesRoot`, and every iteration
 (`runDir`, pixels, delta, plan) and its single alignment measurement. It ends as
 `converged` (passes) or `failed` (differences remain), with the plan kept for the report.
-The PP panel lists tasks from that store without a repository path, with Report /
-Download / Delete actions. Report unlocks after that one run; there is no iteration
+The PP panel groups tasks by repository, shows per-repo pass/fail/unrun counts, and
+offers a per-repo **Run all** batch (only tasks that have not run yet). Each task keeps its
+own Report / Download / Delete actions. Report unlocks after that one run; there is no iteration
 budget and no automatic resume. A `<task>/checkpoint.json` is still written for crash
 recovery and inspection.
 

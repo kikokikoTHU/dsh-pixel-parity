@@ -55,7 +55,9 @@ window.__ModuleLoader__.load({
       diagnosis: { padding: '6px 12px', fontSize: 10, borderBottom: border, maxHeight: 140, overflow: 'auto' },
       viewerBackdrop: { position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(15, 23, 42, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
       viewerPanel: { width: '92vw', height: '88vh', background: '#fff', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid var(--dsw-alias-border, #d7dee8)' },
-      viewerHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: border, fontSize: 12 },      taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
+      viewerHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: border, fontSize: 12 },      repoSection: { marginTop: 10, paddingTop: 8, borderTop: border },
+      repoHeader: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, paddingBottom: 4, overflow: 'hidden' },
+      taskCard: { border: '1px solid var(--dsw-alias-border, #d7dee8)', borderRadius: 8, padding: '8px 10px', margin: '8px 12px 0', background: 'var(--dsw-alias-bg-secondary, #f7f9fc)' },
       taskRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 },
       taskBtn: { border, background: 'transparent', borderRadius: 6, padding: '2px 8px', fontSize: 10, cursor: 'pointer', ...text },
       list: { padding: '8px 12px 12px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
@@ -358,6 +360,43 @@ window.__ModuleLoader__.load({
       )
     }
 
+    async function runRepo(repo) {
+      state.message = zh ? `正在批量运行 ${repo}` : `Running ${repo}`
+      notify()
+      try {
+        const response = await fetch('/pixel-parity/repo/run', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ repo }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`)
+        state.message = zh ? `批量运行 0/${body.total}` : `Batch 0/${body.total}`
+        notify()
+        const timer = setInterval(async () => {
+          try {
+            const jobResponse = await fetch('/pixel-parity/repo/job')
+            const job = await jobResponse.json().catch(() => null)
+            if (job === null) return
+            if (job.status === 'running') {
+              state.message = zh ? `批量运行 ${job.done}/${job.total}` : `Batch ${job.done}/${job.total}`
+              notify()
+            } else {
+              clearInterval(timer)
+              state.message = zh
+                ? `批量完成：${job.done}/${job.total}${job.failed > 0 ? `，${job.failed} 个失败` : ''}`
+                : `Batch done: ${job.done}/${job.total}${job.failed > 0 ? `, ${job.failed} failed` : ''}`
+              notify()
+              loadTasks()
+            }
+          } catch {}
+        }, 1000)
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
+
     function Launcher() {
       const store = useStore()
       useEffect(() => {
@@ -477,52 +516,22 @@ window.__ModuleLoader__.load({
               onClick: () => { state.open = false; notify() },
             }, '×'),
           ),
-          (store.tasks ?? []).slice(0, 5).map(task => {
-            const pixels = task.latest?.pixels ?? []
-            const average = pixels.length === 0 ? null : pixels.reduce((sum, value) => sum + value, 0) / pixels.length
-            const reportReady = task.status === 'converged' || task.status === 'failed'
-            return h('div', { key: task.id, style: styles.taskCard },
-              h('div', { style: styles.taskRow },
-                h('strong', null, task.id),
-                h('span', { style: styles.pill }, task.status),
-                h('span', { style: { ...muted, marginLeft: 'auto' } }, 'single run'),
+          (() => {
+            const groups = new Map()
+            for (const task of store.tasks ?? []) {
+              if (!groups.has(task.repo)) groups.set(task.repo, [])
+              groups.get(task.repo).push(task)
+            }
+            return [...groups.entries()].map(([repo, tasks]) => h('div', { key: repo, style: styles.repoSection },
+              h('div', { style: styles.repoHeader },
+                h('strong', { title: repo }, repo),
+                h('span', { style: muted }, `${tasks.filter(item => item.status === 'converged').length}✓ ${tasks.filter(item => item.status === 'failed').length}✗ ${tasks.filter(item => item.runs.length === 0).length}–`),
+                h('span', { style: { flex: 1 } }),
+                h('button', { style: styles.taskBtn, onClick: () => runRepo(repo) }, 'Run all'),
               ),
-              h('div', { style: { ...muted, fontSize: 10, paddingTop: 2 } },
-                average === null ? (zh ? '尚无 run' : 'no run yet') : `${(average * 100).toFixed(2)}% pixels`,
-                task.plan?.steps?.[0] === undefined ? '' : ` · ${zh ? '下一步' : 'next'}: ${task.plan.steps[0].target}`,
-              ),
-              h('div', { style: { display: 'flex', gap: 6, paddingTop: 4, flexWrap: 'wrap' } },
-                h('span', {
-                  title: reportReady
-                    ? (zh ? '打开报告' : 'Open the report')
-                    : (zh ? '先运行一次任务，再生成报告' : 'Run the task once before generating a report'),
-                  style: { display: 'inline-block' },
-                },
-                  h('button', {
-                    style: {
-                      ...styles.taskBtn,
-                      ...(reportReady ? {} : { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' }),
-                    },
-                    disabled: !reportReady,
-                    onClick: () => { if (reportReady) showReport(task) },
-                  }, 'Report'),
-                ),
-                task.reportPath === undefined
-                  ? null
-                  : h('a', {
-                      style: { ...styles.taskBtn, textDecoration: 'none', display: 'inline-block' },
-                      href: `/pixel-parity/task/report-file?taskId=${encodeURIComponent(task.id)}`,
-                      target: '_blank',
-                      rel: 'noopener',
-                      download: `${task.id}-report.html`,
-                    }, 'Download'),
-                h('button', {
-                  style: { ...styles.taskBtn, color: '#c0392b', borderColor: '#e3b4ae' },
-                  onClick: () => deleteTaskAction(task),
-                }, state.pendingDelete === task.id ? 'Confirm' : 'Delete'),
-              ),
-            )
-          }),
+              tasks.map(task => {              }),
+            ))
+          })(),
           store.message === null ? null : h('div', { style: styles.message }, store.message),
           store.diagnosis === null ? null : h('div', { style: styles.diagnosis },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },

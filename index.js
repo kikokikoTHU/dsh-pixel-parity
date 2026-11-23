@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -34,6 +34,8 @@ let activeJob
 let taskJob
 /** Abort controller for the active task step. */
 let taskJobController
+/** The panel-launched repo batch job, if any. */
+let repoJob
 
 /** Cordis plugin name. */
 export const name = 'dsh-pixel-parity'
@@ -1090,6 +1092,53 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
+          path: '/pixel-parity/repo/run',
+          handler: async (request, response) => {
+            let body
+            try {
+              body = await readJson(request)
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+              return
+            }
+            if (repoJob?.status === 'running') {
+              respondJson(response, 200, { jobId: repoJob.id, running: true })
+              return
+            }
+            const repo = resolve(String(body.repo ?? ''))
+            const pending = listTasks(repo).filter(task => task.runs.length === 0)
+            const job = {
+              id: `repojob-${Date.now()}`,
+              repo,
+              status: 'running',
+              total: pending.length,
+              done: 0,
+              failed: 0,
+              startedAt: new Date().toISOString(),
+            }
+            repoJob = job
+            void (async () => {
+              for (const task of pending) {
+                if (repoJob?.id !== job.id) return
+                try {
+                  await stepTask({ id: task.id })
+                  job.done += 1
+                } catch {
+                  job.failed += 1
+                }
+              }
+              repoJob = { ...job, status: 'done', finishedAt: new Date().toISOString() }
+            })()
+            respondJson(response, 202, { jobId: job.id, total: pending.length })
+          },
+        }),
+        server.register({
+          kind: 'exact',
+          path: '/pixel-parity/repo/job',
+          resource: async () => asJson(repoJob ?? null),
+        }),
+        server.register({
+          kind: 'exact',
           path: '/pixel-parity/task/report-file',
           resource: async (request) => {
             const id = new URL(request.url).searchParams.get('taskId') ?? ''
@@ -1637,6 +1686,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
