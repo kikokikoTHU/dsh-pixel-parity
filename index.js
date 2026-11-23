@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -1714,7 +1714,7 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'parity_project',
-    description: 'Manage a project: repo + base commit + design sources, automatic source-to-case matching, subtasks, and manually triggered alignment rounds. Actions: create, add-source, analyze, selection, list, status, run-round, delete.',
+    description: 'Manage a project: repo + base commit + design sources, automatic source-to-case matching, subtasks, and manually triggered alignment rounds. Use create with designs for a one-shot natural-language project; repo defaults to the current git repository and config to parity.config.mjs. Actions: create, add-source, analyze, selection, list, status, run-round, delete.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -1725,6 +1725,7 @@ export function apply(ctx, config) {
         baseCommit: { type: 'string' },
         config: { type: 'string' },
         name: { type: 'string' },
+        designs: { type: 'array', items: { type: 'string' } },
         projectId: { type: 'string' },
         kind: { type: 'string', enum: ['url', 'file'] },
         location: { type: 'string' },
@@ -1745,8 +1746,14 @@ export function apply(ctx, config) {
     async execute(args) {
       const action = text(args.action, 'action')
       if (action === 'create') {
-        const project = await createProject({ repo: text(args.repo, 'repo'), baseCommit: args.baseCommit ?? 'HEAD', config: args.config ?? 'parity.config.mjs', name: args.name })
-        return { action, project: projectSummary(project) }
+        const repo = args.repo === undefined ? process.cwd() : text(args.repo, 'repo')
+        const project = await createProject({ repo, baseCommit: args.baseCommit ?? 'HEAD', config: args.config ?? 'parity.config.mjs', name: args.name })
+        let current = project
+        for (const design of arrayOfText(args.designs, 'designs')) {
+          const location = design.startsWith('http') || isAbsolute(design) ? design : resolve(repo, design)
+          current = await addSource(project.id, { kind: location.startsWith('http') ? 'url' : 'file', location }, { matcher: projectMatcher })
+        }
+        return { action, project: projectSummary(current) }
       }
       if (action === 'list') {
         return { action, projects: listProjects().map(projectSummary) }
@@ -1943,6 +1950,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

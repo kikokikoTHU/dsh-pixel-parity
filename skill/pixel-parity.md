@@ -266,6 +266,24 @@ parity_task({ action: "step", repo, taskId })   // runs, updates status, returns
 parity_task({ action: "report", repo, taskId }) // writes the task report
 ```
 
+### Natural language project creation
+
+When the user asks for a project in plain language (for example “给 anubis 建一个对齐项目，设计图是 <url1> 和 <url2>”), call:
+
+```
+parity_project({
+  action: "create",
+  repo: "<repo path; omit only when the session cwd is that git repo>",
+  baseCommit: "HEAD",
+  designs: ["<url or local path>", "..."],
+  name: "<optional>"
+})
+```
+
+- `designs` is added and analyzed immediately; `config` defaults to `<repo>/parity.config.mjs`.
+- Report the matched sources/subtasks from the returned project. Do not ask for confirmation when repo and designs are clear.
+- Only run `parity_project action=run-round` when the user explicitly asks to execute a round.
+
 For multi-page alignment, use `parity_project`: create with repo/baseCommit/config, add design sources (each is analyzed automatically with the DSH LLM, falling back to URL/token matching), then `run-round` only when the user asks. Project runs happen in an isolated worktree at the base commit. A task records its metadata, iterations, and plan under the plugin data directory (`<plugin>/data/tasks/<id>/`), so the PP panel can list it without scanning a repository. Use
 `action: "status" | "list" | "delete"` to manage it; there is no pause/resume. Each completed
 iteration writes `checkpoint.json`, and on startup the plugin recovers interrupted tasks and

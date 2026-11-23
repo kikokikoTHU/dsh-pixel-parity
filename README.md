@@ -1,4 +1,4 @@
-﻿# Pixel parity
+# Pixel parity
 
 Design-faithful frontend implementation: render, measure, and iterate until the code
 matches the reference — instead of judging by eye.
@@ -111,6 +111,17 @@ recovery and inspection.
 
 IR / QML / component exports are optional inspection and portability seams for reviewing
 what was captured; they are not the alignment mechanism.
+
+## Projects
+
+Projects can be created from a normal chat message in one call:
+
+```js
+parity_project({ action: "create", repo, baseCommit: "HEAD", designs: ["<url>", "<local path>"] })
+```
+
+Each design source is analyzed immediately; `config` defaults to `<repo>/parity.config.mjs`.
+The PP panel exposes the same project workspace under **Projects**.
 
 ## Repo alignment
 
