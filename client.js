@@ -583,163 +583,297 @@ window.__ModuleLoader__.load({
       }
     }
 
+    const projectCss = `
+      .ppj-backdrop { position: fixed; inset: 0; z-index: 5500; background: rgba(15, 23, 42, .32); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; }
+      .ppj-panel { width: min(1120px, 95vw); height: min(800px, 90vh); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 24px 70px rgba(15, 23, 42, .22); display: grid; grid-template-columns: 218px 1fr; overflow: hidden; color: #0f172a; }
+      .ppj-rail { background: #fbfcfe; border-right: 1px solid #eef2f7; padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; }
+      .ppj-brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; margin-bottom: 14px; }
+      .ppj-mark { width: 24px; height: 24px; border-radius: 7px; background: #111827; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+      .ppj-rail-label { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; margin: 4px 6px 6px; }
+      .ppj-step { display: flex; gap: 9px; padding: 8px; border-radius: 8px; border: 0; background: transparent; text-align: left; cursor: pointer; width: 100%; }
+      .ppj-step:hover { background: #f1f5f9; }
+      .ppj-step.active { background: #eef2f7; }
+      .ppj-step:disabled { opacity: .45; cursor: not-allowed; }
+      .ppj-dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fff; color: #64748b; display: grid; place-items: center; font-size: 10px; flex: none; }
+      .ppj-step.active .ppj-dot { background: #111827; border-color: #111827; color: #fff; }
+      .ppj-step.done .ppj-dot { background: #dcfce7; border-color: #86efac; color: #15803d; }
+      .ppj-step b { display: block; font-size: 12px; font-weight: 600; color: #334155; }
+      .ppj-step small { display: block; font-size: 10px; color: #94a3b8; margin-top: 1px; }
+      .ppj-rail-note { margin-top: auto; font-size: 10px; line-height: 1.65; color: #94a3b8; border-top: 1px solid #eef2f7; padding-top: 10px; }
+      .ppj-main { display: flex; flex-direction: column; min-width: 0; background: #fff; }
+      .ppj-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 22px 14px; border-bottom: 1px solid #eef2f7; }
+      .ppj-head h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+      .ppj-head p { margin: 3px 0 0; font-size: 11px; color: #64748b; }
+      .ppj-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+      .ppj-body { flex: 1; overflow: auto; padding: 18px 22px; background: #fff; }
+      .ppj-foot { border-top: 1px solid #eef2f7; padding: 12px 22px; display: flex; align-items: center; gap: 10px; background: #fff; }
+      .ppj-foot .ppj-note { font-size: 11px; color: #94a3b8; }
+      .ppj-btn { height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #d8e0ea; background: #fff; color: #0f172a; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+      .ppj-btn:hover { border-color: #94a3b8; }
+      .ppj-btn.primary { background: #111827; border-color: #111827; color: #fff; font-weight: 600; }
+      .ppj-btn.primary:hover { background: #1f2937; }
+      .ppj-btn:disabled { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+      .ppj-btn.danger { color: #b91c1c; border-color: #fecaca; }
+      .ppj-btn.ghost { border-color: transparent; }
+      .ppj-card { border: 1px solid #e5eaf1; border-radius: 10px; margin-bottom: 12px; }
+      .ppj-card-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }
+      .ppj-card-h b { font-size: 12px; }
+      .ppj-card-h .ppj-hint { margin-left: auto; font-size: 10px; color: #94a3b8; }
+      .ppj-card-b { padding: 14px; }
+      .ppj-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+      .ppj-chip { border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; border-radius: 999px; padding: 3px 9px; font-size: 10px; }
+      .ppj-chip.mono { font-family: "Cascadia Code", Consolas, monospace; }
+      .ppj-kv { font-size: 11px; color: #64748b; line-height: 1.65; }
+      .ppj-kv b { color: #0f172a; }
+      .ppj-input { height: 32px; width: 100%; border: 1px solid #dbe3ee; border-radius: 6px; padding: 0 10px; font-size: 12px; color: #0f172a; background: #fff; outline: none; }
+      .ppj-input:focus { border-color: #111827; box-shadow: 0 0 0 2px rgba(17, 24, 39, .08); }
+      .ppj-grid { display: grid; gap: 9px; }
+      .ppj-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f4f7fb; }
+      .ppj-row:last-child { border-bottom: none; }
+      .ppj-row .ppj-grow { flex: 1; min-width: 0; }
+      .ppj-src { font-size: 11px; font-family: "Cascadia Code", Consolas, monospace; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ppj-pill { border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+      .ppj-pill.ok { background: #e8f8ef; color: #15803d; }
+      .ppj-pill.warn { background: #fff7e6; color: #b45309; }
+      .ppj-pill.bad { background: #fdecec; color: #b91c1c; }
+      .ppj-pill.neutral { background: #f1f5f9; color: #475569; }
+      .ppj-progress { height: 5px; border-radius: 3px; background: #eef2f7; overflow: hidden; margin-top: 8px; }
+      .ppj-progress > i { display: block; height: 100%; background: #111827; }
+      .ppj-empty { border: 1px dashed #d8e0ea; border-radius: 9px; padding: 22px; text-align: center; color: #94a3b8; font-size: 11px; }
+      .ppj-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+      .ppj-table th { text-align: left; font-size: 10px; font-weight: 600; color: #64748b; padding: 7px 8px; border-bottom: 1px solid #eef2f7; }
+      .ppj-table td { padding: 9px 8px; border-bottom: 1px solid #f4f7fb; color: #334155; }
+      .ppj-table tr:last-child td { border-bottom: none; }
+      .ppj-check { width: 15px; height: 15px; accent-color: #111827; }
+      .ppj-round { border: 1px solid #e5eaf1; border-radius: 8px; padding: 11px 13px; margin-bottom: 8px; }
+      .ppj-round.now { border-color: #111827; }
+      .ppj-round-h { display: flex; align-items: center; gap: 8px; }
+      .ppj-round-h b { font-size: 12px; }
+      .ppj-round-kv { font-size: 10px; color: #64748b; margin-top: 4px; }
+      .ppj-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: #64748b; font-size: 16px; cursor: pointer; }
+      .ppj-close:hover { background: #f1f5f9; color: #0f172a; }
+      .ppj-project { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #e5eaf1; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+      .ppj-project:hover { border-color: #111827; background: #fbfcfe; }
+      .ppj-project b { font-size: 12px; }
+      .ppj-project .ppj-repo { font-size: 10px; color: #94a3b8; font-family: "Cascadia Code", Consolas, monospace; }
+      .ppj-form { max-width: 560px; }
+      .ppj-label { display: block; font-size: 10px; color: #64748b; margin-bottom: 4px; }
+      .ppj-alert { border: 1px solid #fde68a; background: #fffbeb; color: #92400e; border-radius: 7px; padding: 8px 10px; font-size: 11px; margin-bottom: 10px; }
+    `
+
     function ProjectOverlay() {
       const store = useStore()
       if (!store.projectsOpen) return null
       const project = store.project
       const gate = project === null ? null : projectGate(project)
       const close = () => { state.projectsOpen = false; state.project = null; notify() }
-      const header = (title, subtitle) => h('div', { style: styles.projectHeader },
+      const pillClass = status => {
+        if (['matched', 'ready', 'completed', 'converged'].includes(status)) return 'ok'
+        if (['needs-review', 'analyzing', 'running', 'queued', 'draft'].includes(status)) return 'warn'
+        if (['failed', 'unmatched', 'interrupted'].includes(status)) return 'bad'
+        return 'neutral'
+      }
+      const pill = (status, label) => h('span', { className: `ppj-pill ${pillClass(status)}` }, label ?? status)
+      const closeButton = h('button', { className: 'ppj-close', onClick: close, title: '关闭' }, '×')
+      const head = (title, subtitle, actions = []) => h('div', { className: 'ppj-head' },
         h('div', null,
-          h('strong', { style: { fontSize: 13 } }, title),
-          subtitle === undefined ? null : h('div', { style: { ...muted, fontSize: 10 } }, subtitle),
+          h('h2', null, title),
+          subtitle === undefined ? null : h('p', null, subtitle),
         ),
-        h('span', { style: { flex: 1 } }),
-        h('button', { style: styles.iconButton, onClick: close }, '×'),
+        h('div', { className: 'ppj-actions' }, actions, closeButton),
       )
+      const rail = (step, projectMode) => h('aside', { className: 'ppj-rail' },
+        h('div', { className: 'ppj-brand' }, h('span', { className: 'ppj-mark' }, 'PP'), 'Pixel parity'),
+        h('div', { className: 'ppj-rail-label' }, projectMode ? 'Project setup' : 'Projects'),
+        projectMode
+          ? h(React.Fragment, null,
+              h('button', {
+                className: `ppj-step ${step === 1 ? 'active' : ''}`,
+                onClick: () => { state.projectStep = 1; notify() },
+              }, h('span', { className: 'ppj-dot' }, '1'), h('span', null, h('b', null, '仓库与设计源'), h('small', null, '添加源即自动分析'))),
+              h('button', {
+                className: `ppj-step ${step === 2 ? 'active' : ''} ${gate.ready ? 'done' : ''}`,
+                disabled: !gate.ready,
+                onClick: () => { if (gate.ready) { state.projectStep = 2; notify() } },
+              }, h('span', { className: 'ppj-dot' }, gate.ready ? '✓' : '2'), h('span', null, h('b', null, '生成子任务'), h('small', null, gate.ready ? '勾选本轮范围' : '等待全部分析'))),
+              h('button', {
+                className: `ppj-step ${step === 3 ? 'active' : ''}`,
+                disabled: project.subtasks.length === 0,
+                onClick: () => { if (project.subtasks.length > 0) { state.projectStep = 3; notify() } },
+              }, h('span', { className: 'ppj-dot' }, project.rounds.length > 0 ? '✓' : '3'), h('span', null, h('b', null, '项目页'), h('small', null, '手动 Run next round'))),
+            )
+          : h('div', { className: 'ppj-kv' }, '一个项目 = repo + base commit + 设计源；分析与匹配自动完成。'),
+        h('div', { className: 'ppj-rail-note' }, '分析自动执行；每轮由你手动触发，不会自动开始下一轮。'),
+      )
+
       if (project === null) {
-        return h('div', { style: styles.projectBackdrop, onClick: close },
-          h('div', { style: styles.projectPanel, onClick: event => event.stopPropagation() },
-            header('Projects', 'repo + base commit + 设计源，分析与匹配自动执行'),
-            h('div', { style: styles.projectBody },
-              store.creating
-                ? h('div', { style: styles.projectCard },
-                    h('strong', null, '新建对齐项目'),
-                    h('div', { style: { display: 'grid', gap: 8, marginTop: 10 } },
-                      h('input', { style: styles.input, placeholder: '仓库路径，例如 D:\\work\\anubis', value: state.projectDraft.repo, onChange: event => { state.projectDraft.repo = event.target.value; notify() } }),
-                      h('input', { style: styles.input, placeholder: '基准 commit（默认 HEAD）', value: state.projectDraft.baseCommit, onChange: event => { state.projectDraft.baseCommit = event.target.value; notify() } }),
-                      h('input', { style: styles.input, placeholder: 'parity.config.mjs 路径（相对仓库或绝对）', value: state.projectDraft.config, onChange: event => { state.projectDraft.config = event.target.value; notify() } }),
-                      h('input', { style: styles.input, placeholder: '项目名称（可选）', value: state.projectDraft.name, onChange: event => { state.projectDraft.name = event.target.value; notify() } }),
-                    ),
-                    h('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
-                      h('button', { style: styles.taskBtn, onClick: () => { state.creating = false; notify() } }, '取消'),
-                      h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, disabled: state.projectBusy || state.projectDraft.repo.trim() === '', onClick: createProjectFromDraft }, state.projectBusy ? '…' : '创建项目'),
-                    ),
-                  )
-                : h('div', null,
-                    h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-                      h('strong', null, '对齐项目'),
-                      h('span', { style: { flex: 1 } }),
-                      h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, onClick: () => { state.creating = true; notify() } }, '+ 新建项目'),
-                    ),
-                    h('div', { style: { marginTop: 8 } },
-                      (store.projects ?? []).length === 0
-                        ? h('div', { style: { ...muted, fontSize: 11 } }, '还没有项目')
-                        : (store.projects ?? []).map(item => h('div', {
-                            key: item.id,
-                            style: styles.projectRow,
-                            onClick: () => { state.project = item; state.projectStep = item.subtasks.length === 0 ? 1 : 3; notify() },
-                          },
-                            h('strong', null, item.name),
-                            h('span', { style: styles.pill }, item.status),
-                            h('span', { style: { ...muted, marginLeft: 'auto', fontSize: 10 } }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
-                          )),
-                    ),
-                  ),
+        const list = (store.projects ?? []).length === 0
+          ? h('div', { className: 'ppj-empty' }, '还没有项目。先创建一个，再添加设计图或原型。')
+          : (store.projects ?? []).map(item => h('div', {
+              key: item.id,
+              className: 'ppj-project',
+              onClick: () => { state.project = item; state.projectStep = item.subtasks.length > 0 ? 3 : 1; notify() },
+            },
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('b', null, item.name),
+                h('div', { className: 'ppj-repo' }, item.repo),
+              ),
+              pill(item.status),
+              h('span', { className: 'ppj-kv' }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+            ))
+        return h('div', { className: 'ppj-backdrop', onClick: close },
+          h('div', { className: 'ppj-panel', onClick: event => event.stopPropagation() },
+            h('style', null, projectCss),
+            rail(1, false),
+            h('div', { className: 'ppj-main' },
+              head('Projects', 'repo + base commit + 设计源，分析与匹配自动执行', [
+                h('button', { className: 'ppj-btn primary', onClick: () => { state.creating = true; notify() } }, '+ 新建项目'),
+              ]),
+              h('div', { className: 'ppj-body' },
+                store.creating
+                  ? h('div', { className: 'ppj-form' },
+                      h('div', { className: 'ppj-card' },
+                        h('div', { className: 'ppj-card-h' }, h('b', null, '新建对齐项目')),
+                        h('div', { className: 'ppj-card-b' },
+                          h('div', { className: 'ppj-grid' },
+                            h('label', null, h('span', { className: 'ppj-label' }, '仓库路径'), h('input', { className: 'ppj-input', placeholder: 'D:\\\\work\\\\anubis', value: state.projectDraft.repo, onChange: event => { state.projectDraft.repo = event.target.value; notify() } })),
+                            h('label', null, h('span', { className: 'ppj-label' }, '基准 commit'), h('input', { className: 'ppj-input', placeholder: 'HEAD', value: state.projectDraft.baseCommit, onChange: event => { state.projectDraft.baseCommit = event.target.value; notify() } })),
+                            h('label', null, h('span', { className: 'ppj-label' }, 'parity config'), h('input', { className: 'ppj-input', placeholder: 'parity.config.mjs', value: state.projectDraft.config, onChange: event => { state.projectDraft.config = event.target.value; notify() } })),
+                            h('label', null, h('span', { className: 'ppj-label' }, '项目名称（可选）'), h('input', { className: 'ppj-input', placeholder: 'anubis', value: state.projectDraft.name, onChange: event => { state.projectDraft.name = event.target.value; notify() } })),
+                          ),
+                          h('div', { style: { display: 'flex', gap: 8, marginTop: 12 } },
+                            h('button', { className: 'ppj-btn', onClick: () => { state.creating = false; notify() } }, '取消'),
+                            h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || state.projectDraft.repo.trim() === '', onClick: createProjectFromDraft }, state.projectBusy ? '创建中…' : '创建项目'),
+                          ),
+                        ),
+                      ),
+                    )
+                  : list,
+              ),
             ),
           ),
         )
       }
-      const stepOne = h('div', null,
-        h('div', { style: styles.projectCard },
-          h('strong', null, '1 · 仓库与设计源'),
-          h('div', { style: { ...muted, fontSize: 10, marginTop: 2 } }, project.repo),
-          h('div', { style: { ...muted, fontSize: 10 } }, `base ${project.baseCommit.slice(0, 7)} · ${project.config}`),
-        ),
-        h('div', { style: styles.projectCard },
-          h('strong', null, '设计源'),
-          h('div', { style: { display: 'flex', gap: 6, marginTop: 8 } },
-            h('input', { style: { ...styles.input, flex: 1 }, placeholder: 'https://… 或本地绝对路径', value: state.sourceDraft, onChange: event => { state.sourceDraft = event.target.value; notify() } }),
-            h('button', { style: styles.taskBtn, disabled: state.projectBusy, onClick: () => addProjectSource(state.sourceDraft.startsWith('http') ? 'url' : 'file') }, '添加'),
-          ),
-          h('div', { style: { marginTop: 8 } },
-            project.sources.map(source => h('div', { key: source.id, style: styles.projectRow },
-              h('span', { style: styles.pill }, source.status),
-              h('span', { style: { fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, source.location),
-              h('button', { style: styles.iconButton, title: '删除设计源', onClick: () => removeProjectSource(source.id) }, '×'),
-            )),
-          ),
-        ),
-        h('div', { style: styles.projectCard },
-          h('strong', null, '2 · 自动分析与匹配'),
-          h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, gate.reason || '全部分析完成'),
-          project.matches.length === 0 ? null : h('div', { style: { marginTop: 6 } },
-            project.matches.map(match => h('div', { key: match.sourceId, style: { ...muted, fontSize: 10 } },
-              `${match.sourceId} → ${match.caseId} · ${Math.round(match.confidence * 100)}% · ${match.status}`,
-            )),
-          ),
-        ),
-      )
-      const stepTwo = h('div', null,
-        h('div', { style: styles.projectCard },
-          h('strong', null, '生成子任务'),
-          h('div', { style: { ...muted, fontSize: 10, marginTop: 2 } }, '勾选决定下一轮执行范围'),
-          project.subtasks.map(task => h('label', { key: task.id, style: { ...styles.projectRow, cursor: 'pointer' } },
-            h('input', { type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
-            h('span', { style: { fontSize: 11 } }, task.title),
-            h('span', { style: styles.pill }, task.needsReview ? '待复核' : `${Math.round(task.confidence * 100)}%`),
-          )),
-        ),
-      )
-      const detail = h('div', null,
-        h('div', { style: styles.projectCard },
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-            h('strong', null, project.name),
-            h('span', { style: styles.pill }, project.status),
-            h('span', { style: { flex: 1 } }),
-            h('button', { style: { ...styles.taskBtn, background: '#111827', color: '#fff', borderColor: '#111827' }, disabled: state.projectBusy || (project.nextSelection ?? []).length === 0, onClick: startProjectRound }, 'Run next round'),
-            h('button', { style: { ...styles.taskBtn, color: '#c0392b' }, onClick: deleteCurrentProject }, state.pendingDelete === project.id ? 'Confirm' : 'Delete'),
-          ),
-          h('div', { style: { ...muted, fontSize: 10, marginTop: 4 } }, `${project.repo} · base ${project.baseCommit.slice(0, 7)}`),
-        ),
-        h('div', { style: styles.projectCard },
-          h('strong', null, '本轮子任务'),
-          project.subtasks.map(task => h('label', { key: task.id, style: { ...styles.projectRow, cursor: 'pointer' } },
-            h('input', { type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
-            h('span', { style: { fontSize: 11 } }, task.title),
-            task.needsReview ? h('span', { style: styles.pill }, '待复核') : null,
-          )),
-        ),
-        h('div', { style: styles.projectCard },
-          h('strong', null, '轮次'),
-          project.rounds.length === 0 ? h('div', { style: { ...muted, fontSize: 11, marginTop: 4 } }, '还没有执行过轮次') : null,
-          [...project.rounds].reverse().map(round => h('div', { key: round.id, style: styles.projectRow },
-            h('strong', null, `Round ${round.number}`),
-            h('span', { style: styles.pill }, round.status),
-            h('span', { style: { ...muted, fontSize: 10 } }, `${round.selection.length} selected`),
-            h('span', { style: { flex: 1 } }),
-            round.status === 'completed' ? h('button', { style: styles.taskBtn, onClick: () => openRoundReport(project.id, round.number) }, 'Report') : null,
-          )),
-        ),
-      )
-      return h('div', { style: styles.projectBackdrop, onClick: close },
-        h('div', { style: styles.projectPanel, onClick: event => event.stopPropagation() },
-          header(project.name, `base ${project.baseCommit.slice(0, 7)} · ${project.sources.length} sources`),
-          h('div', { style: styles.projectBody },
-            h('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
-              h('button', { style: { ...styles.taskBtn, borderColor: state.projectStep === 1 ? '#111827' : undefined }, onClick: () => { state.projectStep = 1; notify() } }, '1 · 仓库与设计源'),
-              h('button', { style: { ...styles.taskBtn, borderColor: state.projectStep === 2 ? '#111827' : undefined, opacity: gate.ready ? 1 : 0.5 }, onClick: () => { if (gate.ready) { state.projectStep = 2; notify() } } }, '2 · 生成子任务'),
-              h('button', { style: { ...styles.taskBtn, opacity: project.subtasks.length > 0 ? 1 : 0.5 }, onClick: () => { if (project.subtasks.length > 0) { state.projectStep = 3; notify() } } }, '项目页'),
+
+      const stepOne = h(React.Fragment, null,
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-h' }, h('b', null, '仓库与基准'), h('span', { className: 'ppj-hint' }, 'worktree 隔离')),
+          h('div', { className: 'ppj-card-b' },
+            h('div', { className: 'ppj-meta' },
+              h('span', { className: 'ppj-chip mono' }, project.repo),
+              h('span', { className: 'ppj-chip mono' }, `base ${project.baseCommit.slice(0, 7)}`),
+              h('span', { className: 'ppj-chip' }, project.config),
             ),
-            state.projectStep === 1 ? stepOne : state.projectStep === 2 ? stepTwo : detail,
-            state.projectStep === 1
-              ? h('div', { style: { marginTop: 10, display: 'flex', justifyContent: 'flex-end' } },
-                  h('button', {
-                    style: { ...styles.taskBtn, background: gate.ready ? '#111827' : '#e2e8f0', color: gate.ready ? '#fff' : '#94a3b8', borderColor: gate.ready ? '#111827' : '#e2e8f0' },
-                    disabled: !gate.ready,
-                    title: gate.reason,
-                    onClick: () => { state.projectStep = 2; notify() },
-                  }, gate.ready ? '生成子任务 →' : gate.reason),
-                )
-              : null,
           ),
-          h('div', { style: { padding: '8px 16px', borderTop: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 8 } },
-            h('button', { style: styles.taskBtn, onClick: () => { state.project = null; loadProjects(); notify() } }, '← Projects'),
-            store.message === null ? null : h('span', { style: { ...muted, fontSize: 10 } }, store.message),
+        ),
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-h' }, h('b', null, '设计源'), h('span', { className: 'ppj-hint' }, '添加后立即自动分析')),
+          h('div', { className: 'ppj-card-b' },
+            h('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
+              h('input', { className: 'ppj-input', style: { flex: 1 }, placeholder: 'https://… 或本地绝对路径', value: state.sourceDraft, onChange: event => { state.sourceDraft = event.target.value; notify() } }),
+              h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || state.sourceDraft.trim() === '', onClick: () => addProjectSource(state.sourceDraft.startsWith('http') ? 'url' : 'file') }, state.projectBusy ? '分析中…' : '添加'),
+            ),
+            project.sources.length === 0 ? h('div', { className: 'ppj-empty' }, '添加一个设计图或原型开始分析') : null,
+            project.sources.map(source => h('div', { key: source.id, className: 'ppj-row' },
+              pill(source.status),
+              h('span', { className: 'ppj-grow ppj-src', title: source.location }, source.location),
+              h('button', { className: 'ppj-btn ghost danger', onClick: () => removeProjectSource(source.id) }, '删除'),
+            )),
+          ),
+        ),
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-h' }, h('b', null, '自动分析与匹配'), h('span', { className: 'ppj-hint' }, gate.reason || '全部分析完成')),
+          h('div', { className: 'ppj-card-b' },
+            h('div', { className: 'ppj-kv' }, `${project.sources.filter(source => ['matched', 'needs-review', 'unmatched'].includes(source.status)).length}/${project.sources.length} 个源已完成`),
+            h('div', { className: 'ppj-progress' }, h('i', { style: { width: `${project.sources.length === 0 ? 0 : project.sources.filter(source => ['matched', 'needs-review', 'unmatched'].includes(source.status)).length / project.sources.length * 100}%` } })),
+            project.matches.length === 0 ? null : h('div', { style: { marginTop: 10 } },
+              project.matches.map(match => h('div', { key: match.sourceId, className: 'ppj-row' },
+                h('span', { className: 'ppj-grow ppj-src' }, `${match.sourceId} → ${match.caseId}`),
+                pill(match.status),
+                h('span', { className: 'ppj-kv' }, `${Math.round(match.confidence * 100)}%`),
+              )),
+            ),
+          ),
+        ),
+      )
+
+      const stepTwo = h('div', { className: 'ppj-card' },
+        h('div', { className: 'ppj-card-h' }, h('b', null, '生成子任务'), h('span', { className: 'ppj-hint' }, '勾选决定下一轮范围')),
+        h('div', { className: 'ppj-card-b' },
+          h('table', { className: 'ppj-table' },
+            h('thead', null, h('tr', null, h('th', { style: { width: 34 } }, ''), h('th', null, '子任务'), h('th', null, 'case'), h('th', null, '置信度'))),
+            h('tbody', null, project.subtasks.map(task => h('tr', { key: task.id },
+              h('td', null, h('input', { className: 'ppj-check', type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) })),
+              h('td', null, h('b', null, task.title), task.needsReview ? h('div', { className: 'ppj-kv' }, '待复核，默认不勾选') : null),
+              h('td', null, h('span', { className: 'ppj-chip mono' }, task.caseId)),
+              h('td', null, `${Math.round(task.confidence * 100)}%`),
+            ))),
+          ),
+        ),
+      )
+
+      const detail = h(React.Fragment, null,
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-b', style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h('div', { style: { flex: 1 } },
+              h('div', { className: 'ppj-kv' }, `${(project.nextSelection ?? []).length}/${project.subtasks.length} 个子任务已选 · 本轮不会自动执行`),
+            ),
+            h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || (project.nextSelection ?? []).length === 0, onClick: startProjectRound }, 'Run next round'),
+            h('button', { className: 'ppj-btn danger', onClick: deleteCurrentProject }, state.pendingDelete === project.id ? 'Confirm delete' : 'Delete'),
+          ),
+        ),
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-h' }, h('b', null, '本轮子任务')),
+          h('div', { className: 'ppj-card-b' },
+            project.subtasks.map(task => h('label', { key: task.id, className: 'ppj-row', style: { cursor: 'pointer' } },
+              h('input', { className: 'ppj-check', type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
+              h('span', { className: 'ppj-grow' }, task.title),
+              task.needsReview ? pill('needs-review', '待复核') : null,
+            )),
+          ),
+        ),
+        h('div', { className: 'ppj-card' },
+          h('div', { className: 'ppj-card-h' }, h('b', null, '轮次'), h('span', { className: 'ppj-hint' }, '每次点击只执行一轮')),
+          h('div', { className: 'ppj-card-b' },
+            project.rounds.length === 0 ? h('div', { className: 'ppj-empty' }, '还没有执行过轮次') : null,
+            [...project.rounds].reverse().map(round => h('div', { key: round.id, className: `ppj-round ${round.status === 'running' ? 'now' : ''}` },
+              h('div', { className: 'ppj-round-h' },
+                h('b', null, `Round ${round.number}`),
+                pill(round.status),
+                h('span', { className: 'ppj-kv' }, `${round.selection.length} selected`),
+                h('span', { style: { flex: 1 } }),
+                round.status === 'completed' ? h('button', { className: 'ppj-btn', onClick: () => openRoundReport(project.id, round.number) }, 'Report') : null,
+              ),
+              h('div', { className: 'ppj-round-kv' }, round.summary === null || round.summary === undefined ? round.finishedAt ?? '' : `${round.summary.failed ?? 0} failed · ${round.summary.verified ?? 0} passed`),
+            )),
+          ),
+        ),
+      )
+
+      const body = state.projectStep === 1 ? stepOne : state.projectStep === 2 ? stepTwo : detail
+      const primary = state.projectStep === 1
+        ? h('button', { className: 'ppj-btn primary', disabled: !gate.ready, title: gate.reason, onClick: () => { state.projectStep = 2; notify() } }, gate.ready ? '生成子任务 →' : gate.reason)
+        : state.projectStep === 2
+          ? h('button', { className: 'ppj-btn primary', onClick: () => { state.projectStep = 3; notify() } }, '进入项目页 →')
+          : null
+      return h('div', { className: 'ppj-backdrop', onClick: close },
+        h('div', { className: 'ppj-panel', onClick: event => event.stopPropagation() },
+          h('style', null, projectCss),
+          rail(state.projectStep, true),
+          h('div', { className: 'ppj-main' },
+            head(project.name, `${project.repo} · base ${project.baseCommit.slice(0, 7)}`),
+            h('div', { className: 'ppj-body' }, body),
+            h('div', { className: 'ppj-foot' },
+              h('button', { className: 'ppj-btn ghost', onClick: () => { state.project = null; loadProjects(); notify() } }, '← Projects'),
+              h('span', { className: 'ppj-note' }, store.message ?? ''),
+              h('span', { style: { flex: 1 } }),
+              primary,
+            ),
           ),
         ),
       )
     }
+
 
     function RoundReportViewer() {
       const store = useStore()
