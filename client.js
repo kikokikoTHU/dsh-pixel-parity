@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -575,13 +575,12 @@ window.__ModuleLoader__.load({
       notify()
     }
 
-    async function deleteProjectRow(projectId) {
-      if (state.pendingDeleteProject !== projectId) {
-        state.pendingDeleteProject = projectId
-        state.message = '再次点击 × 确认删除项目'
-        notify()
-        return
-      }
+    function askDeleteProject(projectId) {
+      state.pendingDeleteProject = projectId
+      notify()
+    }
+
+    async function confirmDeleteProject(projectId) {
       state.pendingDeleteProject = null
       try {
         await projectPost('/pixel-parity/project/delete', { projectId })
@@ -755,7 +754,11 @@ window.__ModuleLoader__.load({
               h('button', {
                 className: 'ppj-btn danger',
                 title: '删除项目',
-                onClick: event => { event.stopPropagation(); deleteProjectRow(item.id) },
+                onClick: event => {
+                  event.stopPropagation()
+                  if (state.pendingDeleteProject === item.id) confirmDeleteProject(item.id)
+                  else askDeleteProject(item.id)
+                },
               }, state.pendingDeleteProject === item.id ? 'Confirm' : 'Delete'),
             ))
         return h('div', { className: 'ppj-backdrop', onClick: close },
@@ -1010,7 +1013,7 @@ window.__ModuleLoader__.load({
 
     const drawerCss = `
       .ppd-backdrop { position: fixed; inset: 0; z-index: 5200; }
-      .ppd-panel { position: fixed; top: 54px; right: 12px; bottom: 96px; width: 440px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 18px 60px rgba(15, 23, 42, .16); display: flex; flex-direction: column; overflow: hidden; color: #0f172a; }
+      .ppd-panel { position: fixed; top: 54px; right: 12px; bottom: 96px; width: 440px; max-width: calc(100vw - 24px); box-sizing: border-box; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 18px 60px rgba(15, 23, 42, .16); display: flex; flex-direction: column; overflow: hidden; color: #0f172a; }
       .ppd-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }
       .ppd-head strong { font-size: 12.5px; font-weight: 650; letter-spacing: -.01em; }
       .ppd-spacer { flex: 1; }
@@ -1022,12 +1025,15 @@ window.__ModuleLoader__.load({
       .ppd-section-h em { font-style: normal; color: #64748b; letter-spacing: 0; }
       .ppd-icon { width: 22px; height: 22px; border: 1px solid #dbe3ee; border-radius: 5px; background: #fff; color: #111827; font-size: 14px; line-height: 1; cursor: pointer; }
       .ppd-icon:hover { border-color: #111827; }
-      .ppd-project { width: 100%; text-align: left; background: #fff; border: 1px solid #e5eaf1; border-radius: 8px; padding: 10px 11px; margin-bottom: 7px; cursor: pointer; display: block; }
+      .ppd-project { width: 100%; box-sizing: border-box; overflow: hidden; text-align: left; background: #fff; border: 1px solid #e5eaf1; border-radius: 8px; padding: 10px 11px; margin-bottom: 7px; cursor: pointer; display: block; }
       .ppd-project:hover { border-color: #111827; background: #fbfcfe; }
-      .ppd-project-del { border: 1px solid transparent; background: transparent; color: #94a3b8; border-radius: 5px; font-size: 11px; padding: 1px 5px; cursor: pointer; }
+      .ppd-project-del { flex: none; border: 1px solid transparent; background: transparent; color: #94a3b8; border-radius: 5px; font-size: 11px; padding: 1px 5px; cursor: pointer; }
       .ppd-project-del:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
-      .ppd-project-main { display: flex; align-items: center; gap: 7px; }
-      .ppd-project-main b { font-size: 12px; font-weight: 600; color: #0f172a; }
+      .ppd-confirm { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; font-size: 10px; color: #b91c1c; }
+      .ppd-confirm .ppd-btn { margin-top: 0; height: 24px; padding: 0 8px; }
+      .ppd-btn.danger { color: #b91c1c; border-color: #fecaca; }
+      .ppd-project-main { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .ppd-project-main b { font-size: 12px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ppd-repo { margin-top: 3px; font-size: 9.5px; color: #94a3b8; font-family: "Cascadia Code", Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .ppd-meta { margin-top: 5px; font-size: 10px; color: #64748b; }
       .ppd-pill { border-radius: 999px; padding: 1px 7px; font-size: 9.5px; font-weight: 600; }
@@ -1121,11 +1127,19 @@ window.__ModuleLoader__.load({
                       h('button', {
                         className: 'ppd-project-del',
                         title: '删除项目',
-                        onClick: event => { event.stopPropagation(); deleteProjectRow(item.id) },
-                      }, state.pendingDeleteProject === item.id ? '确认' : '×'),
+                        onClick: event => { event.stopPropagation(); askDeleteProject(item.id) },
+                      }, '×'),
                     ),
                     h('div', { className: 'ppd-repo', title: item.repo }, item.repo),
                     h('div', { className: 'ppd-meta' }, `${item.subtasks.length} subtasks · ${item.rounds.length} rounds`),
+                    state.pendingDeleteProject === item.id ? h('div', {
+                      className: 'ppd-confirm',
+                      onClick: event => event.stopPropagation(),
+                    },
+                      h('span', null, '删除此项目？'),
+                      h('button', { className: 'ppd-btn danger', onClick: () => confirmDeleteProject(item.id) }, 'Delete'),
+                      h('button', { className: 'ppd-btn', onClick: () => { state.pendingDeleteProject = null; notify() } }, 'Cancel'),
+                    ) : null,
                   )),
             ),
             tasks.length === 0 ? null : h('section', { className: 'ppd-section' },
@@ -1169,6 +1183,8 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
+
 
 
 
