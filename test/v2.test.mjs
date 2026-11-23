@@ -346,6 +346,15 @@ await test('alignment plan puts geometry and styles before pixels', async () => 
   assert.deepEqual(plan.steps.map(step => step.kind), ['geometry', 'style', 'pixels'])
 })
 
+await test('package and locale JSON files have no BOM', async () => {
+  const root = join(here, '..')
+  for (const file of ['package.json', 'locale/en.json', 'locale/zh.json']) {
+    const bytes = readFileSync(join(root, file))
+    assert.notEqual(bytes[0], 0xef, `${file} starts with a UTF-8 BOM`)
+    assert.equal(bytes[0], 0x7b, `${file} must start with "{"`)
+  }
+})
+
 await test('config rejects duplicate case ids', async () => {
   assert.throws(() => normalizeConfig({
     version: 2,
