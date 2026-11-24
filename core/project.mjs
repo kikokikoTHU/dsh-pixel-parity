@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -314,39 +314,42 @@ function makeBrief(project, round, subtask, before) {
     `1. Inspect the implementation and the reference/diff artifacts.`,
     `2. Achieve COMPLETE alignment: visual shell AND information architecture/business content. Do not stop at CSS or shell-only changes.`,
     `3. Stop as soon as the page is verified: pixels <= 1%, geometry pass, styles pass. Do not chase sub-percent differences; commit immediately after a passing run.`,
-    `3. If the current page is a different workflow (for example a query form instead of a statistics dashboard), REPLACE the page content with the prototype structure, and move the existing business flow to a compatible route/tab if needed.`,
-    `4. Update routes, navigation, fixtures, and tests when required so the application remains coherent.`,
-    `5. If the backend data shape does not match the prototype, add local fixtures/mock adapters so the page renders representative data; do not leave it empty/error.`,
-    `6. You may change app implementation, tests, and fixtures. Do not change parity config, design sources, .parity, or vite.pp.config.js.`,
-    `7. Do not run git push, git remote, or network commands.`,
-    `8. Create EXACTLY ONE commit with this shape:`,
+    `4. If the current page is a different workflow (for example a query form instead of a statistics dashboard), REPLACE the page content with the prototype structure, and move the existing business flow to a compatible route/tab if needed.`,
+    `5. For EVERY data-bearing region (KPI values, chart series, tables, timestamps), create a temporary local mock/fixture that reproduces the DESIGN's exact values, labels, row counts, and ordering. Do this even when a real API exists; do not align the UI against real data.`,
+    `6. Put the temporary mock behind a clearly replaceable adapter. A cleanup pass will delete it after acceptance.`,
+    `7. Update routes, navigation, tests, and fixtures so the app remains coherent.`,
+    `8. You may change app implementation, tests, and temporary mocks. Do not change parity config, design sources, .parity, or vite.pp.config.js.`,
+    `9. Do not run git push, git remote, or network commands.`,
+    `10. Create EXACTLY ONE commit with this shape:`,
     `   pp(${subtask.id}): align ${subtask.title} to design`,
     `   ...`,
     `   PP-Project: ${project.id}`,
     `   PP-Round: ${round.number}`,
     `   PP-Subtask: ${subtask.id}`,
     `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
-    `9. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
-    `10. Reply with the commit sha and a short summary of changed files.`,
+    `11. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
+    `12. Reply with the commit sha and a short summary of changed files.`,
   ].join('\n')
 }
 
 function makeCleanupBrief(project, round, subtask, entry) {
   return [
     `The mock-data alignment for this subtask is ACCEPTED (${typeof entry.after === 'number' ? `${(entry.after * 100).toFixed(2)}% pixels` : 'verified'}).`,
-    `Now remove the mock/demo/snapshot data used only for alignment and restore the real data path.`,
+    `Now remove the temporary design mock and restore the real data path.`,
     `Project: ${project.name} (${project.id})`,
     `Round: ${round.number}`,
     `Subtask: ${subtask.title} (${subtask.id})`,
     `Branch: ${round.branch}`,
     ``,
     `Requirements:`,
-    `1. Remove local fixtures, mock arrays, hard-coded dashboard numbers, and demo-only adapters introduced for this task.`,
+    `1. Remove the temporary fixtures, mock arrays, design-snapshot values, and demo-only adapters introduced for this task.`,
     `2. Connect the page to the real application data source/service. Keep the accepted visual layout.`,
-    `3. If the real source lacks an aggregate response, use the real service/client and show a real empty/loading/error state; never silently fall back to demo data.`,
-    `4. Update imports, routes, and tests so no reference to the removed mock remains.`,
-    `5. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push.`,
-    `6. Commit EXACTLY ONE cleanup commit:`,
+    `3. If the real source lacks data, use the real service/client and show a real empty/loading/error state; never silently fall back to demo data.`,
+    `4. Real values may differ from the design. Do NOT try to make real data match the design, and do NOT restore the mock to hide the difference.`,
+    `5. Update imports, routes, and tests so no reference to the removed mock remains.`,
+    `6. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push.`,
+    `7. Acceptance is based on the mock capture; real-data visual differences are informational.`,
+    `8. Commit EXACTLY ONE cleanup commit:`,
     `   pp(${subtask.id}): use real data for ${subtask.title}`,
     `   ...`,
     `   PP-Project: ${project.id}`,
@@ -354,7 +357,7 @@ function makeCleanupBrief(project, round, subtask, entry) {
     `   PP-Subtask: ${subtask.id}`,
     `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
     `   PP-Stage: real-data`,
-    `7. Leave git status --porcelain -uno empty and reply with the commit sha.`,
+    `9. Leave git status --porcelain -uno empty and reply with the commit sha.`,
     `If no mock data exists, make no changes and reply "NO-MOCK".`,
   ].join('\n')
 }
@@ -636,7 +639,7 @@ function buildComparisonReport(project, round, directory, assets) {
     const before = comparisonSide(project, round, beforeDir, entry.caseId, 'Before', entry)
     const showReal = entry.afterRealRunDir !== undefined && entry.cleanup !== 'no-mock'
     const after = comparisonSide(project, round, afterDir, entry.caseId, showReal ? 'After · mock data' : 'After', entry)
-    const afterReal = showReal ? comparisonSide(project, round, entry.afterRealRunDir, entry.caseId, 'After · real data', entry) : ''
+    const afterReal = showReal ? comparisonSide(project, round, entry.afterRealRunDir, entry.caseId, 'After · real data (informational)', entry) : ''
     const beforePixels = typeof entry.before === 'number' ? `${(entry.before * 100).toFixed(2)}%` : '—'
     const afterPixels = typeof entry.after === 'number' ? `${(entry.after * 100).toFixed(2)}%` : '—'
     return `<section class="case">
@@ -644,7 +647,7 @@ function buildComparisonReport(project, round, directory, assets) {
       <div class="compare">
         <div class="side"><h3>Before</h3>${before || '<div class="mut">no before capture</div>'}</div>
         <div class="side"><h3>${showReal ? 'After · mock data' : 'After'}</h3>${after || '<div class="mut">no after capture</div>'}</div>
-        ${showReal ? `<div class="side"><h3>After · real data</h3>${afterReal || '<div class="mut">no real-data capture</div>'}</div>` : ''}
+        ${showReal ? `<div class="side"><h3>After · real data (informational)</h3>${afterReal || '<div class="mut">no real-data capture</div>'}</div>` : ''}
       </div>
       <div class="kv">${entry.sha == null ? '' : `alignment commit ${escapeHtml(entry.sha)}`}${entry.cleanupSha == null ? '' : ` · real-data commit ${escapeHtml(entry.cleanupSha)}`}${entry.afterReal === undefined ? '' : ` · real ${(entry.afterReal * 100).toFixed(2)}%`}${entry.cleanupError == null ? '' : ` · cleanup failed: ${escapeHtml(entry.cleanupError)}`}${entry.realError == null ? '' : ` · real capture failed: ${escapeHtml(entry.realError)}`}${entry.error == null ? '' : ` · ${escapeHtml(entry.error)}`}</div>
     </section>`
@@ -841,6 +844,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
