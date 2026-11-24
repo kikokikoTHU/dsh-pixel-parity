@@ -76,7 +76,7 @@ export async function runConfig(options) {
       const viewportResults = []
       for (const viewport of viewports) {
         if (options.signal?.aborted) throw new Error('run aborted')
-        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr, exportQml, exportComponent }))
+        viewportResults.push(await runOne(entry, viewport, driver, runDir, config, { repoRoot, decision, repo, runId, exportIr, exportQml, exportComponent, referenceCacheDir: options.referenceCacheDir }))
       }
       caseResults.push({
         id: entry.id,
@@ -241,7 +241,7 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
       reference = { image: stored.image, anchors: stored.anchors, masks: stored.masks, driver: 'baseline' }
       baselineUsed = true
     } else {
-      reference = await captureSide('reference', entry, entry.reference, viewport, driver, caseDir, config)
+      reference = await captureReference(entry, viewport, driver, caseDir, config, context)
     }
     const implementation = await captureSide('implementation', entry, entry.implementation, viewport, driver, caseDir, config, {
       exportDom: context.exportIr === true,
@@ -466,6 +466,43 @@ async function runOne(entry, viewport, driver, runDir, config, context) {
     writeFileSync(join(caseDir, 'metrics.json'), `${JSON.stringify(result, null, 2)}\n`)
     return result
   }
+}
+
+async function captureReference(entry, viewport, driver, caseDir, config, context) {
+  const cacheRoot = context.referenceCacheDir
+  if (typeof cacheRoot !== 'string' || cacheRoot.length === 0) {
+    return captureSide('reference', entry, entry.reference, viewport, driver, caseDir, config)
+  }
+  const key = createHash('sha256').update(JSON.stringify({
+    reference: entry.reference,
+    viewport,
+    anchors: entry.anchors,
+    masks: entry.masks,
+    hide: entry.hide.ref,
+    waitFor: entry.waitFor.ref,
+    steps: entry.steps.ref,
+    storageState: entry.storageState.ref,
+    settle: entry.settle.ref,
+    freeze: config.defaults.freeze,
+    locale: config.defaults.locale,
+    timezone: config.defaults.timezone,
+  })).digest('hex').slice(0, 24)
+  const directory = join(cacheRoot, key)
+  const metadataPath = join(directory, 'reference.json')
+  const imagePath = join(directory, 'reference.png')
+  if (existsSync(metadataPath) && existsSync(imagePath)) {
+    try {
+      const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'))
+      return { image: loadImage(imagePath), anchors: metadata.anchors, masks: metadata.masks, driver: 'cache' }
+    } catch {}
+  }
+  const captured = await captureSide('reference', entry, entry.reference, viewport, driver, caseDir, config)
+  try {
+    mkdirSync(directory, { recursive: true })
+    writePng(imagePath, captured.image)
+    writeFileSync(metadataPath, JSON.stringify({ anchors: captured.anchors, masks: captured.masks, driver: captured.driver, createdAt: new Date().toISOString() }))
+  } catch {}
+  return captured
 }
 
 async function captureSide(side, entry, spec, viewport, driver, caseDir, config, extra = {}) {

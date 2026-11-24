@@ -919,6 +919,8 @@ window.__ModuleLoader__.load({
                 round.summary === null || round.summary === undefined ? round.finishedAt ?? '' : `${round.summary.failed ?? 0} failed · ${round.summary.verified ?? 0} passed`,
                 round.branch === undefined ? '' : ` · ${round.branch}`,
                 (round.commits ?? []).length === 0 ? '' : ` · ${round.commits.length} commits`,
+                round.phase === undefined ? '' : ` · ${round.phase}`,
+                round.progress?.before == null || round.progress?.after == null ? '' : ` · ${(round.progress.before * 100).toFixed(2)}% → ${(round.progress.after * 100).toFixed(2)}%`,
                 round.error === undefined ? '' : ` · ${round.error}`,
               ),
             )),

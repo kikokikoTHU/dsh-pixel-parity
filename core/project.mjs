@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -313,6 +313,7 @@ function makeBrief(project, round, subtask, before) {
     `Goals:`,
     `1. Inspect the implementation and the reference/diff artifacts.`,
     `2. Achieve COMPLETE alignment: visual shell AND information architecture/business content. Do not stop at CSS or shell-only changes.`,
+    `3. Stop as soon as the page is verified: pixels <= 1%, geometry pass, styles pass. Do not chase sub-percent differences; commit immediately after a passing run.`,
     `3. If the current page is a different workflow (for example a query form instead of a statistics dashboard), REPLACE the page content with the prototype structure, and move the existing business flow to a compatible route/tab if needed.`,
     `4. Update routes, navigation, fixtures, and tests when required so the application remains coherent.`,
     `5. If the backend data shape does not match the prototype, add local fixtures/mock adapters so the page renders representative data; do not leave it empty/error.`,
@@ -358,16 +359,23 @@ async function runAlignmentRound(project, round, options) {
   round.headBefore = gitHead(worktree)
   round.commits = []
   round.subtasks = []
+  round.phase = 'measuring-before'
+  round.progress = { phase: round.phase, updatedAt: new Date().toISOString() }
+  writeProject(project)
 
   for (const subtaskId of round.selection) {
     const subtask = project.subtasks.find(item => item.id === subtaskId)
     if (subtask === undefined) continue
     const headBefore = gitHead(worktree)
     const remoteBefore = remoteRefs(project.repo)
+    round.phase = 'measuring-before'
+    round.progress = { phase: round.phase, subtaskId: subtask.id, updatedAt: new Date().toISOString() }
+    writeProject(project)
     const before = await runConfig({
       configPath: project.config,
       repoRoot: worktree,
       dependenciesRoot: project.dependenciesRoot ?? undefined,
+      referenceCacheDir: join(projectsDirectory(), project.id, 'cache', 'references'),
       caseIds: [subtask.caseId],
       baselineMode: 'ephemeral',
       headless: options.headless !== false,
@@ -375,6 +383,9 @@ async function runAlignmentRound(project, round, options) {
     })
     const entry = { subtaskId, caseId: subtask.caseId, before: averagePixels(before.manifest), beforeRunDir: before.runDir, status: 'edited', sha: null, error: null }
     try {
+      round.phase = 'agent-editing'
+      round.progress = { phase: round.phase, subtaskId: subtask.id, updatedAt: new Date().toISOString() }
+      writeProject(project)
       await options.editor({
         cwd: worktree,
         project,
@@ -384,6 +395,9 @@ async function runAlignmentRound(project, round, options) {
         brief: makeBrief(project, round, subtask, before),
       })
       const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, round, subtask)
+      round.phase = 'measuring-after'
+      round.progress = { phase: round.phase, subtaskId: subtask.id, commit: commit.sha.slice(0, 12), updatedAt: new Date().toISOString() }
+      writeProject(project)
       const after = await runConfig({
         configPath: project.config,
         repoRoot: worktree,
@@ -415,9 +429,13 @@ async function runAlignmentRound(project, round, options) {
       entry.error = String(error?.message ?? error)
     }
     round.subtasks.push(entry)
+    round.progress = { phase: entry.status === 'committed' ? 'subtask-done' : 'subtask-failed', subtaskId: subtask.id, before: entry.before, after: entry.after ?? null, updatedAt: new Date().toISOString() }
+    writeProject(project)
   }
   round.headSha = gitHead(worktree)
   round.status = round.subtasks.some(entry => entry.status === 'failed' || entry.status === 'rolled-back') ? 'failed' : 'completed'
+  round.phase = round.status
+  round.progress = { phase: round.phase, before: round.subtasks[0]?.before ?? null, after: round.subtasks[0]?.after ?? null, updatedAt: new Date().toISOString() }
   if (round.status === 'completed' && round.commits.length > 0) {
     try { git(worktree, ['tag', '-f', `pp-r${String(round.number).padStart(2, '0')}`, 'HEAD']) } catch {}
   }
@@ -458,6 +476,7 @@ export async function runRound(projectId, options = {}) {
       configPath: project.config,
       repoRoot: project.worktree ?? project.repo,
       dependenciesRoot: project.dependenciesRoot ?? undefined,
+      referenceCacheDir: join(projectsDirectory(), project.id, 'cache', 'references'),
       caseIds: selected,
       baselineMode: 'ephemeral',
       headless: options.headless !== false,
@@ -733,6 +752,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
