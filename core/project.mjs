@@ -993,7 +993,7 @@ function buildComparisonReport(project, round, directory, assets) {
   img{width:100%;height:auto;border:1px solid #e2e8f0;border-radius:6px;display:block}
   figcaption{color:#94a3b8;font-size:10px;margin-top:3px}
   </style></head><body><div class="page">
-  <h1>Round ${round.number} 对齐报告</h1>
+  <h1>Subtask 对齐报告</h1>
   <div class="sub">${escapeHtml(project.name)} · base ${escapeHtml(project.baseCommit.slice(0, 7))}${round.branch === undefined ? '' : ' · ' + escapeHtml(round.branch)} · ${(round.commits ?? []).length} commits</div>
   ${sections}
   </div></body></html>`
