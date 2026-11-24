@@ -562,18 +562,22 @@ window.__ModuleLoader__.load({
         notify()
       }
     }
-    async function startProjectRound() {
+    async function startProjectTasks(retry = false) {
       if (state.project === null) return
       try {
-        const payload = await projectPost('/pixel-parity/project/round', { projectId: state.project.id })
-        state.message = `Round 执行中… (${payload.jobId ?? ''})`
+        const payload = await projectPost('/pixel-parity/project/round', {
+          projectId: state.project.id,
+          selection: state.project.nextSelection ?? [],
+          retry,
+        })
+        state.message = retry ? '从失败任务继续…' : '任务执行中…'
         const timer = setInterval(async () => {
           try {
             const response = await fetch('/pixel-parity/project/job')
             const job = await response.json().catch(() => null)
             if (job === null) return
             if (job.status === 'running') {
-              state.message = 'Round 执行中…'
+              state.message = retry ? '从失败任务继续…' : '任务执行中…'
               notify()
               return
             }
@@ -583,14 +587,12 @@ window.__ModuleLoader__.load({
               notify()
               return
             }
-            state.message = null
-            const projectResponse = await fetch('/pixel-parity/projects')
-            const projectsBody = await projectResponse.json().catch(() => ({}))
-            const fresh = (projectsBody.projects ?? []).find(item => item.id === state.project.id)
-            if (fresh !== undefined) state.project = fresh
+            state.message = job.project?.execution?.status === 'paused' ? '子任务失败，已暂停' : '子任务处理完成'
+            if (job.project !== undefined) state.project = job.project
             notify()
+            loadProjects()
           } catch {}
-        }, 1000)
+        }, 1500)
       } catch (failure) {
         state.message = String(failure?.message ?? failure)
         notify()
@@ -754,12 +756,12 @@ window.__ModuleLoader__.load({
                 className: `ppj-step ${step === 2 ? 'active' : ''} ${gate.ready ? 'done' : ''}`,
                 disabled: !gate.ready,
                 onClick: () => { if (gate.ready) { state.projectStep = 2; notify() } },
-              }, h('span', { className: 'ppj-dot' }, gate.ready ? '✓' : '2'), h('span', null, h('b', null, '生成子任务'), h('small', null, gate.ready ? '勾选本轮范围' : '等待全部分析'))),
+              }, h('span', { className: 'ppj-dot' }, gate.ready ? '✓' : '2'), h('span', null, h('b', null, '生成子任务'), h('small', null, gate.ready ? '勾选执行范围' : '等待全部分析'))),
               h('button', {
                 className: `ppj-step ${step === 3 ? 'active' : ''}`,
                 disabled: project.subtasks.length === 0,
                 onClick: () => { if (project.subtasks.length > 0) { state.projectStep = 3; notify() } },
-              }, h('span', { className: 'ppj-dot' }, project.rounds.length > 0 ? '✓' : '3'), h('span', null, h('b', null, '项目页'), h('small', null, '手动 Run next round'))),
+              }, h('span', { className: 'ppj-dot' }, project.execution?.status === 'completed' ? '✓' : '3'), h('span', null, h('b', null, '子任务进度'), h('small', null, '手动开始 · 失败暂停'))),
             )
           : h('div', { className: 'ppj-kv' }, '一个项目 = repo + base commit + 设计源；分析与匹配自动完成。'),
         h('div', { className: 'ppj-rail-note' }, '分析自动执行；每轮由你手动触发，不会自动开始下一轮。'),
@@ -868,7 +870,7 @@ window.__ModuleLoader__.load({
       )
 
       const stepTwo = h('div', { className: 'ppj-card' },
-        h('div', { className: 'ppj-card-h' }, h('b', null, '生成子任务'), h('span', { className: 'ppj-hint' }, '勾选决定下一轮范围')),
+        h('div', { className: 'ppj-card-h' }, h('b', null, '生成子任务'), h('span', { className: 'ppj-hint' }, '勾选后串行执行')),
         h('div', { className: 'ppj-card-b' },
           h('table', { className: 'ppj-table' },
             h('thead', null, h('tr', null, h('th', { style: { width: 34 } }, ''), h('th', null, '子任务'), h('th', null, 'case'), h('th', null, '置信度'))),
@@ -882,61 +884,52 @@ window.__ModuleLoader__.load({
         ),
       )
 
+      const execution = project.execution
+      const running = execution?.status === 'running'
+      const paused = execution?.status === 'paused'
+      const doneCount = Object.values(execution?.subtasks ?? {}).filter(item => item.status === 'done').length
+      const totalCount = execution?.selected?.length ?? (project.nextSelection ?? []).length
+      const taskStatus = id => execution?.subtasks?.[id]?.status ?? (running && execution.current === id ? 'running' : 'pending')
       const detail = h(React.Fragment, null,
         h('div', { className: 'ppj-card' },
           h('div', { className: 'ppj-card-b', style: { display: 'flex', alignItems: 'center', gap: 8 } },
             h('div', { style: { flex: 1 } },
-              h('div', { className: 'ppj-kv' }, `${(project.nextSelection ?? []).length}/${project.subtasks.length} 个子任务已选 · 本轮不会自动执行`),
+              h('div', { className: 'ppj-kv' }, execution === undefined ? '尚未开始；勾选子任务后手动执行' : `${doneCount}/${totalCount} 子任务完成 · ${execution.status}`),
+              execution?.error ? h('div', { className: 'ppj-kv', style: { color: '#b91c1c', marginTop: 4 } }, execution.error) : null,
             ),
-            h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || (project.nextSelection ?? []).length === 0, onClick: startProjectRound }, 'Run next round'),
+            running
+              ? h('button', { className: 'ppj-btn primary', disabled: true }, '执行中…')
+              : paused
+                ? h('button', { className: 'ppj-btn primary', onClick: () => startProjectTasks(true) }, '从失败处重试')
+                : h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || (project.nextSelection ?? []).length === 0, onClick: () => startProjectTasks(false) }, execution?.status === 'completed' ? '重新执行' : '开始执行'),
             h('button', { className: 'ppj-btn danger', onClick: deleteCurrentProject }, state.pendingDelete === project.id ? 'Confirm delete' : 'Delete'),
           ),
         ),
         h('div', { className: 'ppj-card' },
-          h('div', { className: 'ppj-card-h' }, h('b', null, '本轮子任务')),
+          h('div', { className: 'ppj-card-h' }, h('b', null, '子任务进度'), h('span', { className: 'ppj-hint' }, '串行执行 · 每个子任务一个 commit · 失败即暂停')),
           h('div', { className: 'ppj-card-b' },
-            project.subtasks.map(task => h('label', { key: task.id, className: 'ppj-row', style: { cursor: 'pointer' } },
-              h('input', { className: 'ppj-check', type: 'checkbox', checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
-              h('span', { className: 'ppj-grow' }, task.title),
-              task.needsReview ? pill('needs-review', '待复核') : null,
-            )),
-          ),
-        ),
-        h('div', { className: 'ppj-card' },
-          h('div', { className: 'ppj-card-h' },
-            h('b', null, '轮次'),
-            h('span', { className: 'ppj-hint' }, '每次点击只执行一轮'),
-            h('span', { style: { flex: 1 } }),
-            project.rounds.length === 0 ? null : h('button', {
-              className: 'ppj-btn',
-              onClick: () => { state.cleanRoundsOpen = !state.cleanRoundsOpen; notify() },
-            }, '清理历史'),
-          ),
-          h('div', { className: 'ppj-card-b' },
-            project.rounds.length === 0 ? h('div', { className: 'ppj-empty' }, '还没有执行过轮次') : null,
-            state.cleanRoundsOpen ? h('div', { className: 'ppj-clean' },
-              h('span', null, '清理历史 Round：'),
-              h('button', { className: 'ppj-btn', onClick: () => cleanProjectRounds('failed') }, '删除失败/中断'),
-              h('button', { className: 'ppj-btn danger', onClick: () => cleanProjectRounds('all') }, '删除全部（含报告）'),
-              h('button', { className: 'ppj-btn ghost', onClick: () => { state.cleanRoundsOpen = false; notify() } }, '取消'),
-            ) : null,
-            [...project.rounds].reverse().map(round => h('div', { key: round.id, className: `ppj-round ${round.status === 'running' ? 'now' : ''}` },
-              h('div', { className: 'ppj-round-h' },
-                h('b', null, `Round ${round.number}`),
-                pill(round.status),
-                h('span', { className: 'ppj-kv' }, `${round.selection.length} selected`),
-                h('span', { style: { flex: 1 } }),
-                round.status === 'completed' ? h('button', { className: 'ppj-btn', onClick: () => openRoundReport(project.id, round.number) }, 'Report') : null,
-              ),
-              h('div', { className: 'ppj-round-kv' },
-                round.summary === null || round.summary === undefined ? round.finishedAt ?? '' : `${round.summary.failed ?? 0} failed · ${round.summary.verified ?? 0} passed`,
-                round.branch === undefined ? '' : ` · ${round.branch}`,
-                (round.commits ?? []).length === 0 ? '' : ` · ${round.commits.length} commits`,
-                round.phase === undefined ? '' : ` · ${round.phase}`,
-                round.progress?.before == null || round.progress?.after == null ? '' : ` · ${(round.progress.before * 100).toFixed(2)}% → ${(round.progress.after * 100).toFixed(2)}%`,
-                round.error === undefined ? '' : ` · ${round.error}`,
-              ),
-            )),
+            h('div', { className: 'ppj-kv' }, `${doneCount}/${totalCount}`),
+            h('div', { className: 'ppj-progress' }, h('i', { style: { width: `${totalCount === 0 ? 0 : doneCount / totalCount * 100}%` } })),
+            project.subtasks.length === 0 ? h('div', { className: 'ppj-empty' }, '还没有生成子任务') : null,
+            project.subtasks.map(task => {
+              const item = execution?.subtasks?.[task.id]
+              const status = taskStatus(task.id)
+              return h('div', { key: task.id, className: 'ppj-row', style: { alignItems: 'flex-start' } },
+                h('input', { className: 'ppj-check', type: 'checkbox', disabled: running || paused, checked: (project.nextSelection ?? []).includes(task.id), onChange: () => projectToggleSubtask(task.id) }),
+                h('div', { className: 'ppj-grow' },
+                  h('div', null, task.title, ' ', pill(status)),
+                  h('div', { className: 'ppj-kv' },
+                    task.caseId,
+                    item?.sha ? ` · ${item.sha}` : '',
+                    typeof item?.after === 'number' ? ` · ${(item.after * 100).toFixed(2)}%` : '',
+                    item?.error ? ` · ${item.error}` : '',
+                  ),
+                ),
+                item?.report && item?.round
+                  ? h('button', { className: 'ppj-btn', onClick: () => openRoundReport(project.id, item.round) }, 'Report')
+                  : null,
+              )
+            }),
           ),
         ),
       )
@@ -1234,6 +1227,9 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
+
+
 
 
 

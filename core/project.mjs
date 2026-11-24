@@ -635,6 +635,18 @@ async function removeMockData(project, round, entry, subtask, worktree, options)
 }
 
 
+async function squashSubtaskCommit(worktree, entry, round, headBefore) {
+  const count = Number(git(worktree, ['rev-list', '--count', `${headBefore}..HEAD`]))
+  if (count <= 1) return
+  git(worktree, ['reset', '--soft', headBefore])
+  const message = entry.commitMessage ?? entry.message ?? 'pp: align subtask'
+  git(worktree, ['commit', '-m', message, '--no-verify'])
+  const sha = gitHead(worktree)
+  entry.sha = sha.slice(0, 12)
+  entry.cleanupSha = null
+  round.commits = [{ subtaskId: entry.subtaskId, sha: entry.sha, message: entry.message ?? message.split('\n')[0] }]
+}
+
 async function validateAgentCommit(worktree, repo, headBefore, remoteBefore, round, subtask) {
   const headAfter = gitHead(worktree)
   if (headAfter === headBefore) throw new Error('agent did not create a commit')
@@ -716,6 +728,7 @@ async function runAlignmentRound(project, round, options) {
       entry.after = afterPixels
       entry.sha = commit.sha.slice(0, 12)
       entry.message = commit.message.split('\n')[0]
+      entry.commitMessage = commit.message
       entry.runDir = after.runDir
       entry.afterRunDir = after.runDir
       const passed = (after.manifest.summary?.failed ?? 1) === 0
@@ -725,6 +738,15 @@ async function runAlignmentRound(project, round, options) {
         entry.status = 'rolled-back'
         entry.error = `no improvement (${(entry.before * 100).toFixed(2)}% -> ${(afterPixels * 100).toFixed(2)}%)`
       } else {
+        if (options.requireVerified === true && !passed) {
+          git(worktree, ['reset', '--hard', headBefore])
+          entry.status = 'failed'
+          entry.error = `not verified (${(afterPixels * 100).toFixed(2)}%)`
+          round.subtasks.push(entry)
+          round.phase = 'failed'
+          writeProject(project)
+          throw new Error(`subtask ${subtask.id} not verified at ${(afterPixels * 100).toFixed(2)}%`)
+        }
         round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
         entry.status = 'committed'
         round.afterResult = after
@@ -733,6 +755,7 @@ async function runAlignmentRound(project, round, options) {
         } else {
           entry.cleanup = 'skipped-unverified'
         }
+        if (entry.status === 'committed') await squashSubtaskCommit(worktree, entry, round, headBefore)
       }
     } catch (error) {
       try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
@@ -756,10 +779,82 @@ async function runAlignmentRound(project, round, options) {
   return round
 }
 
+export async function runProjectTasks(projectId, options = {}) {
+  let project = readProject(projectId)
+  if (project.execution?.status === 'running') throw new Error('project tasks are already running')
+  const retry = options.retry === true && project.execution?.status === 'paused'
+  let execution
+  if (retry) {
+    execution = { ...project.execution, status: 'running', error: null, failedTask: null }
+  } else {
+    const selection = (options.selection ?? project.nextSelection).filter(id => project.subtasks.some(task => task.id === id))
+    if (selection.length === 0) throw new Error('no subtasks selected')
+    execution = {
+      id: `exec-${Date.now().toString(36)}`,
+      status: 'running',
+      selected: selection,
+      index: 0,
+      total: selection.length,
+      subtasks: {},
+      startedAt: new Date().toISOString(),
+    }
+  }
+  project.execution = execution
+  project.status = 'running'
+  writeProject(project)
+  for (let index = execution.index ?? 0; index < execution.selected.length; index += 1) {
+    const subtaskId = execution.selected[index]
+    execution.index = index
+    execution.current = subtaskId
+    execution.subtasks[subtaskId] = { status: 'running', startedAt: new Date().toISOString() }
+    project = readProject(projectId)
+    project.execution = execution
+    project.status = 'running'
+    writeProject(project)
+    try {
+      const { round } = await runRound(projectId, { ...options, selection: [subtaskId], requireVerified: true, retry: false })
+      const item = (round.subtasks ?? []).find(entry => entry.subtaskId === subtaskId)
+      if (item === undefined || item.status !== 'committed') throw new Error(item?.error ?? 'subtask did not commit')
+      execution.subtasks[subtaskId] = {
+        status: 'done',
+        sha: item.sha,
+        after: item.after ?? null,
+        report: round.reportPath ?? null,
+        round: round.number,
+        finishedAt: new Date().toISOString(),
+      }
+      project = readProject(projectId)
+      project.execution = execution
+      project.status = 'running'
+      writeProject(project)
+    } catch (error) {
+      project = readProject(projectId)
+      execution.status = 'paused'
+      execution.error = String(error?.message ?? error)
+      execution.failedTask = subtaskId
+      execution.subtasks[subtaskId] = { status: 'failed', error: execution.error, finishedAt: new Date().toISOString() }
+      project.execution = execution
+      project.status = 'ready'
+      writeProject(project)
+      logEvent('project.tasks.paused', { projectId, failedTask: subtaskId, error: execution.error }, 'error')
+      return readProject(projectId)
+    }
+  }
+  project = readProject(projectId)
+  execution.status = 'completed'
+  execution.finishedAt = new Date().toISOString()
+  execution.index = execution.selected.length
+  project.execution = execution
+  project.status = 'ready'
+  writeProject(project)
+  logEvent('project.tasks.done', { projectId, total: execution.selected.length })
+  return readProject(projectId)
+}
+
 function beforePixels(entry) { return entry.before ?? null }
 export async function runRound(projectId, options = {}) {
   const project = readProject(projectId)
-  const selected = project.nextSelection.filter(id => project.subtasks.some(task => task.id === id))
+  const selected = (options.selection ?? project.nextSelection).filter(id => project.subtasks.some(task => task.id === id))
   if (selected.length === 0) throw new Error('no subtasks selected for this round')
   const number = project.rounds.length + 1
   const round = {

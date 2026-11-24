@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -18,7 +18,7 @@ import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
-import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runRound, setSelection } from './core/project.mjs'
+import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runProjectTasks, runRound, setSelection } from './core/project.mjs'
 import { logEvent, readLogs } from './core/log.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
@@ -1342,10 +1342,11 @@ export function apply(ctx, config) {
                 return
               }
               const projectId = String(body.projectId ?? '')
-              const job = { id: `projround-${Date.now()}`, projectId, status: 'running', startedAt: new Date().toISOString() }
+              const job = { id: `projrun-${Date.now()}`, projectId, status: 'running', startedAt: new Date().toISOString() }
               projectJob = job
-              void runRound(projectId, { editor: projectEditor }).then(({ project, round }) => {
-                projectJob = { ...job, status: 'done', round, project: projectSummary(project), finishedAt: new Date().toISOString() }
+              const selection = Array.isArray(body.selection) ? body.selection : undefined
+              void runProjectTasks(projectId, { selection, retry: body.retry === true, editor: projectEditor }).then((project) => {
+                projectJob = { ...job, status: 'done', project: projectSummary(project), execution: project.execution, finishedAt: new Date().toISOString() }
               }).catch((error) => {
                 projectJob = { ...job, status: 'error', error: String(error?.message ?? error), finishedAt: new Date().toISOString() }
               })
@@ -1796,7 +1797,7 @@ export function apply(ctx, config) {
       additionalProperties: false,
       required: ['action'],
       properties: {
-        action: { type: 'string', enum: ['create', 'add-source', 'discover', 'analyze', 'selection', 'list', 'status', 'run-round', 'clean-rounds', 'delete'] },
+        action: { type: 'string', enum: ['create', 'add-source', 'discover', 'analyze', 'selection', 'list', 'status', 'run', 'retry', 'run-round', 'clean-rounds', 'delete'] },
         repo: { type: 'string' },
         baseCommit: { type: 'string' },
         config: { type: 'string' },
@@ -1869,6 +1870,14 @@ export function apply(ctx, config) {
       }
       if (action === 'clean-rounds') {
         const project = cleanRounds(projectId, args.mode === 'all' ? 'all' : 'failed')
+        return { action, project: projectSummary(project) }
+      }
+      if (action === 'run' || action === 'retry') {
+        const project = await runProjectTasks(projectId, {
+          selection: args.selection,
+          retry: action === 'retry',
+          editor: projectEditor,
+        })
         return { action, project: projectSummary(project) }
       }
       if (action === 'run-round') {
@@ -2047,6 +2056,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
