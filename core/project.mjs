@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -53,6 +53,15 @@ export function listProjects() {
     } catch {}
   }
   return projects.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+}
+
+function sourceKey(location) {
+  try {
+    const url = new URL(location)
+    return `${url.origin}${decodeURIComponent(url.pathname)}`
+  } catch {
+    return location
+  }
 }
 
 function git(repo, args) {
@@ -297,7 +306,7 @@ export async function discoverProjectSources(projectId, entryUrl, options = {}) 
   pages = uniquePages
   project.discovery = { entryUrl, pages, discoveredAt: new Date().toISOString() }
   for (const page of pages) {
-    if (project.sources.some(source => source.location === page.url)) continue
+    if (project.sources.some(source => sourceKey(source.location) === sourceKey(page.url))) continue
     project.sources.push({
       id: `src-${project.sources.length + 1}-${Math.random().toString(36).slice(2, 5)}`,
       kind: 'url',
@@ -328,7 +337,7 @@ export async function addSource(projectId, input, options = {}) {
   const location = String(input.location ?? '').trim()
   if (location.length === 0) throw new Error('location is required')
   if (kind === 'file' && !isAbsolute(location)) throw new Error('file sources need an absolute path')
-  if (project.sources.some(source => source.location === location)) throw new Error('source already exists')
+  if (project.sources.some(source => sourceKey(source.location) === sourceKey(location))) throw new Error('source already exists')
   if (kind === 'url' && project.sources.length === 0 && project.discoveryAttempted !== true && input.discover !== false) {
     project.discoveryAttempted = true
     writeProject(project)
@@ -965,6 +974,9 @@ export function projectSummary(project) {
     },
   }
 }
+
+
+
 
 
 
