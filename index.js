@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -18,7 +18,7 @@ import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
-import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runRound, setSelection } from './core/project.mjs'
+import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runRound, setSelection } from './core/project.mjs'
 import { logEvent, readLogs } from './core/log.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 
@@ -1276,6 +1276,23 @@ export function apply(ctx, config) {
         }),
         server.register({
           kind: 'exact',
+          path: '/pixel-parity/project/discover',
+          handler: async (request, response) => {
+            try {
+              const body = await readJson(request)
+              const project = readProject(String(body.projectId ?? ''))
+              const source = project.sources.find(item => item.kind === 'url')
+              if (source === undefined) throw new Error('no URL source to discover from')
+              const discovered = await discoverProjectSources(project.id, source.location, { matcher: projectMatcher })
+              if (discovered === null) throw new Error('no linked design pages found')
+              respondJson(response, 200, { project: projectSummary(discovered) })
+            } catch (error) {
+              respondJson(response, 400, { error: String(error?.message ?? error) })
+            }
+          },
+        }),
+        server.register({
+          kind: 'exact',
           path: '/pixel-parity/project/analyze',
           handler: async (request, response) => {
             try {
@@ -1779,7 +1796,7 @@ export function apply(ctx, config) {
       additionalProperties: false,
       required: ['action'],
       properties: {
-        action: { type: 'string', enum: ['create', 'add-source', 'analyze', 'selection', 'list', 'status', 'run-round', 'clean-rounds', 'delete'] },
+        action: { type: 'string', enum: ['create', 'add-source', 'discover', 'analyze', 'selection', 'list', 'status', 'run-round', 'clean-rounds', 'delete'] },
         repo: { type: 'string' },
         baseCommit: { type: 'string' },
         config: { type: 'string' },
@@ -1818,6 +1835,7 @@ export function apply(ctx, config) {
         let current = project
         for (const design of arrayOfText(args.designs, 'designs')) {
           const location = design.startsWith('http') || isAbsolute(design) ? design : resolve(repo, design)
+          if (current.sources.some(source => source.location === location)) continue
           current = await addSource(project.id, { kind: location.startsWith('http') ? 'url' : 'file', location }, { matcher: projectMatcher })
         }
         return { action, project: projectSummary(current) }
@@ -1829,6 +1847,14 @@ export function apply(ctx, config) {
       if (action === 'add-source') {
         const project = await addSource(projectId, { kind: args.kind ?? 'url', location: text(args.location, 'location') }, { matcher: projectMatcher })
         return { action, project: projectSummary(project) }
+      }
+      if (action === 'discover') {
+        const project = readProject(projectId)
+        const url = args.location === undefined ? project.sources.find(source => source.kind === 'url')?.location : text(args.location, 'location')
+        if (url === undefined) throw new Error('no URL source to discover from')
+        const discovered = await discoverProjectSources(projectId, url, { matcher: projectMatcher })
+        if (discovered === null) throw new Error('no linked design pages found')
+        return { action, project: projectSummary(discovered) }
       }
       if (action === 'analyze') {
         const project = readProject(projectId)
@@ -2021,6 +2047,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 

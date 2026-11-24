@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -487,6 +487,18 @@ window.__ModuleLoader__.load({
       }
     }
 
+    async function discoverProjectSources() {
+      if (state.project === null) return
+      try {
+        const payload = await projectPost('/pixel-parity/project/discover', { projectId: state.project.id })
+        state.project = payload.project
+        state.message = `已发现 ${payload.project.sources?.length ?? 0} 个设计页面`
+        loadProjects()
+      } catch (failure) {
+        state.message = String(failure?.message ?? failure)
+        notify()
+      }
+    }
     async function addProjectSource(kind) {
       if (state.project === null || state.sourceDraft.trim().length === 0) return
       try {
@@ -829,6 +841,7 @@ window.__ModuleLoader__.load({
             h('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
               h('input', { className: 'ppj-input', style: { flex: 1 }, placeholder: 'https://… 或本地绝对路径', value: state.sourceDraft, onChange: event => { state.sourceDraft = event.target.value; notify() } }),
               h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || state.sourceDraft.trim() === '', onClick: () => addProjectSource(state.sourceDraft.startsWith('http') ? 'url' : 'file') }, state.projectBusy ? '分析中…' : '添加'),
+            h('button', { className: 'ppj-btn', disabled: state.projectBusy || (state.project.sources?.length ?? 0) === 0, onClick: discoverProjectSources }, '发现关联页面'),
             ),
             project.sources.length === 0 ? h('div', { className: 'ppj-empty' }, '添加一个设计图或原型开始分析') : null,
             project.sources.map(source => h('div', { key: source.id, className: 'ppj-row' },
@@ -1221,6 +1234,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
