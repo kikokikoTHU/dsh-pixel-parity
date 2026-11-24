@@ -637,17 +637,27 @@ async function removeMockData(project, round, entry, subtask, worktree, options)
 
 
 function findLatestMockRun(worktree, caseId) {
-  const root = join(worktree, '.parity', 'runs')
-  if (!existsSync(root)) return null
-  const entries = readdirSync(root, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => ({ dir: join(root, entry.name) }))
-  for (const entry of entries) {
+  const roots = [join(worktree, '.parity', 'runs'), join(worktree, 'runs')]
+  const entries = []
+  for (const root of roots) {
+    if (!existsSync(root)) continue
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const dir = join(root, entry.name)
+      try { entries.push({ dir, mtime: statSync(dir).mtimeMs, name: entry.name }) } catch {}
+    }
+  }
+  entries.sort((a, b) => b.mtime - a.mtime)
+  const mockFirst = entries.filter(item => /mock|verify/i.test(item.name)).concat(entries.filter(item => !/mock|verify/i.test(item.name)))
+  for (const entry of mockFirst) {
     const manifestPath = join(entry.dir, 'manifest.json')
     if (!existsSync(manifestPath)) continue
     try {
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-      if ((manifest.cases ?? []).some(item => item.id === caseId)) return { runDir: entry.dir, manifest }
+      const caseEntry = (manifest.cases ?? []).find(item => item.id === caseId)
+      if (caseEntry === undefined) continue
+      if (caseEntry.status === 'failed' || caseEntry.status === 'incomplete') continue
+      return { runDir: entry.dir, manifest }
     } catch {}
   }
   return null
@@ -730,7 +740,7 @@ async function runAlignmentRound(project, round, options) {
         brief: makeBrief(project, round, subtask, before),
       })
       const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, round, subtask)
-      const mockRun = findLatestMockRun(worktree, subtask.caseId)
+      const mockRun = findLatestMockRun(project, worktree, subtask.caseId)
       round.phase = 'measuring-real'
       round.progress = { phase: round.phase, subtaskId: subtask.id, commit: commit.sha.slice(0, 12), updatedAt: new Date().toISOString() }
       writeProject(project)
@@ -769,7 +779,6 @@ async function runAlignmentRound(project, round, options) {
           git(worktree, ['reset', '--hard', headBefore])
           entry.status = 'failed'
           entry.error = `not verified (${(afterPixels * 100).toFixed(2)}%)`
-          round.subtasks.push(entry)
           round.phase = 'failed'
           writeProject(project)
           throw new Error(`subtask ${subtask.id} not verified at ${(afterPixels * 100).toFixed(2)}%`)
@@ -1184,6 +1193,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
