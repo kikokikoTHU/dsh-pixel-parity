@@ -317,6 +317,7 @@ cases/<case>/<viewport>/
 | M63 ✅ | 设计站自动发现：从入口 URL 抓同源/同目录/HTML 链接（Playwright 优先，静态回退），提取 title/h1；扫描实现路由，按标题生成项目本地 case；自动添加全部 sources + subtasks；支持 Discover 按钮/工具 action | 一个原型链接补齐整套页面 |
 | M64 ✅ | 项目配置自动生成并持久化在插件：缺失 repo config 时 detectRepo 生成 `data/projects/<id>/parity.base.mjs`，自动发现后生成 `parity.generated.mjs`；不写入 repo | 创建项目无需手写 config |
 | M65 ✅ | 子任务队列：手动选择、串行执行、每个 subtask 一个 squash commit；未 verified 即回滚该 subtask 并暂停；支持从失败 subtask 重试；UI 显示 subtask 进度 | 去掉 Round 概念 |
+| M66 ✅ | Figma 链接解析：解析 fileKey/nodeId，调用 Figma API 取 node，转换为统一 IR 并保存；支持本地 Figma JSON 导出；新增 `parity_figma` 工具 | Figma 设计源可进入统一描述 |
 | M57 ⏳ TODO | Round 内自动调用 Agent 修复代码：Run next round 时读取上一轮 findings/plan，启动 Agent 在项目 worktree 内修改实现，再测量并生成报告；优先做 Assisted（生成修复任务 + 人确认），Auto 需 git 快照/回滚、超时与 token 预算 | 待实现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。

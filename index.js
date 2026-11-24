@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -21,6 +21,7 @@ import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, r
 import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runProjectTasks, runRound, setSelection } from './core/project.mjs'
 import { logEvent, readLogs } from './core/log.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
+import { parseFigmaFile, parseFigmaLink } from './core/figma-source.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -1893,6 +1894,38 @@ export function apply(ctx, config) {
   }))
 
   ctx.effect(() => ctx.tools.register({
+    name: 'parity_figma',
+    description: 'Parse a Figma design link or exported Figma JSON into the unified IR description. Requires FIGMA_TOKEN for links.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: { type: 'string', description: 'Figma design URL including ?node-id=...' },
+        file: { type: 'string', description: 'Local Figma JSON export (alternative to url)' },
+        token: { type: 'string', description: 'Figma personal access token; defaults to FIGMA_TOKEN' },
+        output: { type: 'string', description: 'IR output path' },
+        nodeId: { type: 'string', description: 'Node id for a local JSON export' },
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render(_args, value) {
+        return [{ type: 'text', text: `Figma IR: ${value.path}\nviewport: ${JSON.stringify(value.summary?.viewport)}\nnodes: ${value.summary?.nodes} · texts: ${value.summary?.texts}` }]
+      },
+    },
+    async execute(args) {
+      if (typeof args.url === 'string' && args.url.length > 0) {
+        const result = await parseFigmaLink({ url: args.url, token: args.token, output: args.output })
+        return { path: result.path, summary: result.summary, fileKey: result.fileKey, nodeId: result.nodeId }
+      }
+      if (typeof args.file === 'string' && args.file.length > 0) {
+        const result = parseFigmaFile({ path: args.file, output: args.output, nodeId: args.nodeId })
+        return { path: result.path, summary: result.summary }
+      }
+      throw new Error('parity_figma needs url or file')
+    },
+  }))
+  ctx.effect(() => ctx.tools.register({
     name: 'parity_init',
     description: 'Scan a repository and write a parity config draft. Detects the framework, package manager, dev command and port, the route table, and Playwright availability. Never overwrites an existing config unless `force` is true. The draft still needs the reference URL filled in.',
     parameters: INIT_PARAMETERS,
@@ -2056,6 +2089,9 @@ function buildRunValue(result) {
     })),
   }
 }
+
+
+
 
 
 
