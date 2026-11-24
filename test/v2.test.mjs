@@ -253,6 +253,7 @@ await test('panel routes register on the web server', async () => {
     '/pixel-parity/project/selection',
     '/pixel-parity/project/source',
     '/pixel-parity/project/source/delete',
+    '/pixel-parity/project/discover',
     '/pixel-parity/projects',
     '/pixel-parity/repo/job',
     '/pixel-parity/repo/run',
