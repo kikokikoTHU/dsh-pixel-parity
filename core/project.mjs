@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -289,7 +289,7 @@ export async function analyzeProject(project, options = {}) {
       defaultSelected: match.status === 'matched',
     })
   }
-  const defaultIds = project.subtasks.filter(task => task.defaultSelected).map(task => task.id)
+  const defaultIds = project.subtasks.filter(task => task.defaultSelected).map(task => task.id).slice(0, 1)
   project.nextSelection = defaultIds.length > 0 ? defaultIds : project.subtasks.map(task => task.id)
   project.status = project.sources.every(source => ['matched', 'needs-review', 'unmatched'].includes(source.status))
     ? 'ready'
@@ -1068,6 +1068,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
