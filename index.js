@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -1790,7 +1790,7 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'parity_project',
-    description: 'Manage a project: repo + base commit + design sources, automatic source-to-case matching, subtasks, and manually triggered alignment rounds. Use create with designs for a one-shot natural-language project; repo defaults to the current git repository and config to parity.config.mjs. Actions: create, add-source, analyze, selection, list, status, run-round, delete.',
+    description: 'Manage a project: repo + base commit + design sources, automatic source-to-case matching, subtasks, and manually triggered alignment rounds. Use create with designs for a one-shot natural-language project; repo defaults to the current git repository and config to parity.config.mjs. Actions: create, add-source, discover, analyze, selection, list, status, run-round, clean-rounds, delete. Adding the first URL discovers linked design pages, generates cases, and creates subtasks.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -2047,6 +2047,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
