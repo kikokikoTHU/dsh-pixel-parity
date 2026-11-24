@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -796,7 +796,7 @@ window.__ModuleLoader__.load({
             rail(1, false),
             h('div', { className: 'ppj-main' },
               head('Projects', 'repo + base commit + 设计源，分析与匹配自动执行', [
-                h('button', { className: 'ppj-btn primary', onClick: () => { state.creating = true; notify() } }, '+ 新建项目'),
+                h('button', { className: 'ppj-btn primary', onClick: () => { state.creating = true; state.message = null; notify() } }, '+ 新建项目'),
               ]),
               h('div', { className: 'ppj-body' },
                 store.creating
@@ -811,9 +811,10 @@ window.__ModuleLoader__.load({
                             h('label', null, h('span', { className: 'ppj-label' }, '项目名称（可选）'), h('input', { className: 'ppj-input', placeholder: 'anubis', value: state.projectDraft.name, onChange: event => { state.projectDraft.name = event.target.value; notify() } })),
                           ),
                           h('div', { style: { display: 'flex', gap: 8, marginTop: 12 } },
-                            h('button', { className: 'ppj-btn', onClick: () => { state.creating = false; notify() } }, '取消'),
+                            h('button', { className: 'ppj-btn', onClick: () => { state.creating = false; state.message = null; notify() } }, '取消'),
                             h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || state.projectDraft.repo.trim() === '', onClick: createProjectFromDraft }, state.projectBusy ? '创建中…' : '创建项目'),
                           ),
+                          store.message ? h('div', { className: 'ppj-note', style: { marginTop: 10, color: '#b91c1c' } }, store.message) : null,
                         ),
                       ),
                     )
