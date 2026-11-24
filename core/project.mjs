@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadConfig } from './config.mjs'
@@ -544,15 +544,16 @@ function makeBrief(project, round, subtask, before) {
     `7. Update routes, navigation, tests, and fixtures so the app remains coherent.`,
     `8. You may change app implementation, tests, and temporary mocks. Do not change parity config, design sources, .parity, or vite.pp.config.js.`,
     `9. Do not run git push, git remote, or network commands.`,
-    `10. Create EXACTLY ONE commit with this shape:`,
+    `10. Once the mock UI is verified (pixels <= 1%), remove the temporary mock/fixture values, connect the real data path, and ONLY THEN create the single final commit. Do not create a separate cleanup commit; leave git status --porcelain -uno empty.`,
+    `11. Create EXACTLY ONE commit with this shape:`,
     `   pp(${subtask.id}): align ${subtask.title} to design`,
     `   ...`,
     `   PP-Project: ${project.id}`,
     `   PP-Round: ${round.number}`,
     `   PP-Subtask: ${subtask.id}`,
     `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
-    `11. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
-    `12. Reply with the commit sha and a short summary of changed files.`,
+    `12. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
+    `13. Reply with the commit sha and a short summary of changed files.`,
   ].join('\n')
 }
 
@@ -635,6 +636,23 @@ async function removeMockData(project, round, entry, subtask, worktree, options)
 }
 
 
+function findLatestMockRun(worktree, caseId) {
+  const root = join(worktree, '.parity', 'runs')
+  if (!existsSync(root)) return null
+  const entries = readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => ({ dir: join(root, entry.name) }))
+  for (const entry of entries) {
+    const manifestPath = join(entry.dir, 'manifest.json')
+    if (!existsSync(manifestPath)) continue
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+      if ((manifest.cases ?? []).some(item => item.id === caseId)) return { runDir: entry.dir, manifest }
+    } catch {}
+  }
+  return null
+}
+
 async function squashSubtaskCommit(worktree, entry, round, headBefore) {
   const count = Number(git(worktree, ['rev-list', '--count', `${headBefore}..HEAD`]))
   if (count <= 1) return
@@ -695,6 +713,7 @@ async function runAlignmentRound(project, round, options) {
       caseIds: [subtask.caseId],
       baselineMode: 'ephemeral',
       headless: options.headless !== false,
+      keepServer: options.keepServer === true,
       outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-before`),
     })
     const entry = { subtaskId, caseId: subtask.caseId, before: averagePixels(before.manifest), beforeRunDir: before.runDir, status: 'edited', sha: null, error: null }
@@ -711,7 +730,8 @@ async function runAlignmentRound(project, round, options) {
         brief: makeBrief(project, round, subtask, before),
       })
       const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, round, subtask)
-      round.phase = 'measuring-after'
+      const mockRun = findLatestMockRun(worktree, subtask.caseId)
+      round.phase = 'measuring-real'
       round.progress = { phase: round.phase, subtaskId: subtask.id, commit: commit.sha.slice(0, 12), updatedAt: new Date().toISOString() }
       writeProject(project)
       const after = await runConfig({
@@ -722,16 +742,23 @@ async function runAlignmentRound(project, round, options) {
         caseIds: [subtask.caseId],
         baselineMode: 'ephemeral',
         headless: options.headless !== false,
+        keepServer: options.keepServer === true,
         outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-after`),
       })
-      const afterPixels = averagePixels(after.manifest)
+      const afterPixels = mockRun === null ? averagePixels(after.manifest) : averagePixels(mockRun.manifest)
       entry.after = afterPixels
       entry.sha = commit.sha.slice(0, 12)
       entry.message = commit.message.split('\n')[0]
       entry.commitMessage = commit.message
-      entry.runDir = after.runDir
-      entry.afterRunDir = after.runDir
-      const passed = (after.manifest.summary?.failed ?? 1) === 0
+      entry.runDir = mockRun?.runDir ?? after.runDir
+      entry.afterRunDir = mockRun?.runDir ?? after.runDir
+      entry.afterReal = averagePixels(after.manifest)
+      entry.afterRealRunDir = after.runDir
+      entry.realSummary = after.manifest.summary ?? null
+      entry.cleanup = mockRun === null ? 'no-mock' : 'combined'
+      const passed = mockRun === null
+        ? (after.manifest.summary?.failed ?? 1) === 0
+        : (mockRun.manifest.summary?.failed ?? 1) === 0
       const improved = beforePixels(entry) === null || afterPixels === null || entry.after <= entry.before + 0.0005
       if (!passed && !improved) {
         git(worktree, ['reset', '--hard', headBefore])
@@ -750,12 +777,6 @@ async function runAlignmentRound(project, round, options) {
         round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
         entry.status = 'committed'
         round.afterResult = after
-        if (passed) {
-          await removeMockData(project, round, entry, subtask, worktree, options)
-        } else {
-          entry.cleanup = 'skipped-unverified'
-        }
-        if (entry.status === 'committed') await squashSubtaskCommit(worktree, entry, round, headBefore)
       }
     } catch (error) {
       try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
@@ -812,7 +833,7 @@ export async function runProjectTasks(projectId, options = {}) {
     project.status = 'running'
     writeProject(project)
     try {
-      const { round } = await runRound(projectId, { ...options, selection: [subtaskId], requireVerified: true, retry: false })
+      const { round } = await runRound(projectId, { ...options, selection: [subtaskId], requireVerified: true, retry: false, keepServer: true })
       const item = (round.subtasks ?? []).find(entry => entry.subtaskId === subtaskId)
       if (item === undefined || item.status !== 'committed') throw new Error(item?.error ?? 'subtask did not commit')
       execution.subtasks[subtaskId] = {
@@ -1163,6 +1184,9 @@ export function projectSummary(project) {
     },
   }
 }
+
+
+
 
 
 

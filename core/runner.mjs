@@ -86,7 +86,7 @@ export async function runConfig(options) {
     }
   } finally {
     if (driver !== undefined) await driver.dispose()
-    await stopDevServer(devServer)
+    if (options.keepServer !== true) await stopDevServer(devServer)
   }
 
   let parent
@@ -936,4 +936,5 @@ function repoInfo(repoRoot) {  const info = { root: repoRoot, commit: null, dirt
   }
   return info
 }
+
 
