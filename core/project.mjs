@@ -312,18 +312,21 @@ function makeBrief(project, round, subtask, before) {
     ``,
     `Goals:`,
     `1. Inspect the implementation and the reference/diff artifacts.`,
-    `2. Change only implementation code needed for this subtask.`,
-    `3. Do not change parity config, design sources, package.json, lockfiles, .parity, or vite.pp.config.js.`,
-    `4. Do not run git push, git remote, or network commands.`,
-    `5. Create EXACTLY ONE commit with this shape:`,
+    `2. Achieve COMPLETE alignment: visual shell AND information architecture/business content. Do not stop at CSS or shell-only changes.`,
+    `3. If the current page is a different workflow (for example a query form instead of a statistics dashboard), REPLACE the page content with the prototype structure, and move the existing business flow to a compatible route/tab if needed.`,
+    `4. Update routes, navigation, fixtures, and tests when required so the application remains coherent.`,
+    `5. If the backend data shape does not match the prototype, add local fixtures/mock adapters so the page renders representative data; do not leave it empty/error.`,
+    `6. You may change app implementation, tests, and fixtures. Do not change parity config, design sources, .parity, or vite.pp.config.js.`,
+    `7. Do not run git push, git remote, or network commands.`,
+    `8. Create EXACTLY ONE commit with this shape:`,
     `   pp(${subtask.id}): align ${subtask.title} to design`,
     `   ...`,
     `   PP-Project: ${project.id}`,
     `   PP-Round: ${round.number}`,
     `   PP-Subtask: ${subtask.id}`,
     `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
-    `6. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
-    `7. Reply with the commit sha and a short summary of changed files.`,
+    `9. Leave the worktree clean for tracked files (git status --porcelain -uno must be empty).`,
+    `10. Reply with the commit sha and a short summary of changed files.`,
   ].join('\n')
 }
 
@@ -730,6 +733,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -952,7 +952,7 @@ export function apply(ctx, config) {
       ?? agents.list()[0]
     if (parent === undefined) throw new Error('no live agent available for code alignment')
     const controller = new AbortController()
-    const timeoutMs = 10 * 60 * 1000
+    const timeoutMs = 20 * 60 * 1000
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const activation = await subagents.startActivation({
@@ -2019,6 +2019,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
