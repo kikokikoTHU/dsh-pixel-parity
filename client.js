@@ -658,12 +658,12 @@ window.__ModuleLoader__.load({
       .ppj-step b { display: block; font-size: 12px; font-weight: 600; color: #334155; }
       .ppj-step small { display: block; font-size: 10px; color: #94a3b8; margin-top: 1px; }
       .ppj-rail-note { margin-top: auto; font-size: 10px; line-height: 1.65; color: #94a3b8; border-top: 1px solid #eef2f7; padding-top: 10px; }
-      .ppj-main { display: flex; flex-direction: column; min-width: 0; background: #fff; }
+      .ppj-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
       .ppj-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 22px 14px; border-bottom: 1px solid #eef2f7; }
       .ppj-head h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
       .ppj-head p { margin: 3px 0 0; font-size: 11px; color: #64748b; }
       .ppj-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-      .ppj-body { flex: 1; overflow: auto; padding: 18px 22px; background: #fff; }
+      .ppj-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 22px; background: #fff; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }\n  .ppj-body::-webkit-scrollbar { width: 10px; }\n  .ppj-body::-webkit-scrollbar-track { background: transparent; }\n  .ppj-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; border: 2px solid #fff; }\n  .ppj-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       .ppj-foot { border-top: 1px solid #eef2f7; padding: 12px 22px; display: flex; align-items: center; gap: 10px; background: #fff; }
       .ppj-foot .ppj-note { font-size: 11px; color: #94a3b8; }
       .ppj-btn { height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #d8e0ea; background: #fff; color: #0f172a; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
@@ -1234,6 +1234,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
