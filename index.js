@@ -1833,7 +1833,7 @@ export function apply(ctx, config) {
           ownerSessionId: (typeof ctx.get === 'function' ? ctx.get('agents')?.currentInitiator()?.id : undefined),
         })
         let current = project
-        for (const design of arrayOfText(args.designs, 'designs')) {
+        for (const design of arrayOfText(args.designs, 'designs') ?? []) {
           const location = design.startsWith('http') || isAbsolute(design) ? design : resolve(repo, design)
           if (current.sources.some(source => source.location === location)) continue
           current = await addSource(project.id, { kind: location.startsWith('http') ? 'url' : 'file', location }, { matcher: projectMatcher })
@@ -2047,6 +2047,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
