@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pixel Parity panel — read-only run browser for the Web GUI.
  *
  * Two slot registrations:
@@ -474,7 +474,6 @@ window.__ModuleLoader__.load({
         const payload = await projectPost('/pixel-parity/project/create', {
           repo: state.projectDraft.repo,
           baseCommit: state.projectDraft.baseCommit || 'HEAD',
-          config: state.projectDraft.config || 'parity.config.mjs',
           name: state.projectDraft.name || undefined,
         })
         state.project = payload.project
@@ -796,7 +795,7 @@ window.__ModuleLoader__.load({
             rail(1, false),
             h('div', { className: 'ppj-main' },
               head('Projects', 'repo + base commit + 设计源，分析与匹配自动执行', [
-                h('button', { className: 'ppj-btn primary', onClick: () => { state.creating = true; state.message = null; notify() } }, '+ 新建项目'),
+                h('button', { className: 'ppj-btn primary', onClick: () => { state.creating = true; state.message = null; if (state.projectDraft.repo.trim() === '') state.projectDraft.repo = storedRepo ?? ''; notify() } }, '+ 新建项目'),
               ]),
               h('div', { className: 'ppj-body' },
                 store.creating
@@ -805,11 +804,11 @@ window.__ModuleLoader__.load({
                         h('div', { className: 'ppj-card-h' }, h('b', null, '新建对齐项目')),
                         h('div', { className: 'ppj-card-b' },
                           h('div', { className: 'ppj-grid' },
-                            h('label', null, h('span', { className: 'ppj-label' }, '仓库路径'), h('input', { className: 'ppj-input', placeholder: 'D:\\\\work\\\\anubis', value: state.projectDraft.repo, onChange: event => { state.projectDraft.repo = event.target.value; notify() } })),
+                            h('label', null, h('span', { className: 'ppj-label' }, '仓库路径'), h('input', { className: 'ppj-input', placeholder: '输入仓库绝对路径，例如 D:\\work\\anubis', value: state.projectDraft.repo, onChange: event => { state.projectDraft.repo = event.target.value; notify() } })),
                             h('label', null, h('span', { className: 'ppj-label' }, '基准 commit'), h('input', { className: 'ppj-input', placeholder: 'HEAD', value: state.projectDraft.baseCommit, onChange: event => { state.projectDraft.baseCommit = event.target.value; notify() } })),
-                            h('label', null, h('span', { className: 'ppj-label' }, 'parity config'), h('input', { className: 'ppj-input', placeholder: 'parity.config.mjs', value: state.projectDraft.config, onChange: event => { state.projectDraft.config = event.target.value; notify() } })),
                             h('label', null, h('span', { className: 'ppj-label' }, '项目名称（可选）'), h('input', { className: 'ppj-input', placeholder: 'anubis', value: state.projectDraft.name, onChange: event => { state.projectDraft.name = event.target.value; notify() } })),
                           ),
+                          h('div', { className: 'ppj-note', style: { marginTop: 8 } }, 'parity 配置自动生成并保存在插件项目目录，不写入仓库。'),
                           h('div', { style: { display: 'flex', gap: 8, marginTop: 12 } },
                             h('button', { className: 'ppj-btn', onClick: () => { state.creating = false; state.message = null; notify() } }, '取消'),
                             h('button', { className: 'ppj-btn primary', disabled: state.projectBusy || state.projectDraft.repo.trim() === '', onClick: createProjectFromDraft }, state.projectBusy ? '创建中…' : '创建项目'),
@@ -1235,6 +1234,7 @@ window.__ModuleLoader__.load({
     }
   },
 })
+
 
 
 
