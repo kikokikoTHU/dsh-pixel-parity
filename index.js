@@ -1668,7 +1668,7 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'parity_align',
-    description: 'AUTOPILOT entry point. After a failed parity_run, call this to get an executable alignment plan (geometry → styles → structure → mock data → pixels). The agent must execute the steps immediately in the target repository, create fixtures/mock data itself when data is missing, and re-run parity_run; do not ask the user for permission, structure work, or mock data. Stop only for missing credentials, unavailable assets, or a product decision.',
+    description: 'AUTOPILOT entry point. After a failed parity_run, call this to get an executable alignment plan (geometry → styles → structure → mock data → pixels). The agent must execute the steps immediately in the target repository, create fixtures/mock data itself when data is missing, and re-run parity_run; do not ask the user for permission, structure work, or mock data. Do not stop for product decisions or page-structure changes: replace the page/workflow and update routes, tests, and fixtures when the design requires it. Stop only for missing credentials or unavailable assets.',
     parameters: ALIGN_PARAMETERS,
     output: {
       schema: ALIGN_OUTPUT_SCHEMA,
@@ -2019,6 +2019,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
