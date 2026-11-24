@@ -537,9 +537,9 @@ function comparisonSide(project, round, runDir, caseId, label, entry) {
     return `<div class="vp">
       <div class="kv">${escapeHtml(label)} · ${escapeHtml(viewport.viewportId)} · pixels ${typeof pixels === 'number' ? `${(pixels * 100).toFixed(2)}%` : '—'} · geometry ${geometry} · styles ${styles}</div>
       <div class="shots">
-        ${files.reference ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.reference)}"><figcaption>reference</figcaption></figure>` : ''}
-        ${files.implementation ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.implementation)}"><figcaption>implementation</figcaption></figure>` : ''}
-        ${files.diff ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.diff)}"><figcaption>diff</figcaption></figure>` : ''}
+        ${files.reference ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.reference)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.reference)}"></a><figcaption>reference</figcaption></figure>` : ''}
+        ${files.implementation ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.implementation)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.implementation)}"></a><figcaption>implementation</figcaption></figure>` : ''}
+        ${files.diff ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.diff)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(files.diff)}"></a><figcaption>diff</figcaption></figure>` : ''}
       </div>
     </div>`
   }).join('')
@@ -565,7 +565,7 @@ function buildComparisonReport(project, round, directory, assets) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Round ${round.number} report</title>
   <style>
   body{margin:0;background:#f7f8fa;color:#0f172a;font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif;font-size:13px}
-  .page{max-width:1200px;margin:0 auto;padding:28px}
+  .page{max-width:1600px;margin:0 auto;padding:28px}
   h1{font-size:18px;margin:0}
   h3{font-size:12px;margin:0 0 6px;color:#334155}
   .sub{color:#64748b;font-size:12px;margin-top:4px}
@@ -574,12 +574,14 @@ function buildComparisonReport(project, round, directory, assets) {
   .case-h{display:flex;gap:8px;align-items:center;margin-bottom:10px}
   .pill{border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600}
   .ok{background:#e8f8ef;color:#15803d}.bad{background:#fdecec;color:#b91c1c}
-  .compare{display:flex;gap:14px}
-  .side{flex:1;min-width:0}
+  .compare{display:block}
+  .side{width:100%;margin-bottom:20px}
+  .side h3{font-size:13px;margin:0 0 8px;color:#334155}
   .kv{color:#64748b;font-size:11px;margin-top:6px}
-  .shots{display:flex;gap:8px;flex-wrap:wrap}
-  figure{margin:0;width:31%;min-width:150px}
-  img{width:100%;border:1px solid #e2e8f0;border-radius:6px;display:block}
+  .shots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  figure{margin:0;min-width:0}
+  .shot{display:block;cursor:zoom-in}
+  img{width:100%;height:auto;border:1px solid #e2e8f0;border-radius:6px;display:block}
   figcaption{color:#94a3b8;font-size:10px;margin-top:3px}
   </style></head><body><div class="page">
   <h1>Round ${round.number} 对齐报告</h1>
@@ -629,9 +631,9 @@ function buildRoundReport(project, round, result) {
         <div class="vp">
           <div class="kv">${escapeHtml(viewport.id)} · pixels ${viewport.pixels === null ? '—' : `${(viewport.pixels * 100).toFixed(2)}%`} · geometry ${viewport.geometry} · styles ${viewport.styles}</div>
           <div class="shots">
-            ${viewport.files.reference ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.reference)}"><figcaption>reference</figcaption></figure>` : ''}
-            ${viewport.files.implementation ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.implementation)}"><figcaption>implementation</figcaption></figure>` : ''}
-            ${viewport.files.diff ? `<figure><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.diff)}"><figcaption>diff</figcaption></figure>` : ''}
+            ${viewport.files.reference ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.reference)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.reference)}"></a><figcaption>reference</figcaption></figure>` : ''}
+            ${viewport.files.implementation ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.implementation)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.implementation)}"></a><figcaption>implementation</figcaption></figure>` : ''}
+            ${viewport.files.diff ? `<figure><a class="shot" href="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.diff)}" target="_blank" rel="noreferrer"><img src="/pixel-parity/project/asset?projectId=${encodeURIComponent(project.id)}&round=${round.number}&name=${encodeURIComponent(viewport.files.diff)}"></a><figcaption>diff</figcaption></figure>` : ''}
           </div>
         </div>`).join('')}
     </section>`).join('')
@@ -752,6 +754,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
