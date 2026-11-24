@@ -315,6 +315,7 @@ cases/<case>/<viewport>/
 | M61 ✅ | 验收后自动清理 mock：verified 后追加一次 cleanup Agent，删除 fixture/demo 数据、接真实数据/空态并单独 commit；报告 After 同时展示 mock 页面与 real 页面 | 交付前恢复真实数据 |
 | M62 ✅ | Mock-first 默认策略：任何数据区域先用设计图原始数值/行数/顺序做临时 mock，UI 验收后删除；真实数据差异仅作 informational，不要求与设计数值一致 | 仅对齐整体设计，不对齐数据侧 |
 | M63 ✅ | 设计站自动发现：从入口 URL 抓同源/同目录/HTML 链接（Playwright 优先，静态回退），提取 title/h1；扫描实现路由，按标题生成项目本地 case；自动添加全部 sources + subtasks；支持 Discover 按钮/工具 action | 一个原型链接补齐整套页面 |
+| M64 ✅ | 项目配置自动生成并持久化在插件：缺失 repo config 时 detectRepo 生成 `data/projects/<id>/parity.base.mjs`，自动发现后生成 `parity.generated.mjs`；不写入 repo | 创建项目无需手写 config |
 | M57 ⏳ TODO | Round 内自动调用 Agent 修复代码：Run next round 时读取上一轮 findings/plan，启动 Agent 在项目 worktree 内修改实现，再测量并生成报告；优先做 Assisted（生成修复任务 + 人确认），Auto 需 git 快照/回滚、超时与 token 预算 | 待实现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。
