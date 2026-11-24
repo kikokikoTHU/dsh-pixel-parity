@@ -312,6 +312,7 @@ cases/<case>/<viewport>/
 | M58 ✅ | Round 代码对齐：链式分支 `pp/<slug>/rNN`、Before/After 测量、spawn 子 Agent 改代码并自行 commit、commit/trailer/无 push 校验、失败回滚、tag；清理 Round/项目删除 branch/tag；runs 移出 worktree | 支持 Agent 自动对齐代码 |
 | M59 ✅ | 轮次报告展示 Before/After 对比：每个 subtask 左右两栏显示修改前后的 reference/implementation/diff、像素与几何/样式结果；旧轮次可重新生成 | 直观看到对齐收益 |
 | M60 ✅ | Round 默认完整业务对齐：Agent 指令要求对齐视觉外壳 + 信息架构/业务内容，可替换页面/迁移旧流程、更新路由与测试、补 fixtures/mock；超时提升至 20 分钟 | 业务内容也自动对齐 |
+| M61 ✅ | 验收后自动清理 mock：verified 后追加一次 cleanup Agent，删除 fixture/demo 数据、接真实数据/空态并单独 commit；报告 After 同时展示 mock 页面与 real 页面 | 交付前恢复真实数据 |
 | M57 ⏳ TODO | Round 内自动调用 Agent 修复代码：Run next round 时读取上一轮 findings/plan，启动 Agent 在项目 worktree 内修改实现，再测量并生成报告；优先做 Assisted（生成修复任务 + 人确认），Auto 需 git 快照/回滚、超时与 token 预算 | 待实现 |
 
 每个阶段都用真实 repo 验证：Web 阶段用任意 Vue/React 项目（anubis 只是其中一个测试样本，不进入插件代码）。

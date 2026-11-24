@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -331,6 +331,83 @@ function makeBrief(project, round, subtask, before) {
   ].join('\n')
 }
 
+function makeCleanupBrief(project, round, subtask, entry) {
+  return [
+    `The mock-data alignment for this subtask is ACCEPTED (${typeof entry.after === 'number' ? `${(entry.after * 100).toFixed(2)}% pixels` : 'verified'}).`,
+    `Now remove the mock/demo/snapshot data used only for alignment and restore the real data path.`,
+    `Project: ${project.name} (${project.id})`,
+    `Round: ${round.number}`,
+    `Subtask: ${subtask.title} (${subtask.id})`,
+    `Branch: ${round.branch}`,
+    ``,
+    `Requirements:`,
+    `1. Remove local fixtures, mock arrays, hard-coded dashboard numbers, and demo-only adapters introduced for this task.`,
+    `2. Connect the page to the real application data source/service. Keep the accepted visual layout.`,
+    `3. If the real source lacks an aggregate response, use the real service/client and show a real empty/loading/error state; never silently fall back to demo data.`,
+    `4. Update imports, routes, and tests so no reference to the removed mock remains.`,
+    `5. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push.`,
+    `6. Commit EXACTLY ONE cleanup commit:`,
+    `   pp(${subtask.id}): use real data for ${subtask.title}`,
+    `   ...`,
+    `   PP-Project: ${project.id}`,
+    `   PP-Round: ${round.number}`,
+    `   PP-Subtask: ${subtask.id}`,
+    `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
+    `   PP-Stage: real-data`,
+    `7. Leave git status --porcelain -uno empty and reply with the commit sha.`,
+    `If no mock data exists, make no changes and reply "NO-MOCK".`,
+  ].join('\n')
+}
+
+async function removeMockData(project, round, entry, subtask, worktree, options) {
+  const headBefore = gitHead(worktree)
+  const remoteBefore = remoteRefs(project.repo)
+  round.phase = 'removing-mock'
+  round.progress = { phase: round.phase, subtaskId: subtask.id, updatedAt: new Date().toISOString() }
+  writeProject(project)
+  try {
+    await options.editor({ cwd: worktree, project, round, subtask, before: null, brief: makeCleanupBrief(project, round, subtask, entry) })
+    const headAfter = gitHead(worktree)
+    const status = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+    if (headAfter === headBefore && status.length === 0) {
+      entry.cleanup = 'no-mock'
+    } else if (headAfter === headBefore) {
+      throw new Error('mock cleanup left uncommitted tracked changes')
+    } else {
+      const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, round, subtask)
+      entry.cleanup = 'committed'
+      entry.cleanupSha = commit.sha.slice(0, 12)
+      entry.cleanupMessage = commit.message.split('\n')[0]
+      round.commits.push({ subtaskId: subtask.id, sha: entry.cleanupSha, message: entry.cleanupMessage, stage: 'real-data' })
+    }
+  } catch (error) {
+    try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
+    entry.cleanup = 'failed'
+    entry.cleanupError = String(error?.message ?? error)
+  }
+  round.phase = 'measuring-real'
+  round.progress = { phase: round.phase, subtaskId: subtask.id, updatedAt: new Date().toISOString() }
+  writeProject(project)
+  try {
+    const real = await runConfig({
+      configPath: project.config,
+      repoRoot: worktree,
+      dependenciesRoot: project.dependenciesRoot ?? undefined,
+      referenceCacheDir: join(projectsDirectory(), project.id, 'cache', 'references'),
+      caseIds: [subtask.caseId],
+      baselineMode: 'ephemeral',
+      headless: options.headless !== false,
+      outDir: join(projectsDirectory(), project.id, 'runs', `${round.id}-${subtask.id}-after-real`),
+    })
+    entry.afterReal = averagePixels(real.manifest)
+    entry.afterRealRunDir = real.runDir
+    entry.realSummary = real.manifest.summary ?? null
+  } catch (error) {
+    entry.realError = String(error?.message ?? error)
+  }
+}
+
+
 async function validateAgentCommit(worktree, repo, headBefore, remoteBefore, round, subtask) {
   const headAfter = gitHead(worktree)
   if (headAfter === headBefore) throw new Error('agent did not create a commit')
@@ -401,6 +478,8 @@ async function runAlignmentRound(project, round, options) {
       const after = await runConfig({
         configPath: project.config,
         repoRoot: worktree,
+        dependenciesRoot: project.dependenciesRoot ?? undefined,
+        referenceCacheDir: join(projectsDirectory(), project.id, 'cache', 'references'),
         caseIds: [subtask.caseId],
         baselineMode: 'ephemeral',
         headless: options.headless !== false,
@@ -422,6 +501,11 @@ async function runAlignmentRound(project, round, options) {
         round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
         entry.status = 'committed'
         round.afterResult = after
+        if (passed) {
+          await removeMockData(project, round, entry, subtask, worktree, options)
+        } else {
+          entry.cleanup = 'skipped-unverified'
+        }
       }
     } catch (error) {
       try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
@@ -529,7 +613,7 @@ function comparisonSide(project, round, runDir, caseId, label, entry) {
   const caseEntry = loadRunCase(runDir, caseId)
   if (caseEntry === null) return ''
   return caseEntry.viewports.map(viewport => {
-    const prefix = label === 'Before' ? 'before' : 'after'
+    const prefix = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     const files = copyViewportShots(runDir, caseId, viewport.viewportId, `${prefix}-${entry.subtaskId}`, join(projectsDirectory(), project.id, 'rounds', round.id, 'assets'))
     const pixels = viewport.pixels?.metrics?.mismatchRatio
     const geometry = viewport.geometry?.available === true ? (viewport.geometry.pass === true ? 'pass' : 'fail') : 'unavailable'
@@ -550,16 +634,19 @@ function buildComparisonReport(project, round, directory, assets) {
     const beforeDir = entry.beforeRunDir ?? join(projectsDirectory(), project.id, 'runs', `${round.id}-${entry.subtaskId}-before`)
     const afterDir = entry.afterRunDir ?? entry.runDir
     const before = comparisonSide(project, round, beforeDir, entry.caseId, 'Before', entry)
-    const after = comparisonSide(project, round, afterDir, entry.caseId, 'After', entry)
+    const showReal = entry.afterRealRunDir !== undefined && entry.cleanup !== 'no-mock'
+    const after = comparisonSide(project, round, afterDir, entry.caseId, showReal ? 'After · mock data' : 'After', entry)
+    const afterReal = showReal ? comparisonSide(project, round, entry.afterRealRunDir, entry.caseId, 'After · real data', entry) : ''
     const beforePixels = typeof entry.before === 'number' ? `${(entry.before * 100).toFixed(2)}%` : '—'
     const afterPixels = typeof entry.after === 'number' ? `${(entry.after * 100).toFixed(2)}%` : '—'
     return `<section class="case">
       <div class="case-h"><strong>${escapeHtml(entry.subtaskId)}</strong><span class="pill ${entry.status === 'committed' ? 'ok' : 'bad'}">${escapeHtml(entry.status)}</span><span class="mut">${escapeHtml(beforePixels)} → ${escapeHtml(afterPixels)}</span></div>
       <div class="compare">
         <div class="side"><h3>Before</h3>${before || '<div class="mut">no before capture</div>'}</div>
-        <div class="side"><h3>After</h3>${after || '<div class="mut">no after capture</div>'}</div>
+        <div class="side"><h3>${showReal ? 'After · mock data' : 'After'}</h3>${after || '<div class="mut">no after capture</div>'}</div>
+        ${showReal ? `<div class="side"><h3>After · real data</h3>${afterReal || '<div class="mut">no real-data capture</div>'}</div>` : ''}
       </div>
-      <div class="kv">${entry.sha == null ? '' : `commit ${escapeHtml(entry.sha)}`}${entry.error == null ? '' : ` · ${escapeHtml(entry.error)}`}</div>
+      <div class="kv">${entry.sha == null ? '' : `alignment commit ${escapeHtml(entry.sha)}`}${entry.cleanupSha == null ? '' : ` · real-data commit ${escapeHtml(entry.cleanupSha)}`}${entry.afterReal === undefined ? '' : ` · real ${(entry.afterReal * 100).toFixed(2)}%`}${entry.cleanupError == null ? '' : ` · cleanup failed: ${escapeHtml(entry.cleanupError)}`}${entry.realError == null ? '' : ` · real capture failed: ${escapeHtml(entry.realError)}`}${entry.error == null ? '' : ` · ${escapeHtml(entry.error)}`}</div>
     </section>`
   }).join('')
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Round ${round.number} report</title>
