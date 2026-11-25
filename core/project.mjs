@@ -11,6 +11,7 @@ import { loadConfig } from './config.mjs'
 import { runConfig } from './runner.mjs'
 import { logEvent } from './log.mjs'
 import { detectRepo } from './init.mjs'
+import { scanMockArtifacts } from './mock-scan.mjs'
 import { buildImplementationUrl, discoverDesignPages, discoverRoutes, matchPageToRoute, routeCaseId } from './discover.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -544,7 +545,7 @@ function makeBrief(project, round, subtask, before) {
     `7. Update routes, navigation, tests, and fixtures so the app remains coherent.`,
     `8. You may change app implementation, tests, and temporary mocks. Do not change parity config, design sources, .parity, or vite.pp.config.js.`,
     `9. Do not run git push, git remote, or network commands.`,
-    `10. Once the mock UI is verified (pixels <= 1%), remove the temporary mock/fixture values, connect the real data path, and ONLY THEN create the single final commit. Do not create a separate cleanup commit; leave git status --porcelain -uno empty.`,
+    `10. Cleanup is MANDATORY: once the mock UI is verified (pixels <= 1%), remove ALL mock/fixture/demo/seed files, values, imports and adapters, connect the real data path, and ONLY THEN create the single final commit. The page may be empty/error; that is acceptable. The plugin scans the commit and rejects any remaining mock. Leave git status --porcelain -uno empty.`,
     `11. Create EXACTLY ONE commit with this shape:`,
     `   pp(${subtask.id}): align ${subtask.title} to design`,
     `   ...`,
@@ -572,7 +573,7 @@ function makeCleanupBrief(project, round, subtask, entry) {
     `3. If the real source lacks data, use the real service/client and show a real empty/loading/error state; never silently fall back to demo data.`,
     `4. Real values may differ from the design. Do NOT try to make real data match the design, and do NOT restore the mock to hide the difference.`,
     `5. Update imports, routes, and tests so no reference to the removed mock remains.`,
-    `6. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push.`,
+    `6. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push. The final commit MUST contain zero mock/fixture/demo/seed paths or imports; the plugin enforces this and will reject the subtask otherwise.`,
     `7. Acceptance is based on the mock capture; real-data visual differences are informational.`,
     `8. Commit EXACTLY ONE cleanup commit:`,
     `   pp(${subtask.id}): use real data for ${subtask.title}`,
@@ -783,7 +784,25 @@ async function runAlignmentRound(project, round, options) {
           writeProject(project)
           throw new Error(`subtask ${subtask.id} not verified at ${(afterPixels * 100).toFixed(2)}%`)
         }
-        round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
+        if (passed) {
+          const artifacts = scanMockArtifacts(worktree, headBefore)
+          if (artifacts.length > 0) {
+            round.phase = 'removing-mock'
+            writeProject(project)
+            await removeMockData(project, round, entry, subtask, worktree, options)
+            const remaining = scanMockArtifacts(worktree, headBefore)
+            if (entry.cleanup === 'failed' || remaining.length > 0) {
+              git(worktree, ['reset', '--hard', headBefore])
+              entry.status = 'failed'
+              entry.error = `mock data remains after cleanup: ${(remaining.length > 0 ? remaining : [{ path: entry.cleanupError ?? 'cleanup failed' }]).map(item => item.path).join(', ')}`
+              round.phase = 'failed'
+              writeProject(project)
+              throw new Error(entry.error)
+            }
+            await squashSubtaskCommit(worktree, entry, round, headBefore)
+          }
+        }
+        if (round.commits.length === 0) round.commits.push({ subtaskId, sha: entry.sha, message: entry.message })
         entry.status = 'committed'
         round.afterResult = after
       }
@@ -1193,6 +1212,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
