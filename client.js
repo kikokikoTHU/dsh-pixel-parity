@@ -894,7 +894,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ppj-card' },
           h('div', { className: 'ppj-card-b', style: { display: 'flex', alignItems: 'center', gap: 8 } },
             h('div', { style: { flex: 1 } },
-              h('div', { className: 'ppj-kv' }, execution === undefined ? '尚未开始；勾选子任务后手动执行' : `${doneCount}/${totalCount} 子任务完成 · ${execution.status}`),
+              h('div', { className: 'ppj-kv' }, execution == null ? '尚未开始；勾选子任务后手动执行' : `${doneCount}/${totalCount} 子任务完成 · ${execution.status}`),
               execution?.error ? h('div', { className: 'ppj-kv', style: { color: '#b91c1c', marginTop: 4 } }, execution.error) : null,
             ),
             running
