@@ -828,6 +828,50 @@ async function runAlignmentRound(project, round, options) {
   return round
 }
 
+export async function cleanupProjectMocks(projectId, options = {}) {
+  const project = readProject(projectId)
+  const worktree = project.worktree
+  if (typeof worktree !== 'string' || !existsSync(worktree)) throw new Error('project worktree is missing')
+  const dirty = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+  if (dirty.length > 0) throw new Error(`worktree has tracked changes before cleanup: ${dirty}`)
+  const artifacts = scanMockArtifacts(worktree, project.baseCommit)
+  if (artifacts.length === 0) return { project, cleaned: false, remaining: [] }
+  const headBefore = gitHead(worktree)
+  const remoteBefore = remoteRefs(project.repo)
+  const list = artifacts.map(item => `- ${item.path} (${item.reasons.join('; ')})`).join('\n')
+  const brief = [
+    `Remove ALL design mock/fixture/demo/seed data and imports from this project.`,
+    `Files detected:`,
+    list,
+    `Requirements:`,
+    `1. Delete design fixture modules and their imports; keep the page layout and real service calls.`,
+    `2. Replace fixture reads with real data paths or explicit empty/loading/error states. The page may be empty; that is acceptable.`,
+    `3. Remove seeded demo rows from mock/state.js; if the module is still needed, move it out of any mock/fixture path and update imports.`,
+    `4. Do not change parity config, design sources, .parity, or vite.pp.config.js. Do not push.`,
+    `5. Create exactly one commit: chore: remove design mocks`,
+    `   PP-Project: ${project.id}`,
+    `   PP-Round: 0`,
+    `   PP-Subtask: cleanup`,
+    `   PP-Base-Commit: ${project.baseCommit.slice(0, 7)}`,
+    `6. Then run the mock scan mentally: no path or import may contain mock/fixture/demo/seed.`,
+  ].join('\n')
+  try {
+    await options.editor({ cwd: worktree, project, subtask: { id: 'cleanup', title: 'mock cleanup' }, round: { number: 0 }, brief })
+    const commit = await validateAgentCommit(worktree, project.repo, headBefore, remoteBefore, { number: 0 }, { id: 'cleanup' })
+    const remaining = scanMockArtifacts(worktree, project.baseCommit)
+    if (remaining.length > 0) throw new Error(`mock artifacts remain: ${remaining.map(item => item.path).join(', ')}`)
+    project.cleanup = { status: 'done', sha: commit.sha.slice(0, 12), at: new Date().toISOString() }
+    project.status = 'ready'
+    writeProject(project)
+    logEvent('project.cleanup.done', { projectId, sha: commit.sha.slice(0, 12) })
+    return { project: readProject(projectId), cleaned: true, remaining: [] }
+  } catch (error) {
+    try { git(worktree, ['reset', '--hard', headBefore]) } catch {}
+    logEvent('project.cleanup.failed', { projectId, error: String(error?.message ?? error) }, 'error')
+    throw error
+  }
+}
+
 export async function runProjectTasks(projectId, options = {}) {
   let project = readProject(projectId)
   if (project.execution?.status === 'running') throw new Error('project tasks are already running')
@@ -1212,6 +1256,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pixel parity — make a frontend implementation measurably match its design.
  *
  * The plugin exposes one tool (`parity_check`) that renders a page in headless
@@ -18,7 +18,7 @@ import { buildReport, renderReport, resolveRunDir } from './core/report.mjs'
 import { diagnoseRun } from './core/diagnose.mjs'
 import { buildAlignmentPlan, readManifest } from './core/plan.mjs'
 import { createTask, deleteTask, listTasks, readTask, recoverInterruptedTasks, reportTask, stepTask, taskSummary } from './core/task.mjs'
-import { addSource, analyzeProject, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runProjectTasks, runRound, setSelection } from './core/project.mjs'
+import { addSource, analyzeProject, cleanupProjectMocks, cleanRounds, createProject, deleteProject, discoverProjectSources, listProjects, projectSummary, projectsDirectory, readProject, removeSource, runProjectTasks, runRound, setSelection } from './core/project.mjs'
 import { logEvent, readLogs } from './core/log.mjs'
 import { overview, resolveArtifact } from './core/panel.mjs'
 import { parseFigmaFile, parseFigmaLink } from './core/figma-source.mjs'
@@ -1798,7 +1798,7 @@ export function apply(ctx, config) {
       additionalProperties: false,
       required: ['action'],
       properties: {
-        action: { type: 'string', enum: ['create', 'add-source', 'discover', 'analyze', 'selection', 'list', 'status', 'run', 'retry', 'run-round', 'clean-rounds', 'delete'] },
+        action: { type: 'string', enum: ['create', 'add-source', 'discover', 'analyze', 'selection', 'list', 'status', 'run', 'retry', 'run-round', 'cleanup-mocks', 'clean-rounds', 'delete'] },
         repo: { type: 'string' },
         baseCommit: { type: 'string' },
         config: { type: 'string' },
@@ -1872,6 +1872,10 @@ export function apply(ctx, config) {
       if (action === 'clean-rounds') {
         const project = cleanRounds(projectId, args.mode === 'all' ? 'all' : 'failed')
         return { action, project: projectSummary(project) }
+      }
+      if (action === 'cleanup-mocks') {
+        const project = await cleanupProjectMocks(projectId, { editor: projectEditor })
+        return { action, project: projectSummary(project.project), cleaned: project.cleaned }
       }
       if (action === 'run' || action === 'retry') {
         const project = await runProjectTasks(projectId, {
@@ -2089,6 +2093,7 @@ function buildRunValue(result) {
     })),
   }
 }
+
 
 
 
