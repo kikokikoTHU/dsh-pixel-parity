@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project-style alignment: repo + base commit + design sources → matched
  * subtasks → manually triggered rounds → per-round reports.
  */
@@ -636,8 +636,8 @@ async function removeMockData(project, round, entry, subtask, worktree, options)
 }
 
 
-function findLatestMockRun(worktree, caseId) {
-  const roots = [join(worktree, '.parity', 'runs'), join(worktree, 'runs')]
+function findLatestMockRun(project, worktree, caseId) {
+  const roots = [join(worktree, '.parity', 'runs'), join(worktree, 'runs'), join(projectsDirectory(), project.id, 'runs')]
   const entries = []
   for (const root of roots) {
     if (!existsSync(root)) continue
@@ -1193,6 +1193,7 @@ export function projectSummary(project) {
     },
   }
 }
+
 
 
 
